@@ -11,15 +11,20 @@ USE SCHEMA sovereign_shield;
 -- 1. Micro-Level Transaction Table (Simulating Multi-Country Submissions)
 CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
     transaction_id STRING,
-    reporting_country STRING,      -- e.g., 'ca', 'us', 'gb', 'de'
-    reporting_institution STRING, -- e.g., 'BOC_INST_01', 'FED_INST_04'
-    counterpart_country STRING,   -- e.g., 'us', 'ca', 'jp'
-    sector_code STRING,           -- e.g., 'NFC' (Non-Financial Corps), 'FC' (Financial Corps)
-    currency STRING,              -- e.g., 'CAD', 'USD', 'EUR'
+    reporting_country STRING,      -- e.g., 'ca', 'us', 'gb'
+    reporting_institution STRING,  -- e.g., 'RBC_ROYAL_BANK', 'JPMORGAN_US'
+    position_type STRING,          -- 'C' (Claims/Assets), 'L' (Liabilities)
+    instrument STRING,             -- 'A' (All instruments), 'D' (Debt securities), 'G' (Loans and deposits)
+    currency STRING,               -- e.g., 'CAD', 'USD', 'EUR', 'GBP', 'CHF', 'JPY'
+    currency_type STRING,          -- 'D' (Domestic currency), 'F' (Foreign currency), 'A' (All currencies)
+    parent_country STRING,         -- e.g., 'CA', 'US', 'GB', 'DE'
+    bank_type STRING,              -- 'A' (All reporting banks), 'D' (Domestic banks), 'B' (Foreign branches)
+    counterpart_country STRING,    -- e.g., 'us', 'ca', 'jp'
+    sector_code STRING,            -- official BIS codes: 'B','M','F','C','G','H'
     transaction_amount DOUBLE,
-    obs_conf STRING,              -- 'F' (Free), 'N' (Non-publishable), 'C' (Confidential)
-    ibs_agg_scope STRING,         -- e.g., 'LBSR' (Locational Banking Statistics)
-    date_scope STRING,            -- e.g., '2026-Q1'
+    obs_conf STRING,                -- 'F' (Free), 'N' (Non-publishable), 'C' (Confidential)
+    ibs_agg_scope STRING,           -- e.g., 'LBSR' (Locational Banking Statistics)
+    date_scope STRING,              -- e.g., '2026-Q1'
     transaction_timestamp TIMESTAMP
 ) USING DELTA;
 
