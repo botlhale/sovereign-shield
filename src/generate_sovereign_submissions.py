@@ -2,12 +2,12 @@
 
 This module models a "Sovereign Isolation" architecture in which each
 reporting country's bank-level submissions live in their own micro-data
-table (e.g. ``dbw_sovereignshield.sovereign_shield.lbs_micro_transactions_ca`` and
-``_us``), are aggregated locally into SDMx 3.0 macro time series, and are
-serialized into official SDMx 3.0 XML (ML) submission files using the live
-Data Structure Definition (DSD) fetched from the BIS REST API.
+table (e.g. ``dbw_sovereignshield.sovereign_shield.lbs_micro_transactions_ca``,
+``_us``, and ``_gb``), are aggregated locally into SDMx 3.0 macro time series,
+and are serialized into official SDMx 3.0 XML (ML) submission files using the
+live Data Structure Definition (DSD) fetched from the BIS REST API.
 
-Two synthetic national scenarios are produced for pipeline testing:
+Three synthetic national scenarios are produced for pipeline testing:
 
 * Canada (``CA``): a clean submission whose currency-type components
   (Domestic + Foreign + Unallocated) mathematically reconcile with the
@@ -17,6 +17,11 @@ Two synthetic national scenarios are produced for pipeline testing:
   reconcile with the ``TO1.A`` aggregate (``LBS_CC01`` failure), and where a
   single bank contributes more than the dominance threshold of the
   aggregate, triggering restricted confidentiality.
+* United Kingdom (``GB``): a mostly clean, reconciling submission with
+  ``INVALID_RECORD_RATE`` (~15%) of its components deliberately corrupted
+  (negative amounts, non-permitted sector/instrument pairings, and
+  inconsistent bank-type/parent-country combinations) to exercise the
+  quarantine path end-to-end.
 """
 
 from __future__ import annotations
@@ -77,6 +82,7 @@ OUTPUT_DIR: str = "data"
 SOVEREIGN_SENDERS: Dict[str, Organisation] = {
     "ca": Organisation(id="BOC", name="Bank of Canada"),
     "us": Organisation(id="FRB", name="Federal Reserve System"),
+    "gb": Organisation(id="BOE", name="Bank of England"),
 }
 
 #: Data lifecycle states supported by `generate_sdmx_ml`, mapped to their SDMx `ActionType`.
@@ -90,7 +96,11 @@ SUBMISSION_ACTIONS: Dict[str, ActionType] = {
 SOVEREIGN_SUBMISSION_TYPES: Dict[str, str] = {
     "ca": "Revision",
     "us": "Break in Series",
+    "gb": "First Submission",
 }
+
+#: Approximate share of GB's synthetic components deliberately corrupted to exercise the quarantine path.
+INVALID_RECORD_RATE: float = 0.15
 
 
 def _build_time_series_code(dimensions: Dict[str, str]) -> str:
@@ -109,19 +119,21 @@ def _make_micro_rows(
     base_dimensions: Dict[str, str],
     components: List[tuple],
 ) -> List[Dict[str, object]]:
-    """Expands a list of (L_DENOM, L_CURR_TYPE, BANK_CODE, OBS_VALUE) tuples into micro rows.
+    """Expands (L_DENOM, L_CURR_TYPE, BANK_CODE, OBS_VALUE[, overrides]) tuples into micro rows.
 
     Args:
         base_dimensions: The 9 fixed dimensions shared by all rows in a scenario
             (all `DSD_DIMENSIONS` except `L_DENOM` and `L_CURR_TYPE`).
-        components: Tuples of `(l_denom, l_curr_type, bank_code, obs_value)`.
+        components: Tuples of `(l_denom, l_curr_type, bank_code, obs_value)`, optionally
+            followed by a dimension-override dict (e.g. `{"L_CP_SECTOR": "H"}`) used to
+            inject deliberately invalid combinations for quarantine-path testing.
 
     Returns:
         A list of dicts, one per component, matching the strict `MICRO_COLUMNS` schema.
     """
     rows: List[Dict[str, object]] = []
-    for l_denom, l_curr_type, bank_code, obs_value in components:
-        dims = {**base_dimensions, "L_DENOM": l_denom, "L_CURR_TYPE": l_curr_type}
+    for l_denom, l_curr_type, bank_code, obs_value, *overrides in components:
+        dims = {**base_dimensions, "L_DENOM": l_denom, "L_CURR_TYPE": l_curr_type, **(overrides[0] if overrides else {})}
         rows.append(
             {
                 "TIME_SERIES_CODE": _build_time_series_code(dims),
@@ -137,8 +149,8 @@ def _make_micro_rows(
 def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
     """Generates synthetic, sovereign-isolated bank-level LBS micro-data per country.
 
-    Models two separate national micro-data tables:
-    ``dbw_sovereignshield.sovereign_shield.lbs_micro_transactions_ca`` and ``_us``.
+    Models three separate national micro-data tables:
+    ``dbw_sovereignshield.sovereign_shield.lbs_micro_transactions_ca``, ``_us``, and ``_gb``.
 
     Scenario A (Canada, `L_REP_CTY = 'CA'`): components (Domestic + Foreign +
     Unallocated) sum to exactly the `TO1.A` aggregate, satisfying the
@@ -150,9 +162,18 @@ def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
     `LBS_CC01`, and `BANK_US_1` holds 70% of the `TO1.A` aggregate, triggering
     the dominance rule.
 
+    Scenario C (United Kingdom, `L_REP_CTY = 'GB'`): a mostly clean, reconciling
+    submission (same `LBS_CC01` pattern as Canada) with `INVALID_RECORD_RATE`
+    (~15%) of its components deliberately corrupted to exercise the quarantine
+    path: a negative `OBS_VALUE` (breaks `LBS_CC01` reconciliation), a
+    Household (`H`) sector holding Debt securities (`D`) instruments (a
+    non-permitted sector-instrument pairing for LBS reporting), and a
+    'domestic bank' (`L_REP_BANK_TYPE = 'D'`) declared with a foreign parent
+    country (a logically inconsistent bank-type/parent-country combination).
+
     Returns:
-        A dict keyed by lower-case country code (`'ca'`, `'us'`), each value a
-        pandas DataFrame with exactly the 5 columns in `MICRO_COLUMNS`.
+        A dict keyed by lower-case country code (`'ca'`, `'us'`, `'gb'`), each
+        value a pandas DataFrame with exactly the 5 columns in `MICRO_COLUMNS`.
     """
     # ------------------------------------------------------------------
     # Scenario A: Canada (CA) — clean submission, publicly publishable.
@@ -205,7 +226,36 @@ def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
     ]
     df_us = pd.DataFrame(_make_micro_rows(us_base, us_components), columns=MICRO_COLUMNS)
 
-    return {"ca": df_ca, "us": df_us}
+    # ------------------------------------------------------------------
+    # Scenario C: United Kingdom (GB) — mostly clean, with ~INVALID_RECORD_RATE
+    # of components deliberately corrupted to exercise the quarantine path.
+    # ------------------------------------------------------------------
+    gb_base = {**ca_base, "L_REP_CTY": "GB"}
+    gb_components = [
+        # Domestic currency (GBP:D) -> total 600
+        ("GBP", "D", "BANK_GB_1", 300.0),
+        ("GBP", "D", "BANK_GB_2", 300.0),
+        # Foreign currencies (TO1:F) -> total 500
+        ("TO1", "F", "BANK_GB_1", 250.0),
+        ("TO1", "F", "BANK_GB_2", 250.0),
+        # Unallocated currency type (UN9:U) -> total 100
+        ("UN9", "U", "BANK_GB_3", 100.0),
+        # All-currencies aggregate (TO1:A) -> total 1200 = 600 + 500 + 100 (LBS_CC01 passes)
+        ("TO1", "A", "BANK_GB_1", 480.0),
+        ("TO1", "A", "BANK_GB_2", 480.0),
+        ("TO1", "A", "BANK_GB_3", 240.0),
+
+        # --- ~INVALID_RECORD_RATE (~15%) deliberately invalid records for quarantine testing ---
+        # 1) Negative transaction amount -> breaks LBS_CC01 reconciliation math.
+        ("GBP", "D", "BANK_GB_1", -150.0),
+        # 2) Invalid sector-currency pairing: Household ('H') sector holding Debt securities ('D').
+        ("EUR", "F", "BANK_GB_2", 50.0, {"L_CP_SECTOR": "H", "L_INSTR": "D"}),
+        # 3) Mismatched bank_type/parent_country: a 'domestic bank' (D) cannot have a foreign parent.
+        ("CHF", "F", "BANK_GB_3", 75.0, {"L_REP_BANK_TYPE": "D", "L_PARENT_CTY": "US"}),
+    ]
+    df_gb = pd.DataFrame(_make_micro_rows(gb_base, gb_components), columns=MICRO_COLUMNS)
+
+    return {"ca": df_ca, "us": df_us, "gb": df_gb}
 
 
 def aggregate_micro_to_macro(df_micro: pd.DataFrame, threshold: float = 0.60) -> pd.DataFrame:

@@ -26,21 +26,23 @@ def generate_and_aggregate_micro_data(spark: SparkSession, date_scope: str = "20
     # Columns: transaction_id, reporting_country, reporting_institution, position_type,
     # instrument, currency, currency_type, parent_country, bank_type, counterpart_country,
     # sector_code, transaction_amount, obs_conf, ibs_agg_scope, date_scope, transaction_timestamp
+    # Country codes (reporting_country, counterpart_country, parent_country) are uppercase
+    # ISO 3166-1 alpha-2 so segment 9 of TIME_SERIES_CODE matches the Unity Catalog RLS policy.
     raw_micro_data = [
-        # Canada (ca) transactions
-        ("TX_CA_001", "ca", "RBC_ROYAL_BANK", "C", "A", "CAD", "D", "CA", "A", "us", "B", 125000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
-        ("TX_CA_002", "ca", "TD_BANK_CA", "L", "D", "USD", "F", "CA", "D", "gb", "F", 45000000.00, "C", "LBSR", date_scope, datetime.datetime.now()),
-        ("TX_CA_003", "ca", "RBC_ROYAL_BANK", "C", "G", "EUR", "F", "CA", "A", "de", "C", 89000000.00, "N", "LBSR", date_scope, datetime.datetime.now()),
+        # Canada (CA) transactions
+        ("TX_CA_001", "CA", "RBC_ROYAL_BANK", "C", "A", "CAD", "D", "CA", "A", "US", "B", 125000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
+        ("TX_CA_002", "CA", "TD_BANK_CA", "L", "D", "USD", "F", "CA", "D", "GB", "F", 45000000.00, "C", "LBSR", date_scope, datetime.datetime.now()),
+        ("TX_CA_003", "CA", "RBC_ROYAL_BANK", "C", "G", "EUR", "F", "CA", "A", "DE", "C", 89000000.00, "N", "LBSR", date_scope, datetime.datetime.now()),
 
-        # United States (us) transactions
-        ("TX_US_001", "us", "JPMORGAN_US", "C", "A", "USD", "D", "US", "A", "ca", "B", 310000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
-        ("TX_US_002", "us", "CITI_US", "L", "D", "EUR", "F", "US", "D", "de", "F", 89000000.00, "N", "LBSR", date_scope, datetime.datetime.now()),
-        ("TX_US_003", "us", "JPMORGAN_US", "C", "G", "GBP", "F", "US", "A", "gb", "C", 156000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
+        # United States (US) transactions
+        ("TX_US_001", "US", "JPMORGAN_US", "C", "A", "USD", "D", "US", "A", "CA", "B", 310000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
+        ("TX_US_002", "US", "CITI_US", "L", "D", "EUR", "F", "US", "D", "DE", "F", 89000000.00, "N", "LBSR", date_scope, datetime.datetime.now()),
+        ("TX_US_003", "US", "JPMORGAN_US", "C", "G", "GBP", "F", "US", "A", "GB", "C", 156000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
 
-        # United Kingdom (gb) transactions
-        ("TX_GB_001", "gb", "BARCLAYS_UK", "C", "A", "GBP", "D", "GB", "A", "ca", "M", 210000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
-        ("TX_GB_002", "gb", "HSBC_UK", "L", "D", "CHF", "F", "GB", "B", "fr", "H", 67000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
-        ("TX_GB_003", "gb", "BARCLAYS_UK", "C", "G", "JPY", "F", "GB", "A", "jp", "G", 340000000.00, "C", "LBSR", date_scope, datetime.datetime.now())
+        # United Kingdom (GB) transactions
+        ("TX_GB_001", "GB", "BARCLAYS_UK", "C", "A", "GBP", "D", "GB", "A", "CA", "M", 210000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
+        ("TX_GB_002", "GB", "HSBC_UK", "L", "D", "CHF", "F", "GB", "B", "FR", "H", 67000000.00, "F", "LBSR", date_scope, datetime.datetime.now()),
+        ("TX_GB_003", "GB", "BARCLAYS_UK", "C", "G", "JPY", "F", "GB", "A", "JP", "G", 340000000.00, "C", "LBSR", date_scope, datetime.datetime.now())
     ]
     
     schema = [

@@ -1,114 +1,116 @@
--- =================================================================================
--- PROJECT SOVEREIGNSHIELD: TRIPLE-LOCK SECURITY DEPLOYMENT (UNITY CATALOG)
--- Execution Identity: Azure Service Principal (via CI/CD)
--- Target Catalog: dbw_sovereignshield.sovereign_shield
--- =================================================================================
-
 USE CATALOG dbw_sovereignshield;
-CREATE SCHEMA IF NOT EXISTS sovereign_shield;
 USE SCHEMA sovereign_shield;
 
--- 1. Micro-Level Transaction Table (Simulating Multi-Country Submissions)
+-- =====================================================================
+-- 1. CLEANUP EXISTING ASSETS
+-- =====================================================================
+DROP VIEW IF EXISTS v_lbs_sdmx_published;
+DROP TABLE IF EXISTS lbs_sdmx_history;
+DROP TABLE IF EXISTS lbs_micro_transactions;
+DROP FUNCTION IF EXISTS fn_rls_lbs_country_lock;
+DROP FUNCTION IF EXISTS fn_ddm_obs_conf_mask;
+
+-- =====================================================================
+-- 2. APPEND-ONLY MICRO TRANSACTIONS LEDGER
+-- =====================================================================
 CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
-    transaction_id STRING,
-    reporting_country STRING,      -- e.g., 'ca', 'us', 'gb'
-    reporting_institution STRING,  -- e.g., 'RBC_ROYAL_BANK', 'JPMORGAN_US'
-    position_type STRING,          -- 'C' (Claims/Assets), 'L' (Liabilities)
-    instrument STRING,             -- 'A' (All instruments), 'D' (Debt securities), 'G' (Loans and deposits)
-    currency STRING,               -- e.g., 'CAD', 'USD', 'EUR', 'GBP', 'CHF', 'JPY'
-    currency_type STRING,          -- 'D' (Domestic currency), 'F' (Foreign currency), 'A' (All currencies)
-    parent_country STRING,         -- e.g., 'CA', 'US', 'GB', 'DE'
-    bank_type STRING,              -- 'A' (All reporting banks), 'D' (Domestic banks), 'B' (Foreign branches)
-    counterpart_country STRING,    -- e.g., 'us', 'ca', 'jp'
-    sector_code STRING,            -- official BIS codes: 'B','M','F','C','G','H'
-    transaction_amount DOUBLE,
-    obs_conf STRING,                -- 'F' (Free), 'N' (Non-publishable), 'C' (Confidential)
-    ibs_agg_scope STRING,           -- e.g., 'LBSR' (Locational Banking Statistics)
-    date_scope STRING,              -- e.g., '2026-Q1'
-    transaction_timestamp TIMESTAMP
-) USING DELTA;
+  transaction_id STRING,
+  reporting_country STRING,
+  reporting_institution STRING,
+  position_type STRING,
+  instrument STRING,
+  currency STRING,
+  currency_type STRING,
+  parent_country STRING,
+  bank_type STRING,
+  counterpart_country STRING,
+  sector_code STRING,
+  transaction_amount DOUBLE,
+  obs_conf STRING,
+  ibs_agg_scope STRING,
+  date_scope STRING,
+  transaction_timestamp TIMESTAMP
+);
 
--- 2. Target Macro SDMX History Table
-CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
-    TIME_SERIES_CODE STRING,      
-    DATE STRING,                  -- Added missing column
-    IBS_AGG STRING,               -- Added missing column
-    OBS_VALUE DOUBLE,
-    OBS_STATUS STRING,            -- Added missing column
-    OBS_CONF STRING,
-    BATCH_STATUS STRING,          -- Added missing column for the quarantine filter
-    version_hash STRING,          -- SCD2 change-detection hash (scd2_merge_engine.py)
-    VALID_FROM TIMESTAMP,
-    VALID_TO TIMESTAMP,
-    IS_CURRENT BOOLEAN
-) USING DELTA;
+-- =====================================================================
+-- 3. DYNAMIC DATA MASKING (DDM) FUNCTION
+-- =====================================================================
+-- Mask OBS_VALUE to NULL for confidential ('C' or 'N') records unless 
+-- the user belongs to Admin or Submitter groups.
+CREATE OR REPLACE FUNCTION fn_ddm_obs_conf_mask(obs_val DOUBLE, obs_conf STRING)
+RETURNS DOUBLE
+RETURN CASE
+  WHEN is_account_group_member('sg-sovereignshield-admin') 
+    OR is_account_group_member('sg-sovereignshield-submitter-ca') 
+    OR is_account_group_member('sg-sovereignshield-submitter-us') THEN obs_val
+  WHEN obs_conf IN ('C', 'N') THEN NULL
+  ELSE obs_val
+END;
 
--- =================================================================================
--- LOCK 1: ROW-LEVEL SECURITY (RLS)
--- Dynamic Entra ID group matching via 11-dimension SDMx composite keys.
--- extracts L_REP_CTY (9th dimension, index 8 in Spark SQL split array).
--- =================================================================================
-
-CREATE OR REPLACE FUNCTION fn_rls_country_access(time_series_code STRING)
+-- =====================================================================
+-- 4. ROW-LEVEL SECURITY (RLS) FUNCTION
+-- =====================================================================
+-- Evaluates Segment 9 of TIME_SERIES_CODE against uppercase ISO country codes (e.g., 'CA', 'US').
+CREATE OR REPLACE FUNCTION fn_rls_lbs_country_lock(time_series_code STRING)
 RETURNS BOOLEAN
-RETURN
-  -- 1. Internal Admins bypass all row-level filters
-  is_account_group_member('sg-sovereignshield-admin')
-  
-  -- 2. National analysts only see their sovereign data (e.g., matching 'ca' to 'sg-sovereignshield-submitter-ca')
-  OR is_account_group_member(
-      concat('sg-sovereignshield-submitter-', lower(split(time_series_code, '\\.')[8]))
-  );
+RETURN CASE
+  WHEN is_account_group_member('sg-sovereignshield-admin') 
+    OR is_account_group_member('sg-sovereignshield-researchers') THEN TRUE
+  WHEN is_account_group_member('sg-sovereignshield-submitter-ca') 
+    AND element_at(split(time_series_code, '\\.'), 9) = 'CA' THEN TRUE
+  WHEN is_account_group_member('sg-sovereignshield-submitter-us') 
+    AND element_at(split(time_series_code, '\\.'), 9) = 'US' THEN TRUE
+  ELSE FALSE
+END;
 
--- Apply RLS to the Central Macro History Table
-ALTER TABLE lbs_sdmx_history
-SET ROW FILTER fn_rls_country_access ON (TIME_SERIES_CODE);
-
-
--- =================================================================================
--- LOCK 2: DYNAMIC DATA MASKING (DDM)
--- Evaluates OBS_CONF. Masks restricted values to 'xxx' to preserve dimensional 
--- density for researchers without corrupting downstream numeric aggregations.
--- =================================================================================
-
-CREATE OR REPLACE FUNCTION fn_ddm_confidential_value(
-    obs_value DOUBLE, 
-    obs_conf STRING, 
-    time_series_code STRING
+-- =====================================================================
+-- 5. MACRO SDMX HISTORY TABLE (WITH RLS & DDM APPLIED)
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
+  TIME_SERIES_CODE STRING,
+  DATE STRING,
+  IBS_AGG STRING,
+  OBS_VALUE DOUBLE MASK fn_ddm_obs_conf_mask(OBS_CONF),
+  OBS_STATUS STRING,
+  OBS_CONF STRING,
+  QUALITY_STATUS STRING,
+  FAILED_RULE_ID STRING,
+  BATCH_STATUS STRING,
+  version_hash STRING,
+  VALID_FROM TIMESTAMP,
+  VALID_TO TIMESTAMP,
+  IS_CURRENT BOOLEAN
 )
-RETURNS STRING
-RETURN
-  CASE
-    -- 1. Admins see all raw numerical values
-    WHEN is_account_group_member('sg-sovereignshield-admin') THEN cast(obs_value AS STRING)
-    
-    -- 2. Sovereign submitters see their own raw numerical values, even if flagged 'N'
-    WHEN is_account_group_member(concat('sg-sovereignshield-submitter-', lower(split(time_series_code, '\\.')[8]))) THEN cast(obs_value AS STRING)
-    
-    -- 3. Mask market-dominant/confidential records for external researchers & cross-regional users
-    WHEN obs_conf IN ('N', 'C') THEN 'xxx'
-    
-    -- 4. Free for publication ('F') data remains visible as string-cast numbers
-    ELSE cast(obs_value AS STRING)
-  END;
+WITH ROW FILTER fn_rls_lbs_country_lock ON (TIME_SERIES_CODE);
 
--- Apply DDM to the Central Macro History Table
-ALTER TABLE lbs_sdmx_history
-ALTER COLUMN OBS_VALUE SET MASK fn_ddm_confidential_value USING COLUMNS (OBS_CONF, TIME_SERIES_CODE);
-
-
--- =================================================================================
--- PUBLIC RESEARCHER INTEGRITY GATE
--- Secures the "Quarterly Quarantine". Masks quarantined batches from public views.
--- =================================================================================
-
+-- =====================================================================
+-- 6. QUARANTINE PUBLISHED VIEW
+-- =====================================================================
+-- Only exposes non-quarantined (PUBLISHED) and current SCD2 records.
 CREATE OR REPLACE VIEW v_lbs_sdmx_published AS
 SELECT 
-    TIME_SERIES_CODE,
-    DATE,
-    IBS_AGG,
-    OBS_VALUE,  -- (Masked to 'xxx' for N/C records via DDM policy above)
-    OBS_STATUS,
-    OBS_CONF
+  TIME_SERIES_CODE,
+  DATE,
+  IBS_AGG,
+  OBS_VALUE,
+  OBS_STATUS,
+  OBS_CONF
 FROM lbs_sdmx_history
-WHERE BATCH_STATUS = 'PUBLISHED';
+WHERE BATCH_STATUS = 'PUBLISHED' 
+  AND IS_CURRENT = true;
+
+-- =====================================================================
+-- 7. UNITY CATALOG GRANTS FOR SYNCHRONIZED GROUPS
+-- =====================================================================
+GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-ca`, `sg-sovereignshield-submitter-us`, `sg-sovereignshield-researchers`;
+GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-ca`, `sg-sovereignshield-submitter-us`, `sg-sovereignshield-researchers`;
+
+-- Admins: Full permissions
+GRANT ALL PRIVILEGES ON TABLE lbs_micro_transactions TO `sg-sovereignshield-admin`;
+GRANT ALL PRIVILEGES ON TABLE lbs_sdmx_history TO `sg-sovereignshield-admin`;
+
+-- Submitters: Select access to history table (RLS filter active)
+GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-submitter-ca`, `sg-sovereignshield-submitter-us`;
+
+-- Researchers: Select access ONLY to the published view (Quarantine filter active)
+GRANT SELECT ON VIEW v_lbs_sdmx_published TO `sg-sovereignshield-researchers`;
