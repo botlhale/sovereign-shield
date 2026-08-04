@@ -1,0 +1,20 @@
+# SDMx 3.0 Processing Engine
+pysdmx[xml]>=1.18.0
+
+# Data Manipulation & Analytical Engine
+pandas>=2.2.0
+numpy>=1.26.0
+pyarrow>=15.0.0
+
+# Excel Rule Parsing Dependencies
+openpyxl>=3.1.2
+xlrd>=2.0.1
+
+# PySpark & Delta Lake (Local / Databricks execution)
+pyspark>=3.5.0
+delta-spark>=3.1.0
+deltalake
+
+# Testing & Utilities
+pytest>=8.0.0
+python-dotenv>=1.0.0

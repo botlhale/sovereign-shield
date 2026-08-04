@@ -1,0 +1,34 @@
+bundle:
+  name: sovereignshield_bundle
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      host: https://adb-7405605868991128.8.azuredatabricks.net  # <-- UPDATE THIS
+    
+    resources:
+      jobs:
+        sovereignshield_sdmx_pipeline:
+          name: "[DEV] SovereignShield SDMx Ingestion & Validation"
+          tasks:
+            - task_key: run_scd2_merge
+              job_cluster_key: sovereign_cluster
+              spark_python_task:
+                python_file: "src/scd2_merge_engine.py" # <--- Ensure this matches your actual Python filename
+            
+            - task_key: execute_triple_lock_security
+              depends_on:
+                - task_key: run_scd2_merge
+              job_cluster_key: sovereign_cluster
+              spark_python_task:
+                python_file: "src/apply_security.py"
+
+          job_clusters:
+            - job_cluster_key: sovereign_cluster
+              new_cluster:
+                spark_version: "18.x-scala2.13"
+                node_type_id: "Standard_DS3_v2"
+                num_workers: 1
+                data_security_mode: USER_ISOLATION
