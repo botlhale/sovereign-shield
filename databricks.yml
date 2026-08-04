@@ -17,6 +17,8 @@ targets:
               job_cluster_key: sovereign_cluster
               spark_python_task:
                 python_file: "src/scd2_merge_engine.py" # <--- Ensure this matches your actual Python filename
+              libraries:
+                - requirements: requirements.txt
             
             - task_key: execute_triple_lock_security
               depends_on:

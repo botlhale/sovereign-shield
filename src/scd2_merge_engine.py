@@ -13,7 +13,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 import datetime
 
-from sdmx_rule_validator import SDMxRuleValidator
+from sdmx_rule_validator import SDMxRuleValidator, WILDCARD_CODE
 
 def generate_and_aggregate_micro_data(spark: SparkSession, date_scope: str = "2026-Q1"):
     """
@@ -48,7 +48,8 @@ def generate_and_aggregate_micro_data(spark: SparkSession, date_scope: str = "20
     print("Multi-country micro transactions ingested successfully.")
 
     # 2. Roll Up / Aggregate Micro Data into SDMX Series Key Dimensions
-    # Builds an SDMX dimension key format: e.g., 'BIS.LBS.S.A.<SCOPE>.<CURRENCY>.<COUNTRY>'
+    # TIME_SERIES_CODE must carry all 11 BIS_LBS dimensions (FREQ..L_CP_COUNTRY);
+    # dimensions not modeled by this rollup are pinned to WILDCARD_CODE.
     df_aggregated = df_micro.groupBy("reporting_country", "ibs_agg_scope", "currency", "date_scope") \
         .agg(
             F.sum("transaction_amount").alias("OBS_VALUE"),
@@ -58,8 +59,21 @@ def generate_and_aggregate_micro_data(spark: SparkSession, date_scope: str = "20
              .otherwise("F").alias("OBS_CONF")
         ) \
         .withColumn(
-            "TIME_SERIES_CODE", 
-            F.concat_ws(".", F.lit("BIS.LBS.S.A"), F.col("ibs_agg_scope"), F.col("currency"), F.col("reporting_country"))
+            "TIME_SERIES_CODE",
+            F.concat_ws(
+                ".",
+                F.lit("Q"),                  # FREQ
+                F.lit(WILDCARD_CODE),         # L_MEASURE
+                F.lit(WILDCARD_CODE),         # L_POSITION
+                F.lit(WILDCARD_CODE),         # L_INSTR
+                F.lit(WILDCARD_CODE),         # L_DENOM
+                F.col("currency"),            # L_CURR_TYPE
+                F.lit(WILDCARD_CODE),         # L_PARENT_CTY
+                F.lit(WILDCARD_CODE),         # L_REP_BANK_TYPE
+                F.col("reporting_country"),   # L_REP_CTY
+                F.lit(WILDCARD_CODE),         # L_CP_SECTOR
+                F.lit(WILDCARD_CODE)          # L_CP_COUNTRY
+            )
         ) \
         .select("TIME_SERIES_CODE", "OBS_VALUE", "OBS_CONF")
         
