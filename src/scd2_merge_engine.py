@@ -13,6 +13,8 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 import datetime
 
+from sdmx_rule_validator import SDMxRuleValidator
+
 def generate_and_aggregate_micro_data(spark: SparkSession, date_scope: str = "2026-Q1"):
     """
     Simulates micro-transactions submitted by multiple country jurisdictions
@@ -255,6 +257,40 @@ def merge_scd2_micro(
         ).execute()
 
 
+def process_and_publish_macro_batch(
+    spark: SparkSession,
+    date_scope: str = "2026-Q1",
+    ibs_agg_scope: str = "LBSR"
+) -> None:
+    """Ingests synthetic micro-data, validates the aggregated macro batch, routes
+    QUARANTINE/PUBLISHED records, and executes the SCD2 merge on the macro-history table.
+    """
+    # 1. Micro-data was already persisted to the append-only ledger inside this call.
+    df_aggregated = generate_and_aggregate_micro_data(spark, date_scope=date_scope)
+    df_aggregated = df_aggregated \
+        .withColumn("DATE", F.lit(date_scope)) \
+        .withColumn("IBS_AGG", F.lit(ibs_agg_scope)) \
+        .withColumn("OBS_STATUS", F.lit("A"))
+
+    # 2. Run the aggregated macro batch through the SDMx rule validation engine.
+    validator = SDMxRuleValidator()
+    df_validated = spark.createDataFrame(validator.validate(df_aggregated.toPandas()))
+
+    # 3. Quarantine routing: row-level BATCH_STATUS derived from the validation outcome.
+    df_macro_final = df_validated.withColumn(
+        "BATCH_STATUS",
+        F.when(F.col("QUALITY_STATUS") == "FAIL", F.lit("QUARANTINE")).otherwise(F.lit("PUBLISHED"))
+    )
+
+    # 5. Log PUBLISHED vs QUARANTINE volume before committing the merge.
+    published_count = df_macro_final.filter(F.col("BATCH_STATUS") == "PUBLISHED").count()
+    quarantine_count = df_macro_final.filter(F.col("BATCH_STATUS") == "QUARANTINE").count()
+    print(f"Macro batch routing -> PUBLISHED: {published_count} | QUARANTINE: {quarantine_count}")
+
+    # 4. SCD2 merge runs exclusively on the macro-history table.
+    merge_scd2_macro(spark, df_macro_final, date_scope=date_scope, ibs_agg_scope=ibs_agg_scope)
+
+
 # if __name__ == "__main__":
 #     spark_session = SparkSession.builder \
 #         .appName("SCD2MergeEngineTest") \
@@ -274,3 +310,4 @@ if __name__ == "__main__":
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
     
     print("SCD2 Merge Engine loaded successfully with Delta Lake.")
+    process_and_publish_macro_batch(spark)
