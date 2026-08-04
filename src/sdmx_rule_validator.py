@@ -29,8 +29,12 @@ from pysdmx.model.dataflow import DataStructureDefinition, Role
 # CONFIGURATION & CONSTANTS
 # =====================================================================
 
+#: Repo root, resolved from this file's location so paths work regardless of
+#: the process's working directory (e.g. Databricks job clusters).
+_REPO_ROOT: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 #: Path to the dynamic rule source (BIS consistency checks workbook).
-CHECKS_XLS_PATH: str = os.path.join("docs", "reference_standards", "checks_lbs.xls")
+CHECKS_XLS_PATH: str = os.path.join(_REPO_ROOT, "docs", "reference_standards", "checks_lbs.xls")
 
 #: Sheet within `checks_lbs.xls` containing the LBS consistency checks.
 CHECKS_SHEET_NAME: str = "LBS"
@@ -39,7 +43,7 @@ CHECKS_SHEET_NAME: str = "LBS"
 BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all"
 
 #: Directory containing sovereign SDMx 3.0 XML submission files.
-DATA_DIR: str = "data"
+DATA_DIR: str = os.path.join(_REPO_ROOT, "data")
 
 #: Aggregation framework code. Not modeled as a DSD dimension/attribute, so it
 #: is reattached as a constant when ingesting SDMx-ML submissions.
