@@ -100,23 +100,28 @@ def merge_scd2_macro(
     df_source = add_version_hash(df_incoming, payload_cols)
 
     # 1. Initialize or load Delta Table
+    # Column names must match the lbs_sdmx_history DDL (unity_catalog_triple_lock.sql): VALID_FROM/VALID_TO/IS_CURRENT.
     if not spark.catalog.tableExists(target_table_name):
         df_init = df_source \
-            .withColumn("effective_start_date", F.current_timestamp()) \
-            .withColumn("effective_end_date", F.to_timestamp(F.lit("9999-12-31 00:00:00"))) \
-            .withColumn("is_current", F.lit(True))
+            .withColumn("VALID_FROM", F.current_timestamp()) \
+            .withColumn("VALID_TO", F.to_timestamp(F.lit("9999-12-31 00:00:00"))) \
+            .withColumn("IS_CURRENT", F.lit(True))
         df_init.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
         print(f"Initialized new target table: {target_table_name}")
         return
 
     delta_target = DeltaTable.forName(spark, target_table_name)
 
+    # Patch tables created before version-hash change tracking existed (e.g. via the DDL script).
+    if "version_hash" not in delta_target.toDF().columns:
+        spark.sql(f"ALTER TABLE {target_table_name} ADD COLUMNS (version_hash STRING)")
+
     # 2. Stage 1: Expire changed records (Match key, active status, but hash differs)
     join_key_cond = """
         target.TIME_SERIES_CODE = source.TIME_SERIES_CODE AND
         target.DATE = source.DATE AND
         target.IBS_AGG = source.IBS_AGG AND
-        target.is_current = true
+        target.IS_CURRENT = true
     """
 
     delta_target.alias("target").merge(
@@ -125,13 +130,13 @@ def merge_scd2_macro(
     ).whenMatchedUpdate(
         condition="target.version_hash != source.version_hash",
         set={
-            "is_current": "false",
-            "effective_end_date": "current_timestamp()"
+            "IS_CURRENT": "false",
+            "VALID_TO": "current_timestamp()"
         }
     ).execute()
 
     # 3. Stage 2: Insert new active records (New keys OR superseded versions)
-    active_target = delta_target.toDF().filter("is_current = true")
+    active_target = delta_target.toDF().filter("IS_CURRENT = true")
     
     df_to_insert = df_source.alias("src").join(
         active_target.alias("tgt"),
@@ -140,9 +145,9 @@ def merge_scd2_macro(
     ).filter(
         "tgt.TIME_SERIES_CODE IS NULL OR tgt.version_hash != src.version_hash"
     ).select("src.*") \
-     .withColumn("effective_start_date", F.current_timestamp()) \
-     .withColumn("effective_end_date", F.to_timestamp(F.lit("9999-12-31 00:00:00"))) \
-     .withColumn("is_current", F.lit(True))
+     .withColumn("VALID_FROM", F.current_timestamp()) \
+     .withColumn("VALID_TO", F.to_timestamp(F.lit("9999-12-31 00:00:00"))) \
+     .withColumn("IS_CURRENT", F.lit(True))
 
     if df_to_insert.count() > 0:
         df_to_insert.write.format("delta").mode("append").saveAsTable(target_table_name)
@@ -166,12 +171,12 @@ def merge_scd2_macro(
                 target.TIME_SERIES_CODE = deleted.TIME_SERIES_CODE AND
                 target.DATE = deleted.DATE AND
                 target.IBS_AGG = deleted.IBS_AGG AND
-                target.is_current = true
+                target.IS_CURRENT = true
             """
         ).whenMatchedUpdate(
             set={
-                "is_current": "false",
-                "effective_end_date": "current_timestamp()"
+                "IS_CURRENT": "false",
+                "VALID_TO": "current_timestamp()"
             }
         ).execute()
         print(f"Logically deleted {deleted_keys.count()} missing records in scope ({date_scope}, {ibs_agg_scope}).")

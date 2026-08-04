@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
     OBS_STATUS STRING,            -- Added missing column
     OBS_CONF STRING,
     BATCH_STATUS STRING,          -- Added missing column for the quarantine filter
+    version_hash STRING,          -- SCD2 change-detection hash (scd2_merge_engine.py)
     VALID_FROM TIMESTAMP,
     VALID_TO TIMESTAMP,
     IS_CURRENT BOOLEAN
