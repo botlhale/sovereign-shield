@@ -13,24 +13,43 @@ targets:
         sovereignshield_sdmx_pipeline:
           name: "[DEV] SovereignShield SDMx Ingestion & Validation"
           tasks:
-            - task_key: run_scd2_merge
-              job_cluster_key: sovereign_cluster
-              spark_python_task:
-                python_file: "src/scd2_merge_engine.py" # <--- Ensure this matches your actual Python filename
-              libraries:
-                - requirements: requirements.txt
-            
-            - task_key: execute_triple_lock_security
-              depends_on:
-                - task_key: run_scd2_merge
+            # Step 1: Provision / Refresh Triple-Lock Infrastructure
+            - task_key: setup_triple_lock_schema
               job_cluster_key: sovereign_cluster
               spark_python_task:
                 python_file: "src/apply_security.py"
+
+            # Step 2: Generate and Append Synthetic Micro-Data
+            - task_key: generate_synthetic_data
+              depends_on:
+                - task_key: setup_triple_lock_schema
+              job_cluster_key: sovereign_cluster
+              spark_python_task:
+                python_file: "src/generate_sovereign_submissions.py"
+              libraries:
+                - requirements: requirements.txt
+
+            # Step 3: Run Micro-to-Macro Ingestion & SCD2 Merge
+            - task_key: run_scd2_merge
+              depends_on:
+                - task_key: generate_synthetic_data
+              job_cluster_key: sovereign_cluster
+              spark_python_task:
+                python_file: "src/scd2_merge_engine.py"
+              libraries:
+                - requirements: requirements.txt
 
           job_clusters:
             - job_cluster_key: sovereign_cluster
               new_cluster:
                 spark_version: "18.x-scala2.13"
                 node_type_id: "Standard_DS3_v2"
-                num_workers: 1
+                num_workers: 0 # STRICTLY NO WORKERS
                 data_security_mode: USER_ISOLATION
+                custom_tags:
+                  ResourceClass: SingleNode
+                spark_conf:
+                  spark.databricks.cluster.profile: singleNode
+                  spark.master: local[*, 4]
+                azure_attributes:
+                  availability: SPOT_WITH_FALLBACK_AZURE # Enforces massive spot discount

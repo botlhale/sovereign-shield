@@ -16,13 +16,26 @@ def merge_scd2_micro_pandas(
     date_scope: str = "2026-Q1", 
     ibs_agg_scope: str = "LBSR"
 ):
+    """Local pandas/delta-rs SCD2 merge mirroring the Spark macro engine's state protection.
+
+    Rows whose BATCH_STATUS is not 'PUBLISHED' are appended as is_current = False audit
+    records only: they never expire or supersede the previously published version, so
+    downstream consumers keep reading the last valid state. Inputs without a BATCH_STATUS
+    column are treated as fully published.
+    """
     target_path = f"{table_path}_{country_code.lower()}"
-    payload_cols = ["OBS_VALUE"]
-    
+
     # 1. Prepare Incoming Data
     df_source = df_incoming.copy()
+    if "BATCH_STATUS" not in df_source.columns:
+        df_source["BATCH_STATUS"] = "PUBLISHED"
+    payload_cols = [c for c in ["OBS_VALUE", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_STATUS"] if c in df_source.columns]
     df_source['version_hash'] = df_source.apply(lambda r: create_version_hash(r, payload_cols), axis=1)
-    
+
+    is_published = df_source["BATCH_STATUS"] == "PUBLISHED"
+    df_published = df_source[is_published]
+    df_quarantined = df_source[~is_published]
+
     current_time = pd.Timestamp.now('UTC')
     end_of_time = pd.Timestamp("9999-12-31 00:00:00")
 
@@ -30,8 +43,9 @@ def merge_scd2_micro_pandas(
     if not os.path.exists(target_path):
         df_init = df_source.copy()
         df_init['effective_start_date'] = current_time
-        df_init['effective_end_date'] = end_of_time
-        df_init['is_current'] = True
+        # Quarantined rows are closed on arrival so they never present as an active version.
+        df_init['effective_end_date'] = pd.Series(end_of_time, index=df_init.index).where(is_published, current_time)
+        df_init['is_current'] = is_published
         
         write_deltalake(target_path, df_init, mode="overwrite")
         print(f"Initialized new Delta table at {target_path}")
@@ -44,11 +58,11 @@ def merge_scd2_micro_pandas(
     # Filter for active records
     active_target = df_target[df_target['is_current'] == True]
 
-    # 4. Stage 1: Expire Changed Records
+    # 4. Stage 1: Expire Changed Records (published revisions only)
     # Find records where composite keys match but hash differs
     merged = pd.merge(
         active_target, 
-        df_source, 
+        df_published, 
         on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "IBS_AGG"], 
         suffixes=('_tgt', '_src')
     )
@@ -62,7 +76,7 @@ def merge_scd2_micro_pandas(
             source_alias="s",
             target_alias="t"
         ).when_matched_update(
-            set={
+            updates={
                 "is_current": "false",
                 "effective_end_date": f"'{current_time}'"
             }
@@ -71,7 +85,7 @@ def merge_scd2_micro_pandas(
     # 5. Stage 2: Insert New/Updated Records
     # Find records in source that are not in target, OR have a new hash
     merged_all = pd.merge(
-        df_source, 
+        df_published, 
         active_target, 
         on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "IBS_AGG"], 
         how="left", 
@@ -92,6 +106,18 @@ def merge_scd2_micro_pandas(
         
         write_deltalake(target_path, to_insert, mode="append")
 
+    # 6. Stage 2b: Append quarantined revisions as closed, audit-only rows.
+    if not df_quarantined.empty:
+        audit_rows = df_quarantined.copy()
+        audit_rows['effective_start_date'] = current_time
+        audit_rows['effective_end_date'] = current_time
+        audit_rows['is_current'] = False
+        write_deltalake(target_path, audit_rows, mode="append")
+        print(
+            f"Appended {len(audit_rows)} quarantined revision(s) as is_current=False audit records; "
+            "previously published versions remain active."
+        )
+
     print(f"Processed SCD2 Merge for {country_code.upper()}.")
 
 if __name__ == "__main__":
@@ -110,8 +136,9 @@ if __name__ == "__main__":
         print("\n--- Final Local Delta Table State ---")
         
         # Select columns to display, now including TIME_SERIES_CODE
-        display_cols = ['TIME_SERIES_CODE', 'BANK_CODE', 'OBS_VALUE', 'is_current', 'version_hash']
-        print(dt_verify.to_pandas()[display_cols])
+        display_cols = ['TIME_SERIES_CODE', 'BANK_CODE', 'OBS_VALUE', 'BATCH_STATUS', 'is_current', 'version_hash']
+        df_final = dt_verify.to_pandas()
+        print(df_final[[c for c in display_cols if c in df_final.columns]])
         
     except FileNotFoundError:
         print("Error: CSV not found. Ensure generate_sovereign_submissions.py saved the CSV to data/")

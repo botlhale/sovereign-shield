@@ -6,11 +6,12 @@ parses the mathematical consistency checks defined in
 `docs/reference_standards/checks_lbs.xls` (Sheet: `LBS`), and executes those
 checks against each country's aggregated macro time series.
 
-Failing observations are never dropped: every row is tagged with
-`QUALITY_STATUS` and, on failure, a comma-separated `FAILED_RULE_ID` list.
-The "Quarterly Quarantine" mechanism then flags a country's *entire*
-reporting-quarter batch as `QUARANTINED` if any of its rows failed, or
-`PUBLISHED` if the whole batch is clean.
+No observation is ever dropped. Validation is atomic at the submission-batch
+level, keyed by `(reporting country, reporting quarter)`: if any row in a
+country-quarter batch violates a check, every row in that batch is marked
+`QUALITY_STATUS = 'FAIL'` / `BATCH_STATUS = 'QUARANTINE'` and carries the
+batch's full list of violated `FAILED_RULE_ID` codes. Only a wholly clean
+batch is marked `'PASS'` / `'PUBLISHED'`.
 """
 
 from __future__ import annotations
@@ -349,11 +350,15 @@ class SDMxRuleValidator:
         components were actually reported (i.e. that breakdown is simply not
         part of the submission), rather than being treated as a failure.
 
-        No row is ever dropped. Every row is tagged with `QUALITY_STATUS`
-        (`'PASS'` or `'FAIL'`) and `FAILED_RULE_ID` (comma-separated `Check No`
-        values). Finally, the entire reporting-quarter batch for a country is
-        flagged `BATCH_STATUS = 'QUARANTINED'` if any row failed, or
-        `'PUBLISHED'` if the whole batch is clean.
+        No row is ever dropped. Validation is then applied **atomically at the
+        submission-batch level**, keyed by `(L_REP_CTY, DATE)`: BIS LBS
+        submissions are accepted or rejected as a whole, never partially. If
+        *any* row in a country-quarter batch violates a check, *every* row in
+        that batch is marked `QUALITY_STATUS = 'FAIL'`,
+        `BATCH_STATUS = 'QUARANTINE'`, and `FAILED_RULE_ID` is set to the
+        batch's full sorted list of violated check codes. Only a wholly clean
+        batch receives `QUALITY_STATUS = 'PASS'`, `BATCH_STATUS = 'PUBLISHED'`,
+        and a null `FAILED_RULE_ID`.
 
         Args:
             df_macro: A macro DataFrame with `TIME_SERIES_CODE`, `DATE`,
@@ -366,17 +371,36 @@ class SDMxRuleValidator:
         """
         df = df_macro.copy().reset_index(drop=True)
 
-        dims_df = df["TIME_SERIES_CODE"].str.split(".", expand=True)
-        if dims_df.shape[1] != len(self.dimension_order):
+        result_columns = [
+            "TIME_SERIES_CODE", "DATE", "IBS_AGG", "OBS_VALUE", "OBS_STATUS",
+            "OBS_CONF", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_STATUS",
+        ]
+        if df.empty:
+            return pd.DataFrame(columns=result_columns)
+
+        expected_segments = len(self.dimension_order)
+
+        # Per-row length check. A ragged split pads short keys with NaN and sizes the frame
+        # by the longest key, so a malformed row would otherwise be silently misaligned
+        # against every dimension rather than reported.
+        segment_counts = df["TIME_SERIES_CODE"].str.count(r"\.") + 1
+        malformed = df.loc[segment_counts != expected_segments, "TIME_SERIES_CODE"]
+        if not malformed.empty:
             raise ValueError(
-                f"TIME_SERIES_CODE has {dims_df.shape[1]} segments; expected {len(self.dimension_order)} "
-                f"({', '.join(self.dimension_order)})."
+                f"{len(malformed)} TIME_SERIES_CODE value(s) do not have {expected_segments} "
+                f"segments ({', '.join(self.dimension_order)}). First offender: "
+                f"{malformed.iloc[0]!r} has {int(segment_counts.loc[malformed.index[0]])}."
             )
+
+        dims_df = df["TIME_SERIES_CODE"].str.split(".", expand=True)
         dims_df.columns = self.dimension_order
+        # Codes are compared against an uppercase rule set; normalizing here keeps a
+        # lowercase upstream feed from silently skipping every applicable check.
+        dims_df = dims_df.apply(lambda col: col.str.strip().str.upper())
         df = pd.concat([df, dims_df], axis=1)
 
-        df["QUALITY_STATUS"] = "PASS"
-        df["FAILED_RULE_ID"] = ""
+        # Per-row detection pass: records which rule(s) each row itself violated.
+        df["_ROW_FAILED_RULES"] = [set() for _ in range(len(df))]
 
         for rule in self.rules:
             context_dims = [dim for dim in self.dimension_order if dim not in rule.dim_names]
@@ -399,34 +423,28 @@ class SDMxRuleValidator:
 
                 lhs_sum = agg_rows["OBS_VALUE"].sum()
                 if abs(lhs_sum - rhs_sum) >= EQUALITY_TOLERANCE:
-                    idx = agg_rows.index
-                    df.loc[idx, "QUALITY_STATUS"] = "FAIL"
-                    df.loc[idx, "FAILED_RULE_ID"] = df.loc[idx, "FAILED_RULE_ID"].apply(
-                        lambda existing, rule_id=rule.check_no: f"{existing},{rule_id}" if existing else rule_id
-                    )
+                    for idx in agg_rows.index:
+                        df.at[idx, "_ROW_FAILED_RULES"].add(rule.check_no)
 
-        df["L_REP_CTY"] = df["TIME_SERIES_CODE"].str.split(".").str[self.dimension_order.index("L_REP_CTY")]
-        batch_status = (
-            df.groupby(["L_REP_CTY", "DATE"])["QUALITY_STATUS"]
-            .apply(lambda statuses: "QUARANTINED" if (statuses == "FAIL").any() else "PUBLISHED")
-            .rename("BATCH_STATUS")
+        # Atomic country-quarter batch evaluation: a single violation quarantines
+        # the entire (reporting country, reporting quarter) submission batch.
+        batch_keys = ["L_REP_CTY", "DATE"]
+        batch_rules = (
+            df.groupby(batch_keys, sort=False)["_ROW_FAILED_RULES"]
+            .apply(lambda rule_sets: sorted(set().union(*rule_sets)) if len(rule_sets) else [])
+            .rename("_BATCH_FAILED_RULES")
             .reset_index()
         )
-        df = df.merge(batch_status, on=["L_REP_CTY", "DATE"], how="left")
+        df = df.merge(batch_rules, on=batch_keys, how="left")
 
-        return df[
-            [
-                "TIME_SERIES_CODE",
-                "DATE",
-                "IBS_AGG",
-                "OBS_VALUE",
-                "OBS_STATUS",
-                "OBS_CONF",
-                "QUALITY_STATUS",
-                "FAILED_RULE_ID",
-                "BATCH_STATUS",
-            ]
-        ]
+        batch_failed = df["_BATCH_FAILED_RULES"].apply(bool)
+        df["QUALITY_STATUS"] = batch_failed.map({True: "FAIL", False: "PASS"})
+        df["BATCH_STATUS"] = batch_failed.map({True: "QUARANTINE", False: "PUBLISHED"})
+        df["FAILED_RULE_ID"] = df["_BATCH_FAILED_RULES"].apply(
+            lambda rule_ids: ",".join(rule_ids) if rule_ids else None
+        )
+
+        return df[result_columns]
 
     @staticmethod
     def _filter_rows(group: pd.DataFrame, code_map: Dict[str, str]) -> pd.DataFrame:

@@ -17,11 +17,20 @@ Three synthetic national scenarios are produced for pipeline testing:
   reconcile with the ``TO1.A`` aggregate (``LBS_CC01`` failure), and where a
   single bank contributes more than the dominance threshold of the
   aggregate, triggering restricted confidentiality.
-* United Kingdom (``GB``): a mostly clean, reconciling submission with
-  ``INVALID_RECORD_RATE`` (~15%) of its components deliberately corrupted
-  (negative amounts, non-permitted sector/instrument pairings, and
-  inconsistent bank-type/parent-country combinations) to exercise the
-  quarantine path end-to-end.
+* United Kingdom (``GB``): three isolated, deliberately corrupted reconciliation
+  groups to exercise the quarantine path end-to-end, each using only real,
+  permitted BIS codes (no fabricated placeholders) and genuinely detected by
+  ``SDMxRuleValidator``:
+
+  1. Cross-check aggregation mismatch (``LBS_CC01``): Domestic + Foreign +
+     Unallocated currency components deliberately do not sum to the ``TO1.A``
+     aggregate.
+  2. Currency breakdown mismatch (``LBS_CC02``): a net negative ``EUR:F`` leg
+     among the 5 mandatory currencies breaks the ``TO1.F`` reconciliation.
+     Negative observations are valid SDMx data; the failure is the broken
+     cross-check, not the sign.
+  3. Sector cross-check violation (``LBS_CC:04``): Banks (``B``) + Non-bank
+     (``N``) deliberately do not sum to the ``All sectors (A)`` aggregate.
 """
 
 from __future__ import annotations
@@ -99,9 +108,6 @@ SOVEREIGN_SUBMISSION_TYPES: Dict[str, str] = {
     "gb": "First Submission",
 }
 
-#: Approximate share of GB's synthetic components deliberately corrupted to exercise the quarantine path.
-INVALID_RECORD_RATE: float = 0.15
-
 
 def _build_time_series_code(dimensions: Dict[str, str]) -> str:
     """Joins the 11 BIS_LBS dimensions into a dot-separated TIME_SERIES_CODE.
@@ -125,8 +131,9 @@ def _make_micro_rows(
         base_dimensions: The 9 fixed dimensions shared by all rows in a scenario
             (all `DSD_DIMENSIONS` except `L_DENOM` and `L_CURR_TYPE`).
         components: Tuples of `(l_denom, l_curr_type, bank_code, obs_value)`, optionally
-            followed by a dimension-override dict (e.g. `{"L_CP_SECTOR": "H"}`) used to
-            inject deliberately invalid combinations for quarantine-path testing.
+            followed by a dimension-override dict (e.g. `{"L_CP_COUNTRY": "FR"}`) used to
+            isolate a deliberately-corrupted reconciliation group from the rest of a
+            scenario's components for quarantine-path testing.
 
     Returns:
         A list of dicts, one per component, matching the strict `MICRO_COLUMNS` schema.
@@ -162,14 +169,19 @@ def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
     `LBS_CC01`, and `BANK_US_1` holds 70% of the `TO1.A` aggregate, triggering
     the dominance rule.
 
-    Scenario C (United Kingdom, `L_REP_CTY = 'GB'`): a mostly clean, reconciling
-    submission (same `LBS_CC01` pattern as Canada) with `INVALID_RECORD_RATE`
-    (~15%) of its components deliberately corrupted to exercise the quarantine
-    path: a negative `OBS_VALUE` (breaks `LBS_CC01` reconciliation), a
-    Household (`H`) sector holding Debt securities (`D`) instruments (a
-    non-permitted sector-instrument pairing for LBS reporting), and a
-    'domestic bank' (`L_REP_BANK_TYPE = 'D'`) declared with a foreign parent
-    country (a logically inconsistent bank-type/parent-country combination).
+    Scenario C (United Kingdom, `L_REP_CTY = 'GB'`): three isolated, deliberately
+    corrupted reconciliation groups (each a real math cross-check discrepancy,
+    no fabricated codelist values) to exercise the quarantine path, each
+    genuinely detected by `SDMxRuleValidator` (real check codes, verified
+    against `checks_lbs.xls` — not fabricated IDs):
+
+    * Cross-check aggregation mismatch -> breaks `LBS_CC01` (`TO1:A` no longer
+      equals `D + F + U`).
+    * Currency breakdown mismatch -> breaks `LBS_CC02` (a net negative `EUR:F`
+      leg among the 5 mandatory currencies no longer sums to `TO1:F`; the
+      negative sign itself is valid SDMx, the broken cross-check is not).
+    * Sector cross-check violation -> breaks `LBS_CC:04` (`Banks (B) + Non-bank
+      (N)` no longer sums to `All sectors (A)`).
 
     Returns:
         A dict keyed by lower-case country code (`'ca'`, `'us'`, `'gb'`), each
@@ -227,31 +239,41 @@ def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
     df_us = pd.DataFrame(_make_micro_rows(us_base, us_components), columns=MICRO_COLUMNS)
 
     # ------------------------------------------------------------------
-    # Scenario C: United Kingdom (GB) — mostly clean, with ~INVALID_RECORD_RATE
-    # of components deliberately corrupted to exercise the quarantine path.
+    # Scenario C: United Kingdom (GB) — three isolated, deliberately corrupted
+    # reconciliation groups (see docstring), each using only real BIS codes.
     # ------------------------------------------------------------------
     gb_base = {**ca_base, "L_REP_CTY": "GB"}
     gb_components = [
-        # Domestic currency (GBP:D) -> total 600
+        # --- Test 1: Cross-Check Aggregation Mismatch -> genuine LBS_CC01 FAIL ---
+        # Domestic + Foreign + Unallocated (300+500+100=900) deliberately do not sum
+        # to the fixed TO1:A aggregate (950); every code here is real and permitted.
         ("GBP", "D", "BANK_GB_1", 300.0),
-        ("GBP", "D", "BANK_GB_2", 300.0),
-        # Foreign currencies (TO1:F) -> total 500
-        ("TO1", "F", "BANK_GB_1", 250.0),
-        ("TO1", "F", "BANK_GB_2", 250.0),
-        # Unallocated currency type (UN9:U) -> total 100
+        ("TO1", "F", "BANK_GB_2", 500.0),
         ("UN9", "U", "BANK_GB_3", 100.0),
-        # All-currencies aggregate (TO1:A) -> total 1200 = 600 + 500 + 100 (LBS_CC01 passes)
-        ("TO1", "A", "BANK_GB_1", 480.0),
-        ("TO1", "A", "BANK_GB_2", 480.0),
-        ("TO1", "A", "BANK_GB_3", 240.0),
+        ("TO1", "A", "BANK_GB_1", 950.0),
 
-        # --- ~INVALID_RECORD_RATE (~15%) deliberately invalid records for quarantine testing ---
-        # 1) Negative transaction amount -> breaks LBS_CC01 reconciliation math.
-        ("GBP", "D", "BANK_GB_1", -150.0),
-        # 2) Invalid sector-currency pairing: Household ('H') sector holding Debt securities ('D').
-        ("EUR", "F", "BANK_GB_2", 50.0, {"L_CP_SECTOR": "H", "L_INSTR": "D"}),
-        # 3) Mismatched bank_type/parent_country: a 'domestic bank' (D) cannot have a foreign parent.
-        ("CHF", "F", "BANK_GB_3", 75.0, {"L_REP_BANK_TYPE": "D", "L_PARENT_CTY": "US"}),
+        # --- Test 2: Currency Breakdown Mismatch -> genuine LBS_CC02 FAIL ---
+        # TO1:F must equal the sum of the 5 mandatory currencies + TO3:F. The EUR:F leg is
+        # reported as a net negative position, which is perfectly valid SDMx data, but the
+        # legs no longer reconcile: 100-50+100+100+100+50=400 != the fixed TO1:F total (500).
+        # L_POSITION='L' isolates this group from Test 1; L_POSITION is never itself
+        # a reconciliation target, so it cannot trigger spurious cross-check failures.
+        ("USD", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
+        ("EUR", "F", "BANK_GB_2", -50.0, {"L_POSITION": "L"}),
+        ("JPY", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
+        ("CHF", "F", "BANK_GB_2", 100.0, {"L_POSITION": "L"}),
+        ("GBP", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
+        ("TO3", "F", "BANK_GB_2", 50.0, {"L_POSITION": "L"}),
+        ("TO1", "F", "BANK_GB_1", 500.0, {"L_POSITION": "L"}),
+
+        # --- Test 3: Sector Cross-Check Violation -> genuine LBS_CC:04 FAIL ---
+        # All sectors (A) should equal Non-bank (N) + Banks (B); only real, permitted
+        # sector codes are used (no fabricated placeholders) but the totals deliberately
+        # don't reconcile: recomputed 300 (B) + 150 (N) = 450 != the fixed aggregate (500).
+        # Shares Test 2's L_POSITION='L' plane but is isolated by its own L_DENOM/L_CURR_TYPE.
+        ("GBP", "D", "BANK_GB_1", 500.0, {"L_POSITION": "L", "L_CP_SECTOR": "A"}),
+        ("GBP", "D", "BANK_GB_2", 300.0, {"L_POSITION": "L", "L_CP_SECTOR": "B"}),
+        ("GBP", "D", "BANK_GB_3", 150.0, {"L_POSITION": "L", "L_CP_SECTOR": "N"}),
     ]
     df_gb = pd.DataFrame(_make_micro_rows(gb_base, gb_components), columns=MICRO_COLUMNS)
 
@@ -266,6 +288,13 @@ def aggregate_micro_to_macro(df_micro: pd.DataFrame, threshold: float = 0.60) ->
     to a `TIME_SERIES_CODE` total is >= `threshold`, the observation is marked
     restricted (`OBS_CONF = 'N'`); otherwise it is free for publication
     (`OBS_CONF = 'F'`). All observations are tagged `OBS_STATUS = 'A'` (Normal).
+
+    Dominance is measured on absolute contributions. LBS observations are signed,
+    so a signed share is not a meaningful disclosure measure: offsetting positions
+    can drive the denominator to zero or make a single bank's share exceed 1.
+
+    Observations whose total nets to exactly zero are dropped, since SDMx does not
+    report zero-valued positions.
 
     Args:
         df_micro: Bank-level micro-data matching the `MICRO_COLUMNS` schema,
@@ -282,11 +311,21 @@ def aggregate_micro_to_macro(df_micro: pd.DataFrame, threshold: float = 0.60) ->
     # 1. Total macro OBS_VALUE per SDMx time series.
     df_macro = df_micro.groupby(group_keys, as_index=False)["OBS_VALUE"].sum()
 
-    # 2. Per-bank contribution within each time series, then the max share.
+    # 2. Per-bank contribution within each time series, then the max absolute share.
     df_bank_totals = df_micro.groupby(group_keys + ["BANK_CODE"], as_index=False)["OBS_VALUE"].sum()
     df_bank_totals = df_bank_totals.rename(columns={"OBS_VALUE": "BANK_OBS_VALUE"})
-    df_bank_totals = df_bank_totals.merge(df_macro, on=group_keys, how="left")
-    df_bank_totals["BANK_SHARE"] = df_bank_totals["BANK_OBS_VALUE"] / df_bank_totals["OBS_VALUE"]
+    df_bank_totals["ABS_BANK_OBS_VALUE"] = df_bank_totals["BANK_OBS_VALUE"].abs()
+
+    df_abs_totals = df_bank_totals.groupby(group_keys, as_index=False)["ABS_BANK_OBS_VALUE"].sum()
+    df_abs_totals = df_abs_totals.rename(columns={"ABS_BANK_OBS_VALUE": "ABS_TOTAL"})
+    df_bank_totals = df_bank_totals.merge(df_abs_totals, on=group_keys, how="left")
+
+    # A series with no reported exposure at all has no dominant contributor to protect.
+    df_bank_totals["BANK_SHARE"] = np.where(
+        df_bank_totals["ABS_TOTAL"] > 0,
+        df_bank_totals["ABS_BANK_OBS_VALUE"] / df_bank_totals["ABS_TOTAL"].replace(0, np.nan),
+        0.0,
+    )
 
     df_max_share = df_bank_totals.groupby(group_keys, as_index=False)["BANK_SHARE"].max()
     df_max_share = df_max_share.rename(columns={"BANK_SHARE": "MAX_BANK_SHARE"})
@@ -298,6 +337,9 @@ def aggregate_micro_to_macro(df_micro: pd.DataFrame, threshold: float = 0.60) ->
 
     # 4. Standard observation status.
     df_macro["OBS_STATUS"] = "A"
+
+    # 5. SDMx convention: zero-valued positions are not reported at all.
+    df_macro = df_macro[df_macro["OBS_VALUE"] != 0]
 
     return df_macro[group_keys + ["OBS_VALUE", "MAX_BANK_SHARE", "OBS_CONF", "OBS_STATUS"]]
 
