@@ -35,8 +35,6 @@ CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
 -- =====================================================================
 -- 3. DYNAMIC DATA MASKING (DDM) FUNCTION
 -- =====================================================================
--- Mask OBS_VALUE to NULL for confidential ('C' or 'N') records unless 
--- the user belongs to Admin or Submitter groups.
 CREATE OR REPLACE FUNCTION fn_ddm_obs_conf_mask(obs_val DOUBLE, obs_conf STRING)
 RETURNS DOUBLE
 RETURN CASE
@@ -50,7 +48,6 @@ END;
 -- =====================================================================
 -- 4. ROW-LEVEL SECURITY (RLS) FUNCTION
 -- =====================================================================
--- Evaluates Segment 9 of TIME_SERIES_CODE against uppercase ISO country codes (e.g., 'CA', 'US').
 CREATE OR REPLACE FUNCTION fn_rls_lbs_country_lock(time_series_code STRING)
 RETURNS BOOLEAN
 RETURN CASE
@@ -70,7 +67,7 @@ CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
   TIME_SERIES_CODE STRING,
   DATE STRING,
   IBS_AGG STRING,
-  OBS_VALUE DOUBLE MASK fn_ddm_obs_conf_mask(OBS_CONF),
+  OBS_VALUE DOUBLE MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF),
   OBS_STATUS STRING,
   OBS_CONF STRING,
   QUALITY_STATUS STRING,
@@ -86,7 +83,6 @@ WITH ROW FILTER fn_rls_lbs_country_lock ON (TIME_SERIES_CODE);
 -- =====================================================================
 -- 6. QUARANTINE PUBLISHED VIEW
 -- =====================================================================
--- Only exposes non-quarantined (PUBLISHED) and current SCD2 records.
 CREATE OR REPLACE VIEW v_lbs_sdmx_published AS
 SELECT 
   TIME_SERIES_CODE,
@@ -102,15 +98,26 @@ WHERE BATCH_STATUS = 'PUBLISHED'
 -- =====================================================================
 -- 7. UNITY CATALOG GRANTS FOR SYNCHRONIZED GROUPS
 -- =====================================================================
-GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-ca`, `sg-sovereignshield-submitter-us`, `sg-sovereignshield-researchers`;
-GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-ca`, `sg-sovereignshield-submitter-us`, `sg-sovereignshield-researchers`;
 
--- Admins: Full permissions
+-- Catalog USAGE Grants
+GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-admin`;
+GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-submitter-ca`;
+GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-submitter-us`;
+GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-researchers`;
+
+-- Schema USAGE Grants
+GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-admin`;
+GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-submitter-ca`;
+GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-submitter-us`;
+GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-researchers`;
+
+-- Admins: Full permissions on underlying tables
 GRANT ALL PRIVILEGES ON TABLE lbs_micro_transactions TO `sg-sovereignshield-admin`;
 GRANT ALL PRIVILEGES ON TABLE lbs_sdmx_history TO `sg-sovereignshield-admin`;
 
 -- Submitters: Select access to history table (RLS filter active)
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-submitter-ca`, `sg-sovereignshield-submitter-us`;
+GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-submitter-ca`;
+GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-submitter-us`;
 
--- Researchers: Select access ONLY to the published view (Quarantine filter active)
+-- Researchers: Select access ONLY to published view (Quarantine filter active)
 GRANT SELECT ON VIEW v_lbs_sdmx_published TO `sg-sovereignshield-researchers`;
