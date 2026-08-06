@@ -3,10 +3,11 @@ bundle:
 
 targets:
   dev:
-    default: true
     mode: development
+    default: true
     workspace:
-      host: https://adb-7405605868991128.8.azuredatabricks.net  # <-- UPDATE THIS
+      # host is intentionally omitted here; 
+      # DABs automatically picks up $env:DATABRICKS_HOST from pre_auth.ps1
     
     resources:
       jobs:
