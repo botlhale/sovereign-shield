@@ -1,5 +1,7 @@
 # Project SovereignShield: SDMx 3.0 Data Validation & Schema Enforcement
 
+> **Context:** validation of national submissions to an international statistical body. The rulebook is authored and revised by **BIS**, not by this platform — which is precisely why the checks are loaded as runtime metadata rather than compiled into code.
+
 ## 📊 Overview
 
 As Project SovereignShield transitions the International Banking Statistics framework from legacy infrastructure to the **SDMx 3.0 standard**, strict data validation becomes paramount.

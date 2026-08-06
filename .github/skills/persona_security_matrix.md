@@ -1,5 +1,7 @@
 # Project SovereignShield: Persona & Role-Based Access Control (RBAC) Matrix
 
+> **Context:** personas map to the real participants in an international statistical exchange — the submitting national central banks, the compiling body's administrators, and external researchers consuming published aggregates. Sovereignty between submitters is enforced, not agreed.
+
 ## 🔐 Overview
 
 Project SovereignShield implements a Zero-Trust, Role-Based Access Control (RBAC) model driven natively by **Databricks Unity Catalog** and synchronized with Azure Entra ID.

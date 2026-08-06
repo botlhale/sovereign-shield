@@ -1,5 +1,7 @@
 # Project SovereignShield: SDMx Slowly Changing Dimension (SCD2) Engine
 
+> **Context:** historisation of national submissions to an international statistical body. Point-in-time reconstruction is a regulatory requirement here — an international collection must be able to answer "what did this jurisdiction report as of date X," which a mutable status column cannot.
+
 ## 🔄 Overview
 
 The SCD2 Merge Engine is the data processing core of Project SovereignShield. It is responsible for bridging the gap between raw, multi-jurisdictional micro-transactions and the centralized **SDMx 3.0** macro-historical tables.

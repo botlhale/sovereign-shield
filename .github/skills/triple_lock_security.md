@@ -2,7 +2,9 @@
 
 ## 🛡️ Overview
 
-The SovereignShield pipeline enforces a cryptographic-grade, Zero-Trust security model natively within **Databricks Unity Catalog**. By decoupling governance from compute logic, security policies are uniformly applied across PySpark pipelines, SQL endpoints, and downstream BI tools.
+SovereignShield re-imagines Zero-Trust for **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics). The perimeter being defended is a *national* boundary and a legal obligation, not a network segment — so "never trust, always verify" is resolved concretely: every consumer is re-authorised against Entra ID at query time, and entitlement is derived from the SDMx key itself.
+
+The pipeline enforces that model natively within **Databricks Unity Catalog**. By decoupling governance from compute logic, security policies are applied uniformly across PySpark pipelines, SQL endpoints, and downstream BI tools — there is no code path that can omit them, because they are not in the code path.
 
 This document outlines the core architectural mandates, the DDL idempotency patterns, and the "Triple-Lock" framework used to secure International Banking Statistics (SDMx 3.0) data.
 
