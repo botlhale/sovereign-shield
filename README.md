@@ -1,16 +1,18 @@
 # Project SovereignShield: Zero-Trust Governance for SDMx 3.0 Submissions to International Bodies
 
-> **What this is:** a working reference implementation that re-imagines **Zero-Trust security for international statistical data exchange** — the submission of confidential national banking statistics to an international body (BIS Locational Banking Statistics) under the **SDMx 3.0** standard.
+> **What this is:** a working reference implementation exploring how **Azure Databricks and Unity Catalog** can express the security obligations of **international statistical data exchange** as platform-level constraints — the submission of confidential national banking statistics to an international body (BIS Locational Banking Statistics) under the **SDMx 3.0** standard. It complements, rather than replaces, the mature SDMx tooling institutions already operate.
 
 ## 📖 Executive Summary
 
 Every quarter, national central banks transmit confidential banking statistics to international organisations — the Bank for International Settlements, the IMF, the UN Statistics Division — encoded in **SDMx**, the standard for Statistical Data and Metadata (ISO 17369). That exchange carries three simultaneous obligations: national data sovereignty, cell-level confidentiality, and arithmetic consistency with a rulebook the submitting agency does not own.
 
-Those obligations are conventionally upheld by **legal agreement and operational process** — memoranda of understanding, review checklists, careful people. SovereignShield asks a different question: *what if they were enforced by the data platform itself, and could not be bypassed?*
+Institutions already uphold these obligations rigorously today, using specialised open-source SDMx software (such as the SDMX Reference Infrastructure), dedicated application layers, and strict operational protocols developed over many years. That work is mature, and this project does not try to replace it.
+
+SovereignShield asks an adjacent architectural question: *what happens if the same obligations are moved out of the application layer entirely and expressed as constraints of the cloud data platform itself?*
 
 **Zero Trust is a network and application security model. This project re-imagines it for statistical submissions.** In this domain the perimeter is not a VPC — it is a national border, and a legal one. "Never trust, always verify" therefore resolves to a concrete mechanism: every consumer is re-authorised against Entra ID at query time, and entitlement is evaluated from the SDMx key itself.
 
-Three properties follow, and each is enforced in Unity Catalog rather than in pipeline code:
+Three properties follow, and each is expressed in Unity Catalog rather than in pipeline code:
 
 | Obligation | Enforcement | Bypassable by application code? |
 | --- | --- | --- |
@@ -20,9 +22,9 @@ Three properties follow, and each is enforced in Unity Catalog rather than in pi
 
 Because policy lives in the metastore, it is enforced identically through PySpark, a SQL warehouse, a BI tool, or an ad-hoc JDBC session. There is no code path that can forget to apply it, because it is not in the code path at all.
 
-The validation rulebook is treated as **metadata, not code**: BIS consistency checks are parsed from the published workbook at runtime, so a rulebook revision requires no deployment. Human intervention in production is eliminated — credentials are hydrated from Azure Key Vault into session scope and never persisted, and all DDL is applied by an automated, version-controlled pipeline.
+The validation rulebook is treated as **metadata, not code** — an approach the SDMx community has long advocated: BIS consistency checks are parsed from the published workbook at runtime, so a rulebook revision requires no deployment. Routine operator intervention in production is correspondingly reduced — credentials are hydrated from Azure Key Vault into session scope and never persisted, and all DDL is applied by an automated, version-controlled pipeline.
 
-> **Status:** a complete, deployed, end-to-end reference implementation on Azure, running the genuine BIS LBS rulebook and real SDMx 3.0 message structures against realistic **synthetic** submissions. It is not connected to live reporting data, and it is an independent piece of work — not an official system of, nor endorsed by, any central bank or international organisation.
+> **Status:** a complete, deployed, end-to-end reference architecture on Azure, running the genuine BIS LBS rulebook and real SDMx 3.0 message structures against realistic **synthetic** submissions. It is not connected to live reporting data, and it is an independent piece of work — not a production system of, nor endorsed by, any central bank or international organisation. It is published for scrutiny, and critique from SDMx practitioners is genuinely welcome.
 
 ---
 
@@ -245,7 +247,7 @@ Because values are signed, the disclosure-control dominance rule is computed on 
 
 ### 4. The Zero-Trust Triple-Lock Security Matrix
 
-Security is centralized at the Unity Catalog **metastore** level, not in the pipeline code. Because the policy is attached to the object rather than the query, it applies identically whether the caller arrives via PySpark, a SQL warehouse, Power BI, or an ad-hoc JDBC connection. There is no code path that can "forget" to apply it.
+Security is centralised at the Unity Catalog **metastore** level rather than in the pipeline code — the same obligations application layers enforce today, relocated one layer down. Because the policy is attached to the object rather than the query, it applies identically whether the caller arrives via PySpark, a SQL warehouse, Power BI, or an ad-hoc JDBC connection. There is no code path that can "forget" to apply it.
 
 | | **Lock 1 — RLS** | **Lock 2 — DDM** | **Lock 3 — Quarantine View** |
 | --- | --- | --- | --- |
@@ -433,7 +435,7 @@ targets:
 
 ## 🤝 Safe Engagement & Clean Handover
 
-A governance platform is usually built by the people least able to be trusted with the data it governs — external specialists, contractors, or a vendor team. The conventional answer is to grant them production access under an NDA and hope. SovereignShield is designed so that **the specialist never needs access to real data at any point**, and so that **removing them afterwards is a single administrative action rather than an audit exercise**.
+Specialist platform work is frequently delivered by people who should not hold the data they are governing — external architects, contractors, or a vendor team. Institutions manage this well today, with NDAs, supervised environments, and access reviews. SovereignShield explores how much of that burden the platform itself can absorb: **the specialist never needs access to real data at any point**, and **removing them afterwards is a small set of administrative actions rather than an audit exercise**.
 
 This is a deliberate architectural property, not a process wrapper.
 

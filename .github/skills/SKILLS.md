@@ -1,6 +1,6 @@
 # 🧭 SovereignShield — Platform Capability Matrix
 
-**SovereignShield** is Zero-Trust architecture re-imagined for **SDMx 3.0 statistical submissions to an international body** — national central banks reporting confidential banking data into the BIS Locational Banking Statistics collection. The perimeter here is not a network boundary but a *national* one, and it is legal rather than technical; every capability below exists to enforce that boundary in the data platform rather than by process agreement.
+**SovereignShield** explores Zero-Trust for **SDMx 3.0 statistical submissions to an international body** — national central banks reporting confidential banking data into the BIS Locational Banking Statistics collection. The perimeter here is not a network boundary but a *national* one, and it is legal rather than technical. Institutions already enforce that boundary rigorously through specialised SDMx software and operational protocol; every capability below explores what it looks like when the same boundary is additionally expressed in the data platform itself.
 
 This matrix documents the **operational capabilities the platform actually implements**, each mapped to the artifact that enforces it. It is the authoritative index for agents and reviewers: every row below corresponds to code in this repository, not to aspirational scope.
 

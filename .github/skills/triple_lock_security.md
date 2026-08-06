@@ -2,7 +2,7 @@
 
 ## 🛡️ Overview
 
-SovereignShield re-imagines Zero-Trust for **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics). The perimeter being defended is a *national* boundary and a legal obligation, not a network segment — so "never trust, always verify" is resolved concretely: every consumer is re-authorised against Entra ID at query time, and entitlement is derived from the SDMx key itself.
+SovereignShield explores Zero-Trust for **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics). The perimeter being defended is a *national* boundary and a legal obligation, not a network segment — so "never trust, always verify" is resolved concretely: every consumer is re-authorised against Entra ID at query time, and entitlement is derived from the SDMx key itself. These are the same guarantees established SDMx implementations uphold in their application layers; here they are expressed one layer lower.
 
 The pipeline enforces that model natively within **Databricks Unity Catalog**. By decoupling governance from compute logic, security policies are applied uniformly across PySpark pipelines, SQL endpoints, and downstream BI tools — there is no code path that can omit them, because they are not in the code path.
 

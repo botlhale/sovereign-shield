@@ -1,6 +1,6 @@
 # Project SovereignShield: Persona & Role-Based Access Control (RBAC) Matrix
 
-> **Context:** personas map to the real participants in an international statistical exchange — the submitting national central banks, the compiling body's administrators, and external researchers consuming published aggregates. Sovereignty between submitters is enforced, not agreed.
+> **Context:** personas map to the real participants in an international statistical exchange — the submitting national central banks, the compiling body's administrators, and external researchers consuming published aggregates. Sovereignty between submitters is expressed as a platform constraint rather than only as an operational agreement.
 
 ## 🔐 Overview
 
