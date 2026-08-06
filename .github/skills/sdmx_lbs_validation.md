@@ -4,7 +4,7 @@
 
 ## 📊 Overview
 
-As Project SovereignShield transitions the International Banking Statistics framework from legacy infrastructure to the **SDMx 3.0 standard**, strict data validation becomes paramount.
+Validation in this domain is already rigorous: the BIS publishes an explicit consistency rulebook and submitting agencies check against it carefully. SovereignShield demonstrates how that same rulebook can be applied on a cloud-native platform under the **SDMx 3.0 standard**, loaded as runtime metadata rather than compiled into pipeline code.
 
 The validation layer acts as the primary gatekeeper. It ensures that raw micro-transactions are correctly aggregated, structurally aligned with the target schema, and dimensionally accurate *before* they are committed to the Delta Lake Slowly Changing Dimension (SCD2) history tables.
 

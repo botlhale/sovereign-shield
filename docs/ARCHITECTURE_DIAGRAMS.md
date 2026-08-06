@@ -1,6 +1,6 @@
 # 🎨 SovereignShield — Architecture Visual Design Pack
 
-Presentation-ready assets for **SovereignShield** — Zero-Trust architecture re-imagined for **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics).
+Presentation-ready assets for **SovereignShield** — an exploration of how Azure Databricks and Unity Catalog can carry the security obligations of **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics) as platform constraints, alongside the mature SDMx tooling institutions already run.
 
 **Part 1** contains live-renderable Mermaid.js diagrams (GitHub, VS Code, Notion, Confluence, and most slide tooling render these natively).
 **Part 2** contains text-to-image generation prompts for producing high-fidelity executive slide artwork.
@@ -215,7 +215,7 @@ graph LR
 
 ### 1.4 Safe Engagement — Build on Synthetic, Hand Over, Revoke
 
-How an external specialist builds and proves the platform **without ever holding real data**, and how the enterprise severs that access in three actions without modifying the delivered code.
+How an external specialist builds and proves the platform **without ever holding real data**, and how the institution severs that access in three administrative actions without modifying the delivered code.
 
 ```mermaid
 graph LR
