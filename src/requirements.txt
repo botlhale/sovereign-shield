@@ -1,0 +1,21 @@
+# Runtime dependencies for the SovereignShield portal app only.
+#
+# Deliberately excludes PySpark, Delta and the Excel rulebook parsers: those
+# belong to the ingestion job (see the repository-root requirements.txt) and
+# would add hundreds of megabytes to every app deployment.
+
+# API and portal host
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+jinja2>=3.1.4
+
+# SDMx 3.0 serialization
+pysdmx[xml]>=1.18.0
+
+# Result handling
+pandas>=2.2.0
+pyarrow>=15.0.0
+
+# Unity Catalog access and identity resolution
+databricks-sql-connector>=3.4.0
+databricks-sdk>=0.30.0

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SovereignShield &middot; Locational Banking Statistics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#0b1f33',
+            slate850: '#16293d',
+            accent: '#0f766e',
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'Segoe UI', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 font-sans antialiased">
+
+<header class="bg-ink text-white">
+  <div class="mx-auto max-w-7xl px-6 py-5 flex flex-wrap items-center gap-4">
+    <div class="flex-1 min-w-[16rem]">
+      <p class="text-[11px] uppercase tracking-[0.2em] text-teal-300">Sovereign statistical exchange</p>
+      <h1 class="text-2xl font-semibold leading-tight">SovereignShield Data Portal</h1>
+      <p class="text-sm text-slate-300">Locational Banking Statistics &middot; {{ dataflow }}</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="text-right">
+        <p class="text-[11px] uppercase tracking-wider text-slate-400">Viewing as</p>
+        <p id="persona-badge"
+           class="inline-flex items-center gap-2 rounded-full bg-slate-700 px-3 py-1 text-sm font-medium">
+          <span class="h-2 w-2 rounded-full bg-slate-400"></span>
+          <span id="persona-text">Resolving security context&hellip;</span>
+        </p>
+      </div>
+      <a id="auth-link" href="{{ sign_in_url }}"
+         class="rounded-md bg-teal-500 px-4 py-2 text-sm font-semibold text-ink hover:bg-teal-400 transition">
+        Sign in
+      </a>
+    </div>
+  </div>
+  <div class="bg-slate850 text-xs text-slate-300">
+    <div class="mx-auto max-w-7xl px-6 py-2 flex flex-wrap gap-x-6 gap-y-1">
+      <span>Row-level security and column masking are enforced by Unity Catalog at query time.</span>
+      <a href="/api/docs" class="text-teal-300 hover:underline">REST API reference</a>
+      <a href="/api/v1/health" class="text-teal-300 hover:underline">Service health</a>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-7xl px-6 py-8 grid grid-cols-1 lg:grid-cols-[20rem_1fr] gap-8">
+
+  <aside class="space-y-4">
+    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Filters</h2>
+
+    {% for name, label, dimension in filter_cards %}
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <header class="flex items-baseline justify-between px-4 pt-3">
+        <h3 class="text-sm font-semibold text-slate-700">{{ label }}</h3>
+        <code class="text-[10px] text-slate-400">{{ dimension }}</code>
+      </header>
+      <div class="px-4 pb-3 pt-2">
+        <select multiple size="4" data-filter="{{ name }}"
+                class="w-full rounded border-slate-300 text-sm focus:border-accent focus:ring-accent">
+        </select>
+      </div>
+    </section>
+    {% endfor %}
+
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm p-4 space-y-3">
+      <h3 class="text-sm font-semibold text-slate-700">Reference period</h3>
+      <label class="block text-xs text-slate-500">From
+        <input id="date-from" type="text" placeholder="2026-Q1"
+               class="mt-1 w-full rounded border-slate-300 text-sm focus:border-accent focus:ring-accent">
+      </label>
+      <label class="block text-xs text-slate-500">To
+        <input id="date-to" type="text" placeholder="2026-Q4"
+               class="mt-1 w-full rounded border-slate-300 text-sm focus:border-accent focus:ring-accent">
+      </label>
+    </section>
+
+    <section id="quarantine-card" class="hidden rounded-lg border border-amber-300 bg-amber-50 p-4">
+      <label class="flex items-start gap-2 text-sm text-amber-900">
+        <input id="include-quarantined" type="checkbox" class="mt-1 rounded border-amber-400 text-amber-600">
+        <span>Include my quarantined batches<span class="block text-xs text-amber-700">
+          Failed the BIS consistency rulebook; never published.</span></span>
+      </label>
+    </section>
+
+    <div class="flex gap-2">
+      <button id="apply" class="flex-1 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-slate850">
+        Apply filters
+      </button>
+      <button id="reset" class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
+        Reset
+      </button>
+    </div>
+  </aside>
+
+  <section class="space-y-6">
+
+    <div class="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+        <div>
+          <h2 class="text-base font-semibold text-slate-800">Time series preview</h2>
+          <p id="result-summary" class="text-xs text-slate-500">No query has been run yet.</p>
+        </div>
+        <span id="masking-note" class="hidden rounded bg-slate-100 px-2 py-1 text-xs text-slate-600"></span>
+      </header>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-5 py-3 font-semibold">Series key</th>
+              <th class="px-5 py-3 font-semibold">Period</th>
+              <th class="px-5 py-3 font-semibold text-right">Observation</th>
+              <th class="px-5 py-3 font-semibold">Status</th>
+              <th class="px-5 py-3 font-semibold">Conf.</th>
+              <th class="px-5 py-3 font-semibold">Batch</th>
+            </tr>
+          </thead>
+          <tbody id="results" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-white shadow-sm p-5">
+      <h2 class="text-base font-semibold text-slate-800">Export</h2>
+      <p class="text-xs text-slate-500">
+        Exports carry the current filter and are serialized under the same entitlement as the preview.
+      </p>
+      <div class="mt-4 flex flex-wrap gap-3">
+        <a id="export-sdmx-ml" href="#"
+           class="rounded-md bg-accent px-5 py-3 text-sm font-semibold text-white shadow hover:bg-teal-700">
+          Export SDMX-ML 3.0
+        </a>
+        <a id="export-sdmx-json" href="#"
+           class="rounded-md border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          SDMX-JSON 2.0.0
+        </a>
+        <a id="export-sdmx-csv" href="#"
+           class="rounded-md border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          SDMX-CSV 2.0.0
+        </a>
+        <a id="export-tidy-csv" href="#"
+           class="rounded-md border border-slate-300 px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          Tidy CSV
+        </a>
+      </div>
+    </div>
+
+    <p id="error" class="hidden rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"></p>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const PERSONA_TONE = {
+    admin: ["bg-rose-600", "bg-rose-300"],
+    "submitter-ca": ["bg-teal-700", "bg-teal-300"],
+    "submitter-us": ["bg-teal-700", "bg-teal-300"],
+    researcher: ["bg-indigo-700", "bg-indigo-300"],
+    public: ["bg-slate-700", "bg-slate-400"],
+  };
+
+  const selects = Array.from(document.querySelectorAll("select[data-filter]"));
+  const dateFrom = document.getElementById("date-from");
+  const dateTo = document.getElementById("date-to");
+  const quarantine = document.getElementById("include-quarantined");
+  const results = document.getElementById("results");
+  const summary = document.getElementById("result-summary");
+  const maskingNote = document.getElementById("masking-note");
+  const errorBox = document.getElementById("error");
+
+  const EXPORTS = {
+    "export-sdmx-ml": "/api/v1/export/sdmx-ml",
+    "export-sdmx-json": "/api/v1/export/sdmx-json",
+    "export-sdmx-csv": "/api/v1/export/csv?format=sdmx",
+    "export-tidy-csv": "/api/v1/export/csv?format=tidy",
+  };
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.classList.remove("hidden");
+  }
+
+  function clearError() {
+    errorBox.textContent = "";
+    errorBox.classList.add("hidden");
+  }
+
+  function currentParams() {
+    const params = new URLSearchParams();
+    selects.forEach((select) => {
+      Array.from(select.selectedOptions).forEach((option) => {
+        params.append(select.dataset.filter, option.value);
+      });
+    });
+    if (dateFrom.value.trim()) params.append("date_from", dateFrom.value.trim());
+    if (dateTo.value.trim()) params.append("date_to", dateTo.value.trim());
+    return params;
+  }
+
+  function refreshExportLinks() {
+    const query = currentParams().toString();
+    Object.entries(EXPORTS).forEach(([id, path]) => {
+      const separator = path.includes("?") ? "&" : "?";
+      document.getElementById(id).href = query ? path + separator + query : path;
+    });
+  }
+
+  function cell(row, text, classes) {
+    const td = document.createElement("td");
+    td.className = "px-5 py-2.5 " + (classes || "");
+    td.textContent = text;
+    row.appendChild(td);
+    return td;
+  }
+
+  function renderRows(observations) {
+    results.replaceChildren();
+    if (!observations.length) {
+      const row = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 6;
+      td.className = "px-5 py-8 text-center text-slate-500";
+      td.textContent = "No observations are visible to your access level for this filter.";
+      row.appendChild(td);
+      results.appendChild(row);
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    observations.forEach((observation) => {
+      const row = document.createElement("tr");
+      row.className = "hover:bg-slate-50";
+      cell(row, observation.TIME_SERIES_CODE || "", "font-mono text-[11px] text-slate-600");
+      cell(row, observation.DATE || "", "text-slate-600");
+
+      const value = observation.OBS_VALUE;
+      if (value === null || value === undefined) {
+        cell(row, "restricted", "text-right italic text-slate-400");
+      } else {
+        cell(row, Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }),
+             "text-right tabular-nums");
+      }
+
+      cell(row, observation.OBS_STATUS || "", "text-slate-600");
+      cell(row, observation.OBS_CONF || "", "text-slate-600");
+
+      const batch = observation.BATCH_STATUS || "";
+      const badge = cell(row, "");
+      const span = document.createElement("span");
+      span.className = "rounded px-2 py-0.5 text-xs font-medium " +
+        (batch === "QUARANTINE" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800");
+      span.textContent = batch;
+      badge.appendChild(span);
+
+      fragment.appendChild(row);
+    });
+    results.appendChild(fragment);
+  }
+
+  async function loadIdentity() {
+    const response = await fetch("/api/v1/whoami");
+    if (!response.ok) throw new Error("Could not resolve the security context.");
+    const identity = await response.json();
+
+    const badge = document.getElementById("persona-badge");
+    const dot = badge.querySelector("span");
+    const [badgeTone, dotTone] = PERSONA_TONE[identity.persona] || PERSONA_TONE.public;
+    badge.className =
+      "inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium " + badgeTone;
+    dot.className = "h-2 w-2 rounded-full " + dotTone;
+    document.getElementById("persona-text").textContent = identity.label;
+
+    const authLink = document.getElementById("auth-link");
+    if (identity.authenticated) {
+      authLink.textContent = "Sign out";
+      authLink.href = "{{ sign_out_url }}";
+    }
+    if (identity.may_see_quarantine) {
+      document.getElementById("quarantine-card").classList.remove("hidden");
+    }
+  }
+
+  async function loadFacets() {
+    const response = await fetch("/api/v1/facets");
+    if (!response.ok) {
+      throw new Error("Filter values are unavailable: " + (await response.text()));
+    }
+    const payload = await response.json();
+    selects.forEach((select) => {
+      const codes = payload.dimensions[select.dataset.filter] || [];
+      select.replaceChildren();
+      codes.forEach((code) => {
+        const option = document.createElement("option");
+        option.value = code;
+        option.textContent = code;
+        select.appendChild(option);
+      });
+    });
+  }
+
+  async function runSearch() {
+    clearError();
+    const params = currentParams();
+    if (quarantine && quarantine.checked) params.append("include_quarantined", "true");
+    params.append("limit", "500");
+
+    const response = await fetch("/api/v1/search?" + params.toString());
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({ detail: response.statusText }));
+      showError(detail.detail || "The query could not be completed.");
+      return;
+    }
+    const payload = await response.json();
+    renderRows(payload.observations);
+
+    summary.textContent =
+      payload.row_count + " observation(s)" +
+      (payload.truncated ? " (truncated at the preview limit)" : "") +
+      " \u00b7 " + payload.access.label;
+
+    if (payload.masked_observations > 0) {
+      maskingNote.textContent =
+        payload.masked_observations + " value(s) withheld by dynamic data masking";
+      maskingNote.classList.remove("hidden");
+    } else {
+      maskingNote.classList.add("hidden");
+    }
+    refreshExportLinks();
+  }
+
+  document.getElementById("apply").addEventListener("click", runSearch);
+  document.getElementById("reset").addEventListener("click", () => {
+    selects.forEach((select) => { select.selectedIndex = -1; });
+    dateFrom.value = "";
+    dateTo.value = "";
+    if (quarantine) quarantine.checked = false;
+    runSearch();
+  });
+  selects.forEach((select) => select.addEventListener("change", refreshExportLinks));
+  [dateFrom, dateTo].forEach((input) => input.addEventListener("input", refreshExportLinks));
+
+  (async () => {
+    try {
+      await loadIdentity();
+      await loadFacets();
+      await runSearch();
+    } catch (err) {
+      showError(err.message);
+    }
+    refreshExportLinks();
+  })();
+})();
+</script>
+</body>
+</html>

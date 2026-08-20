@@ -1,6 +1,14 @@
 bundle:
   name: sovereignshield_bundle
 
+variables:
+  warehouse_id:
+    description: >-
+      Serverless SQL warehouse the portal queries through. Every statement it
+      runs is subject to the Unity Catalog row filter and column mask, so the
+      warehouse grants no entitlement of its own.
+    default: ""
+
 targets:
   dev:
     mode: development
@@ -10,6 +18,20 @@ targets:
       # DABs automatically picks up $env:DATABRICKS_HOST from pre_auth.ps1
     
     resources:
+      apps:
+        sovereignshield_portal:
+          name: "sovereignshield-portal"
+          description: "Public SDMx 3.0 data portal and REST gateway for BIS Locational Banking Statistics."
+          # ./src carries app.yaml, its own requirements.txt and the portal
+          # modules. The runtime reads the command and environment from app.yaml.
+          source_code_path: ./src
+          resources:
+            - name: "sql-warehouse"
+              description: "Query engine for the governed Delta history."
+              sql_warehouse:
+                id: ${var.warehouse_id}
+                permission: "CAN_USE"
+
       jobs:
         sovereignshield_sdmx_pipeline:
           name: "[DEV] SovereignShield SDMx Ingestion & Validation"

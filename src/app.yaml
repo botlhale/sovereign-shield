@@ -1,0 +1,44 @@
+# Databricks App runtime definition for the SovereignShield portal.
+#
+# The bundle uploads ./src as the app source, so this file sits beside the
+# modules it launches and beside the requirements.txt the app runtime installs.
+# Keeping the app's dependency set separate from the repository root manifest
+# stops the portal container from installing PySpark and Delta - dependencies
+# the ingestion job needs and the portal never touches.
+#
+# One process serves both the REST API and the portal UI. Databricks Apps
+# listens on DATABRICKS_APP_PORT, which defaults to 8000.
+command:
+  - "uvicorn"
+  - "api_gateway:app"
+  - "--host"
+  - "0.0.0.0"
+  - "--port"
+  - "8000"
+
+env:
+  # DATABRICKS_HOST, DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET are
+  # injected by the Apps runtime for the app's own service principal. That
+  # principal must be a member of sg-sovereignshield-public: it is the identity
+  # behind every unauthenticated request, and the row filter is what keeps it
+  # restricted to published, free-to-publish observations.
+  - name: "DATABRICKS_WAREHOUSE_ID"
+    valueFrom: "sql-warehouse"
+
+  - name: "SOVEREIGNSHIELD_CATALOG"
+    value: "dbw_sovereignshield"
+
+  - name: "SOVEREIGNSHIELD_SCHEMA"
+    value: "sovereign_shield"
+
+  # Preview page size; exports are capped separately by SOVEREIGNSHIELD_MAX_ROWS.
+  - name: "SOVEREIGNSHIELD_MAX_ROWS"
+    value: "20000"
+
+  # A Databricks App is always reached through workspace SSO, so there is no
+  # separate sign-in route to send a visitor to. These are overridden when the
+  # same image runs behind Azure Container Apps, which owns /.auth/*.
+  - name: "SOVEREIGNSHIELD_SIGNIN_URL"
+    value: "/"
+  - name: "SOVEREIGNSHIELD_SIGNOUT_URL"
+    value: "/"

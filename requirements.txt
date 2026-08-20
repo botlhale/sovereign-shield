@@ -15,6 +15,18 @@ pyspark>=3.5.0
 delta-spark>=3.1.0
 deltalake
 
+# Portal & API runtime.
+# Duplicated rather than "-r src/requirements.txt" because Databricks job
+# library specifications do not resolve nested requirement files.
+# src/requirements.txt is the manifest the deployed app installs; this copy
+# exists so one local `pip install -r requirements.txt` yields a complete
+# development environment.
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+jinja2>=3.1.4
+databricks-sql-connector>=3.4.0
+databricks-sdk>=0.30.0
+
 # Testing & Utilities
 pytest>=8.0.0
 python-dotenv>=1.0.0
