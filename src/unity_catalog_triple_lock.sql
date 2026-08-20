@@ -12,6 +12,10 @@
 -- =====================================================================
 
 USE CATALOG dbw_sovereignshield;
+
+-- The catalog is the workspace default catalog, created with the workspace.
+-- The schema is not, so a rebuilt workspace would otherwise abort here.
+CREATE SCHEMA IF NOT EXISTS sovereign_shield;
 USE SCHEMA sovereign_shield;
 
 -- =====================================================================
