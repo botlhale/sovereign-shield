@@ -39,7 +39,7 @@ param(
     [string]$Location = "canadacentral",
     [string]$EnvironmentName = "cae-sovereignshield",
     [string]$AppName = "ca-sovereignshield-portal",
-    [string]$RegistryName = "acrsovereignshield$((Get-Random -Maximum 99999))",
+    [string]$RegistryName = "",
     [switch]$EnableEntraSignIn
 )
 
@@ -58,15 +58,29 @@ az extension add --name containerapp --upgrade --only-show-errors | Out-Null
 az provider register --namespace Microsoft.App --wait | Out-Null
 az provider register --namespace Microsoft.OperationalInsights --wait | Out-Null
 
-Write-Host "==> 2/8 Creating the container registry ($RegistryName)" -ForegroundColor Cyan
-az acr create `
-    --resource-group $ResourceGroup `
-    --name $RegistryName `
-    --sku Basic `
-    --location $Location `
-    --output none
+Write-Host "==> 2/8 Container registry" -ForegroundColor Cyan
+# The registry name carries a random suffix, so an existing one is discovered
+# rather than recomputed - a new name would orphan the previous registry.
+if (-not $RegistryName) {
+    $RegistryName = az acr list --resource-group $ResourceGroup `
+        --query "[?starts_with(name, 'acrsovereignshield')].name | [0]" -o tsv
+}
+if ($RegistryName) {
+    Write-Host "    [skip]   Registry $RegistryName exists"
+}
+else {
+    $RegistryName = "acrsovereignshield$((Get-Random -Maximum 99999))"
+    Write-Host "    [create] Registry $RegistryName" -ForegroundColor Green
+    az acr create `
+        --resource-group $ResourceGroup `
+        --name $RegistryName `
+        --sku Basic `
+        --location $Location `
+        --output none
+}
 
 Write-Host "==> 3/8 Building the image in ACR (no local Docker required)" -ForegroundColor Cyan
+# Always rebuilt: the point of re-running is to ship new code.
 az acr build `
     --registry $RegistryName `
     --image $imageTag `
@@ -74,33 +88,50 @@ az acr build `
     $repoRoot `
     --output none
 
-Write-Host "==> 4/8 Creating the Container Apps environment" -ForegroundColor Cyan
-az containerapp env create `
-    --name $EnvironmentName `
-    --resource-group $ResourceGroup `
-    --location $Location `
-    --output none
+Write-Host "==> 4/8 Container Apps environment" -ForegroundColor Cyan
+if (az containerapp env show --name $EnvironmentName --resource-group $ResourceGroup 2>$null) {
+    Write-Host "    [skip]   Environment $EnvironmentName exists"
+}
+else {
+    Write-Host "    [create] Environment $EnvironmentName" -ForegroundColor Green
+    az containerapp env create `
+        --name $EnvironmentName `
+        --resource-group $ResourceGroup `
+        --location $Location `
+        --output none
+}
 
 Write-Host "==> 5/8 Deploying the app with external ingress" -ForegroundColor Cyan
 # Ingress is external and unauthenticated by design - this deployment exists to
 # demonstrate the anonymous tier. minReplicas 1 keeps the first visitor off a
 # cold start; the app holds no state, so scaling out is safe.
-az containerapp create `
-    --name $AppName `
-    --resource-group $ResourceGroup `
-    --environment $EnvironmentName `
-    --image "$RegistryName.azurecr.io/$imageTag" `
-    --registry-server "$RegistryName.azurecr.io" `
-    --registry-identity system `
-    --system-assigned `
-    --ingress external `
-    --target-port 8000 `
-    --transport auto `
-    --min-replicas 1 `
-    --max-replicas 3 `
-    --cpu 0.5 `
-    --memory 1.0Gi `
-    --output none
+if (az containerapp show --name $AppName --resource-group $ResourceGroup 2>$null) {
+    Write-Host "    [update] App $AppName exists - rolling out the new image" -ForegroundColor Green
+    az containerapp update `
+        --name $AppName `
+        --resource-group $ResourceGroup `
+        --image "$RegistryName.azurecr.io/$imageTag" `
+        --output none
+}
+else {
+    Write-Host "    [create] App $AppName" -ForegroundColor Green
+    az containerapp create `
+        --name $AppName `
+        --resource-group $ResourceGroup `
+        --environment $EnvironmentName `
+        --image "$RegistryName.azurecr.io/$imageTag" `
+        --registry-server "$RegistryName.azurecr.io" `
+        --registry-identity system `
+        --system-assigned `
+        --ingress external `
+        --target-port 8000 `
+        --transport auto `
+        --min-replicas 1 `
+        --max-replicas 3 `
+        --cpu 0.5 `
+        --memory 1.0Gi `
+        --output none
+}
 
 $principalId = az containerapp show --name $AppName --resource-group $ResourceGroup `
     --query identity.principalId -o tsv
@@ -149,10 +180,21 @@ if ($EnableEntraSignIn) {
     Write-Host "==> 8/8 Enabling Entra ID sign-in alongside anonymous access" -ForegroundColor Cyan
 
     $replyUrl = "https://$fqdn/.auth/login/aad/callback"
-    $authAppId = az ad app create `
-        --display-name "app-sovereignshield-portal" `
-        --web-redirect-uris $replyUrl `
-        --query appId -o tsv
+    $authAppId = az ad app list --display-name "app-sovereignshield-portal" `
+        --query "[?displayName=='app-sovereignshield-portal'].appId | [0]" -o tsv
+
+    if ($authAppId) {
+        Write-Host "    [skip]   Entra app registration exists ($authAppId)"
+        # The FQDN changes if the app is recreated, so the reply URL is refreshed.
+        az ad app update --id $authAppId --web-redirect-uris $replyUrl --output none
+    }
+    else {
+        Write-Host "    [create] Entra app registration" -ForegroundColor Green
+        $authAppId = az ad app create `
+            --display-name "app-sovereignshield-portal" `
+            --web-redirect-uris $replyUrl `
+            --query appId -o tsv
+    }
 
     # The forwarded token must be issued for the AzureDatabricks resource,
     # otherwise the workspace rejects it and every signed-in caller falls back
@@ -161,13 +203,23 @@ if ($EnableEntraSignIn) {
         --id $authAppId `
         --api $AzureDatabricksResourceId `
         --api-permissions "739272be-e143-11e8-9f32-f2801f1b9fd1=Scope" `
-        --output none
+        --output none 2>$null
 
-    $authSecret = az ad app credential reset --id $authAppId --append --query password -o tsv
-    az containerapp secret set `
-        --name $AppName --resource-group $ResourceGroup `
-        --secrets "portal-auth-secret=$authSecret" --output none
-    Remove-Variable authSecret
+    # Only minted when the container app has no stored secret: resetting one
+    # that already works would break the running sign-in flow.
+    $hasAuthSecret = az containerapp secret list --name $AppName --resource-group $ResourceGroup `
+        --query "[?name=='portal-auth-secret'] | [0].name" -o tsv
+    if ($hasAuthSecret) {
+        Write-Host "    [skip]   portal-auth-secret already set"
+    }
+    else {
+        Write-Host "    [create] portal-auth-secret" -ForegroundColor Green
+        $authSecret = az ad app credential reset --id $authAppId --append --query password -o tsv
+        az containerapp secret set `
+            --name $AppName --resource-group $ResourceGroup `
+            --secrets "portal-auth-secret=$authSecret" --output none
+        Remove-Variable authSecret
+    }
 
     az containerapp auth microsoft update `
         --name $AppName `

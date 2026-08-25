@@ -131,10 +131,11 @@ flowchart TB
 │       └── checks_lbs.xls                  # BIS LBS consistency checks (parsed at runtime)
 ├── sh/                                     # One-time Azure provisioning (NOT part of the pipeline)
 │   ├── pre_auth.ps1                        # Dot-sourced Key Vault -> session credential loader
-│   ├── kv_spn_create.sh                    # Provisions Key Vault + CI/CD and public-proxy SPNs
+│   ├── kv_spn_create.sh                    # Idempotent Key Vault + CI/CD and public-proxy SPNs
 │   ├── kv_spn_remediation.sh               # Rotates the SPN and refreshes stored secrets
-│   ├── databricks_create.sh                # Workspace and metastore bootstrap
+│   ├── databricks_create.sh                # Workspace bootstrap; publishes the URL to Key Vault
 │   ├── grp_users_create.sh                 # Entra ID security groups and persona assignment
+│   ├── databricks_account_setup.ps1        # Account-level identities, groups and workspace assignment
 │   ├── container_apps_deploy.ps1           # Anonymous public deployment to Azure Container Apps
 │   └── container_apps_deploy.sh            # Bash equivalent of the above
 └── src/
@@ -548,7 +549,7 @@ targets:
 2. **Key Vault access** — the deploying identity needs `get` on secrets in `kv-sovereignshield-28083`. The vault was created with `--enable-rbac-authorization false`, so access is granted via **access policies**, not Azure RBAC role assignments.
 3. **Session authentication** — always **dot-source** the loader (`. .\sh\pre_auth.ps1`). Running it as a child process sets the variables in a scope that is discarded on return.
 4. **Credential hygiene** — `sh/` contains provisioning aids, not pipeline code. Add it to `.gitignore` and keep secrets exclusively in Key Vault. Rotate with `sh/kv_spn_remediation.sh`, which deletes the existing app registration and refreshes every stored secret.
-5. **Entra ID groups** — `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-<cc>`, `sg-sovereignshield-researchers`, and `sg-sovereignshield-public` must exist before the Triple-Lock DDL runs; the security functions resolve membership at query time via `is_account_group_member`.
+5. **Entra ID groups** — `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-<cc>`, `sg-sovereignshield-researchers`, and `sg-sovereignshield-public` must exist before the Triple-Lock DDL runs; the security functions resolve membership at query time via `is_account_group_member`. `sh/grp_users_create.sh` provisions them idempotently, and `sh/databricks_account_setup.ps1` mirrors them into the Databricks **account** — account scope is what `is_account_group_member` reads, and workspace-scoped groups of the same name will never match.
 6. **Public portal principal** — `sh/kv_spn_create.sh` provisions `spn-sovereignshield-public` and adds it to `sg-sovereignshield-public`. It is created with **no Azure RBAC role assignment at all**: its entire entitlement is the row filter. Add it to the Databricks account as a service principal, and confirm the group membership synchronised — otherwise the fail-closed default leaves the public portal showing nothing, which looks like an outage rather than a policy decision.
 7. **SQL warehouse** — the portal reads through a warehouse passed as `--var="warehouse_id=..."` at deploy time. The warehouse grants no entitlement of its own; it is the engine the row filter is evaluated in.
 

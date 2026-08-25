@@ -134,10 +134,21 @@ FQDN=$(az containerapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP
 if [ "$ENABLE_SIGNIN" = "--with-entra-signin" ]; then
   echo "==> 8/8 Enabling Entra ID sign-in alongside anonymous access"
 
-  AUTH_APP_ID=$(az ad app create \
-    --display-name "app-sovereignshield-portal" \
-    --web-redirect-uris "https://$FQDN/.auth/login/aad/callback" \
-    --query appId -o tsv)
+  REPLY_URL="https://$FQDN/.auth/login/aad/callback"
+  AUTH_APP_ID=$(az ad app list --display-name "app-sovereignshield-portal" \
+    --query "[?displayName=='app-sovereignshield-portal'].appId | [0]" -o tsv 2>/dev/null || true)
+
+  if [ -n "$AUTH_APP_ID" ]; then
+    echo "    [skip]   Entra app registration exists ($AUTH_APP_ID)"
+    # The FQDN changes if the app is recreated, so the reply URL is refreshed.
+    az ad app update --id "$AUTH_APP_ID" --web-redirect-uris "$REPLY_URL" --output none
+  else
+    echo "    [create] Entra app registration"
+    AUTH_APP_ID=$(az ad app create \
+      --display-name "app-sovereignshield-portal" \
+      --web-redirect-uris "$REPLY_URL" \
+      --query appId -o tsv)
+  fi
 
   # The forwarded token must be issued for the AzureDatabricks resource,
   # otherwise the workspace rejects it and every signed-in caller silently falls
@@ -146,13 +157,22 @@ if [ "$ENABLE_SIGNIN" = "--with-entra-signin" ]; then
     --id "$AUTH_APP_ID" \
     --api "$AZURE_DATABRICKS_RESOURCE_ID" \
     --api-permissions "739272be-e143-11e8-9f32-f2801f1b9fd1=Scope" \
-    --output none
+    --output none 2>/dev/null || true
 
-  AUTH_SECRET=$(az ad app credential reset --id "$AUTH_APP_ID" --append --query password -o tsv)
-  az containerapp secret set \
-    --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
-    --secrets "portal-auth-secret=$AUTH_SECRET" --output none
-  unset AUTH_SECRET
+  # Only minted when the container app has no stored secret: resetting one that
+  # already works would break the running sign-in flow.
+  HAS_AUTH_SECRET=$(az containerapp secret list --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
+    --query "[?name=='portal-auth-secret'] | [0].name" -o tsv 2>/dev/null || true)
+  if [ -n "$HAS_AUTH_SECRET" ]; then
+    echo "    [skip]   portal-auth-secret already set"
+  else
+    echo "    [create] portal-auth-secret"
+    AUTH_SECRET=$(az ad app credential reset --id "$AUTH_APP_ID" --append --query password -o tsv)
+    az containerapp secret set \
+      --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
+      --secrets "portal-auth-secret=$AUTH_SECRET" --output none
+    unset AUTH_SECRET
+  fi
 
   az containerapp auth microsoft update \
     --name "$APP_NAME" \
