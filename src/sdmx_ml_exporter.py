@@ -311,7 +311,15 @@ def _write_with_pysdmx(
         dataset_action=action,
         dataset_id=dataset_id or f"{DATAFLOW_ID}_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}",
     )
-    return sdmx_io.write_sdmx(dataset, Format.DATA_SDMX_ML_3_0, header=header)
+    # Without this pysdmx defaults to AllDimensions, emitting one flat <Obs> per
+    # row. Grouping at TIME_PERIOD produces the <Series>/<Obs> nesting consumers
+    # expect from a time-series dataflow, and matches the fallback writer.
+    return sdmx_io.write_sdmx(
+        dataset,
+        Format.DATA_SDMX_ML_3_0,
+        header=header,
+        dimension_at_observation=TIME_DIMENSION,
+    )
 
 
 def _write_with_elementtree(

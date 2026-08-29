@@ -224,43 +224,11 @@ WHERE BATCH_STATUS = 'PUBLISHED'
   AND IS_CURRENT = true;
 
 -- =====================================================================
--- 9. UNITY CATALOG GRANTS FOR SYNCHRONIZED GROUPS
--- One principal per statement: Unity Catalog rejects multiple principals in a
--- single TO clause.
+-- 9. ACCESS-CONTROL PLANE
+-- Grants live in unity_catalog_grants.sql, applied immediately after this
+-- script by apply_security.py. They are the access-control plane, owned by
+-- Terraform in the IaC deployment path; this file owns only the data and
+-- policy plane, so exactly one system writes each object.
 -- =====================================================================
 
--- Catalog USAGE Grants
-GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-admin`;
-GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-submitter-ca`;
-GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-submitter-us`;
-GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-researchers`;
-GRANT USAGE ON CATALOG dbw_sovereignshield TO `sg-sovereignshield-public`;
-
--- Schema USAGE Grants
-GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-admin`;
-GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-submitter-ca`;
-GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-submitter-us`;
-GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-researchers`;
-GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-public`;
-
--- Admins: Full permissions on underlying tables
-GRANT ALL PRIVILEGES ON TABLE lbs_micro_transactions TO `sg-sovereignshield-admin`;
-GRANT ALL PRIVILEGES ON TABLE lbs_sdmx_history TO `sg-sovereignshield-admin`;
-
--- Submitters: Select access to history table (RLS filter active)
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-submitter-ca`;
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-submitter-us`;
-
--- Submitters: Select access to their own micro ledger rows (RLS filter active)
-GRANT SELECT ON TABLE lbs_micro_transactions TO `sg-sovereignshield-submitter-ca`;
-GRANT SELECT ON TABLE lbs_micro_transactions TO `sg-sovereignshield-submitter-us`;
-
--- Researchers and the public portal principal: the SELECT grant is deliberately
--- broad because the row filter, not the grant, is what narrows the result set.
--- Neither persona is granted anything on the institution-level micro ledger.
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-researchers`;
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-public`;
-
--- Curated published view (Quarantine filter active)
-GRANT SELECT ON VIEW v_lbs_sdmx_published TO `sg-sovereignshield-researchers`;
-GRANT SELECT ON VIEW v_lbs_sdmx_published TO `sg-sovereignshield-public`;
+-- (no GRANT statements below this line by design)

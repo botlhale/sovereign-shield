@@ -1,5 +1,11 @@
 # 🎨 SovereignShield — Architecture Visual Design Pack
 
+> **Disclaimer.** An independent reference architecture, inspired by the design of
+> public statistical portals such as the BIS Data Explorer. Not affiliated with or
+> endorsed by the Bank for International Settlements or any central bank, and
+> operating on **100% synthetic mock data**. BIS and SDMx appear as typeset text
+> only, never as reproduced logos.
+
 Presentation-ready assets for **SovereignShield** — an exploration of how Azure Databricks and Unity Catalog can carry the security obligations of **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics) as platform constraints, alongside the mature SDMx tooling institutions already run.
 
 **Part 1** contains live-renderable Mermaid.js diagrams (GitHub, VS Code, Notion, Confluence, and most slide tooling render these natively).
@@ -43,15 +49,23 @@ graph TD
 
     subgraph UC["🛡️ Unity Catalog — dbw_sovereignshield.sovereign_shield"]
         MICRO["<b>lbs_micro_transactions</b><br/>🔒 RLS fn_rls_micro_country_lock<br/><i>ON reporting_country</i>"]
-        MACRO["<b>lbs_sdmx_history</b><br/>🔒 RLS fn_rls_lbs_country_lock<br/><i>ON TIME_SERIES_CODE segment 9</i><br/>🎭 DDM fn_ddm_obs_conf_mask<br/><i>USING COLUMNS OBS_CONF</i>"]
+        MACRO["<b>lbs_sdmx_history</b><br/>🔒 RLS fn_rls_lbs_multi_persona_lock<br/><i>ON TIME_SERIES_CODE · BATCH_STATUS · OBS_CONF</i><br/>🎭 DDM fn_ddm_obs_conf_mask<br/><i>USING COLUMNS OBS_CONF, TIME_SERIES_CODE</i>"]
         VIEW["<b>v_lbs_sdmx_published</b><br/><i>BATCH_STATUS = PUBLISHED<br/>AND IS_CURRENT = true</i>"]
     end
 
-    subgraph PERSONA["👥 Entra ID Personas"]
-        ADMIN["<b>sg-sovereignshield-admin</b><br/><i>bypasses RLS + DDM</i>"]
-        SUBCA["<b>sg-submitter-ca</b><br/><i>CA rows only</i>"]
-        SUBUS["<b>sg-submitter-us</b><br/><i>US rows only</i>"]
-        RESEARCH["<b>sg-researchers</b><br/><i>view only · masked</i>"]
+    subgraph GATEWAY["🌐 Public Dissemination Gateway"]
+        API["<b>api_gateway.py</b><br/><i>chooses an identity,<br/>never chooses rows</i>"]
+        UI["<b>portal_ui.py</b><br/><i>consumer tier</i>"]
+        EXPORT["<b>sdmx_ml_exporter.py</b><br/><i>SDMX-ML 3.0 · JSON · CSV</i>"]
+    end
+
+    subgraph PERSONA["👥 Entra ID Personas — resolved at query time"]
+        PUBLIC["<b>sg-...-public</b><br/><i>PUBLISHED + OBS_CONF = F</i>"]
+        RESEARCH["<b>sg-...-researchers</b><br/><i>all PUBLISHED · values masked</i>"]
+        SUBCA["<b>sg-...-submitter-ca</b><br/><i>CA in full · foreign public only</i>"]
+        SUBUS["<b>sg-...-submitter-us</b><br/><i>US in full · foreign public only</i>"]
+        ADMIN["<b>sg-...-admin</b><br/><i>1 = 1 · auditor</i>"]
+        NONE["<b>no membership</b><br/><i>fails closed · zero rows</i>"]
     end
 
     KV -->|"dot-sourced pre_auth.ps1"| DAB
@@ -70,13 +84,19 @@ graph TD
     MICRO -.->|"micro to macro rollup"| MACRO
     MACRO --> VIEW
 
+    UI --> API
+    API --> EXPORT
+    API -->|"caller token, or public proxy SPN"| MACRO
+
     MACRO --> ADMIN
     MICRO --> ADMIN
     MACRO --> SUBCA
     MACRO --> SUBUS
     MICRO --> SUBCA
     MICRO --> SUBUS
-    VIEW --> RESEARCH
+    MACRO --> RESEARCH
+    MACRO --> PUBLIC
+    MACRO -.->|"FALSE"| NONE
 
     classDef secret fill:#1a1a2e,stroke:#f39c12,stroke-width:2px,color:#fff
     classDef orch fill:#16213e,stroke:#3498db,stroke-width:2px,color:#fff
@@ -84,13 +104,15 @@ graph TD
     classDef data fill:#1b3a2f,stroke:#2ecc71,stroke-width:2px,color:#fff
     classDef people fill:#2c1a3e,stroke:#c39bd3,stroke-width:2px,color:#fff
     classDef origin fill:#132c3d,stroke:#5dade2,stroke-width:2px,color:#fff
+    classDef edge fill:#3d1a2c,stroke:#e59866,stroke-width:2px,color:#fff
 
     class NCB,RULEBOOK origin
     class KV,SPN secret
     class DAB,COMPUTE orch
     class T1,T2,T3,VAL task
     class MICRO,MACRO,VIEW data
-    class ADMIN,SUBCA,SUBUS,RESEARCH people
+    class ADMIN,SUBCA,SUBUS,RESEARCH,PUBLIC,NONE people
+    class API,UI,EXPORT edge
 ```
 
 **Reading the diagram**
@@ -102,7 +124,57 @@ graph TD
 | `KV → DAB` | Credentials are hydrated into session scope at deploy time; no literal is ever stored |
 | `T1` runs first | No table exists un-governed, even momentarily |
 | Filters on **both** tables | Protecting only the aggregate would leave the raw ledger exposed |
-| `VIEW` as sole researcher path | Researchers hold no grant on base tables |
+| `API → MACRO`, not `API → VIEW` | A Unity Catalog view resolves group membership against the **view owner**, so per-caller entitlement has to be evaluated against the base table |
+| `MACRO → NONE` dashed | The fail-closed default. Off-boarding and inter-sovereign isolation are the same code path |
+
+**The Zero-Trust identity boundary**
+
+Every arrow from `MACRO` to a persona is the *same* query against the *same*
+table. Nothing in the gateway, the portal or the exporter narrows it. The
+difference in what each persona receives is produced entirely inside the
+metastore, which is why the boundary holds across PySpark, a SQL warehouse, a BI
+tool and the public REST API without being re-implemented for any of them.
+
+---
+
+### 1.1a Ownership boundary — who writes which object
+
+Two declarative systems, disjoint by design. Terraform reports drift on anything
+it owns; the bundle re-applies its own objects on every run. An object written
+by both would oscillate, and a Terraform apply could detach a live row filter
+mid-query.
+
+```mermaid
+flowchart LR
+    subgraph TF["🏗️ Terraform — infrastructure & access control"]
+        direction TB
+        TF1["Entra groups · service principals<br/>OIDC federation · Key Vault"]
+        TF2["Workspace · access connector<br/>storage credential · external location"]
+        TF3["Catalog · schema · SQL warehouse"]
+        TF4["GRANT USE CATALOG / USE SCHEMA / SELECT<br/><i>additive databricks_grant</i>"]
+    end
+
+    subgraph DABS["📦 Asset Bundles — data & policy"]
+        direction TB
+        DB1["Table DDL"]
+        DB2["Policy UDFs<br/>fn_rls_lbs_multi_persona_lock<br/>fn_ddm_obs_conf_mask"]
+        DB3["SET ROW FILTER · SET MASK<br/><i>detach → replace → re-attach</i>"]
+        DB4["v_lbs_sdmx_published"]
+    end
+
+    TF3 -->|"namespace exists before tables"| DB1
+    TF4 -.->|"reachability"| DB3
+    DB3 -.->|"visibility"| DB3
+
+    classDef tf fill:#2c1a3e,stroke:#c39bd3,stroke-width:2px,color:#fff
+    classDef db fill:#0f3460,stroke:#00d9ff,stroke-width:2px,color:#fff
+    class TF1,TF2,TF3,TF4 tf
+    class DB1,DB2,DB3,DB4 db
+```
+
+> **The grant decides reachability; the row filter decides visibility.** Trying
+> to express sovereignty through grants instead would need one securable per
+> jurisdiction and still could not mask a single cell.
 
 ---
 
@@ -189,7 +261,7 @@ graph LR
     Q["📥 Incoming Query"] --> L1
 
     subgraph LOCKS["🛡️ Triple Lock"]
-        L1["<b>Lock 1 — RLS</b><br/>fn_rls_lbs_country_lock<br/><i>row granularity</i>"]
+        L1["<b>Lock 1 — RLS</b><br/>fn_rls_lbs_multi_persona_lock<br/><i>row granularity</i>"]
         L2["<b>Lock 2 — DDM</b><br/>fn_ddm_obs_conf_mask<br/><i>cell granularity</i>"]
         L3["<b>Lock 3 — Quarantine View</b><br/>v_lbs_sdmx_published<br/><i>result-set granularity</i>"]
     end

@@ -81,7 +81,7 @@ The script currently parses to **29 statements, 6 of which are tolerated**.
 
 Ensures strict national data sovereignty across **both** the macro history and the raw micro ledger.
 
-* **Macro (`fn_rls_lbs_country_lock`):** Evaluates segment 9 of the 11-dimension SDMx `TIME_SERIES_CODE` and matches it against the executing user's Entra ID group membership (e.g. `sg-sovereignshield-submitter-ca`).
+* **Macro (`fn_rls_lbs_multi_persona_lock`):** Evaluates three columns at once — segment 9 of the 11-dimension SDMx `TIME_SERIES_CODE`, the `BATCH_STATUS` lifecycle state, and the `OBS_CONF` confidentiality flag — against the executing user's Entra ID group membership (e.g. `sg-sovereignshield-submitter-ca`). Filtering on the key alone stops being sufficient once the data is publicly reachable: a public visitor asking for Canadian series would receive Canada's quarantined and confidential rows as readily as its published ones.
 * **Micro (`fn_rls_micro_country_lock`):** Applies the same sovereign isolation directly to the `reporting_country` column of `lbs_micro_transactions`. Without this, the raw ledger would expose every jurisdiction's unaggregated transactions — the aggregate was protected while the source was not.
 * **ANSI safety:** The macro filter uses `try_element_at(split(...), 9)`, **not** `element_at`. Under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`; because the filter runs on every row of every query, a single malformed key would abort *all* access to the table. `try_element_at` returns `NULL` instead, and the predicate fails closed.
 * **Normalization:** Comparisons are performed on `upper(trim(...))` on both sides, so a lowercase country code cannot evade the filter.
@@ -91,7 +91,7 @@ Ensures strict national data sovereignty across **both** the macro history and t
 
 Protects market dominance and strictly confidential reporting metrics while maintaining structural table integrity for researchers.
 
-* **Mechanism:** `fn_ddm_obs_conf_mask(obs_val DOUBLE, obs_conf STRING)` is bound with `MASK ... USING COLUMNS (OBS_CONF)`. If a record is marked Non-publishable (`N`) or Confidential (`C`), the numerical `OBS_VALUE` is masked to `NULL`.
+* **Mechanism:** `fn_ddm_obs_conf_mask(obs_val DOUBLE, obs_conf STRING, time_series_code STRING)` is bound with `MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`. If a record is marked Non-publishable (`N`) or Confidential (`C`), the numerical `OBS_VALUE` is masked to `NULL`. The key is an input, not decoration: without it the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells.
 * **Why `NULL`, not `'xxx'`:** `OBS_VALUE` is a `DOUBLE`, and a masking function must return the column's own type. A string sentinel is not representable.
 * **Privilege ordering:** Group membership is evaluated **before** the confidentiality branch, so an authorized admin or the owning submitter always sees the true value.
 * **Benefit:** External researchers can still perform dimensional joins and assess reporting density without exposing restricted financial limits.
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
     TIME_SERIES_CODE STRING,      -- 11-dimension SDMx composite key
     DATE STRING,                  -- Observation period (e.g. '2026-Q1')
     IBS_AGG STRING,               -- Aggregation scope (e.g. 'LBSR')
-    OBS_VALUE DOUBLE MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF),
+    OBS_VALUE DOUBLE MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE),
     OBS_STATUS STRING,
     OBS_CONF STRING,              -- 'F' | 'N' | 'C'
     QUALITY_STATUS STRING,        -- 'PASS' | 'FAIL' (validator verdict)
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
     VALID_TO TIMESTAMP,
     IS_CURRENT BOOLEAN
 )
-WITH ROW FILTER fn_rls_lbs_country_lock ON (TIME_SERIES_CODE);
+WITH ROW FILTER fn_rls_lbs_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
 
 CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
     transaction_id STRING,

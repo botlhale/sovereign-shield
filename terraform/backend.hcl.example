@@ -1,0 +1,16 @@
+# Backend configuration, supplied at init time so no storage account name is
+# committed:
+#
+#   cp backend.hcl.example backend.hcl
+#   terraform init -backend-config=backend.hcl
+#
+# State contains resource identifiers and should be treated as sensitive even
+# though this configuration keeps credentials out of it. Use a storage account
+# with RBAC authorisation and no shared key access, so state is reachable only
+# by the identities you have granted.
+
+resource_group_name  = "rg-sovereignshield-tfstate"
+storage_account_name = "stsovshieldtfstate"
+container_name       = "tfstate"
+key                  = "sovereignshield.tfstate"
+use_azuread_auth     = true

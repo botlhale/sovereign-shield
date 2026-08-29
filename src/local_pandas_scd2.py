@@ -1,3 +1,38 @@
+"""Developer synthetic testing fixture: SCD2 without cluster compute.
+
+This module exists so an external contributor can exercise and reason about the
+historisation state machine on a laptop, with no Databricks workspace, no
+credentials, and no JVM. It is a **development fixture**, never a deployment
+target - `scd2_merge_engine.py` is the PySpark/Delta engine that runs in
+production, and nothing here is imported by it.
+
+What it faithfully reproduces:
+
+* the quarantine state machine - a rejected revision is appended as an
+  audit-only row and never expires the prior published record
+* `version_hash` change detection over the payload columns
+* replay idempotency, so a re-run does not stack duplicate audit rows
+
+Where it deliberately differs, and why it does not matter for the fixture's
+purpose:
+
+* **Column naming.** This module uses `effective_start_date` /
+  `effective_end_date` / `is_current`, while the macro path and
+  `unity_catalog_triple_lock.sql` use `VALID_FROM` / `VALID_TO` / `IS_CURRENT`.
+  The tables are created by this module's own merge function, so the two
+  conventions never meet; do not "harmonise" one into the other without moving
+  every consumer.
+* **Per-country tables.** Writes to `data/local_delta_catalog/lbs_micro_<cc>`
+  rather than a single governed table, so sovereign isolation is expressed by
+  file layout instead of a row filter. Unity Catalog is the enforcement point
+  in every deployed configuration; nothing here enforces entitlement.
+
+For the persona matrix equivalent of this fixture, see `LocalDeltaBackend` in
+`uc_query.py`. Both are exercised offline by `tests/`.
+
+Related skill: `.github/skills/scd2_engine.md`.
+"""
+
 import pandas as pd
 import hashlib
 from datetime import datetime

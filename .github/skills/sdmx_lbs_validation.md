@@ -80,7 +80,7 @@ Two conventions materially change what counts as a failure:
 Micro-transactions carry individual confidentiality tags; the macro `OBS_CONF` must reflect the most restrictive tag among its components.
 
 * **The Rule:** any `C` in the group forces the macro record to `C`; failing that, any `N` forces `N`; otherwise `F`.
-* **The Enforcement:** this guarantees the Unity Catalog masking policy (`fn_ddm_obs_conf_mask`) correctly identifies and masks protected values to `NULL` for unprivileged readers.
+* **The Enforcement:** this guarantees the Unity Catalog masking policy (`fn_ddm_obs_conf_mask(obs_val, obs_conf, time_series_code)`) correctly identifies and masks protected values to `NULL` for unprivileged readers, while leaving them unmasked for the sovereign that reported them.
 
 ### 5. Empty Batch Handling
 

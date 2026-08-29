@@ -1,0 +1,40 @@
+# Copy to terraform.tfvars and fill in. Every value below is a location, a name
+# or a toggle.
+#
+# There is deliberately no credential here, and no variable that could hold one:
+# secrets are resolved from Key Vault at apply time or injected by the platform
+# at run time. tests/test_secret_decoupling.py fails the build if a
+# secret-shaped Terraform variable is ever declared, and asserts that no
+# terraform.tfvars file is committed.
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+tenant_id       = "00000000-0000-0000-0000-000000000000"
+
+resource_group_name = "rg-sovereignshield"
+location            = "canadacentral"
+workspace_name      = "dbw-sovereignshield"
+
+catalog_name = "dbw_sovereignshield"
+schema_name  = "sovereign_shield"
+
+# Changing this requires fn_rls_lbs_multi_persona_lock and fn_ddm_obs_conf_mask
+# to change in lockstep. A mismatch does not error - it fails closed.
+group_prefix = "sg-sovereignshield"
+
+# Adding a jurisdiction also needs a branch in the row filter and rows in the
+# MVSD, or the new group resolves to zero rows.
+reporting_jurisdictions = ["ca", "us"]
+
+github_repository  = "botnt/sovereign-shield"
+github_environment = "production"
+
+sql_warehouse_size              = "2X-Small"
+sql_warehouse_auto_stop_minutes = 10
+
+# The only deployment that can demonstrate genuinely anonymous access.
+deploy_dissemination_gateway = true
+gateway_image                = "acrsovereignshield.azurecr.io/sovereignshield-portal:latest"
+
+# Leave false on the first apply. Tables are created by the Asset Bundle, and a
+# grant on a non-existent securable fails.
+grant_tables = false

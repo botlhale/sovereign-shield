@@ -1,0 +1,183 @@
+# Air-gapped promotion.
+#
+# The contractor opens a pull request; they cannot deploy it. Authentication to
+# Azure uses OpenID Connect workload identity federation, so there is no client
+# secret in repository settings to leak, rotate or forget. GitHub mints a
+# short-lived token, Entra ID exchanges it for an access token, and the
+# federated credential is scoped to this repository AND this environment - a
+# subject of `ref:refs/heads/*` would let any branch assume the production
+# identity and defeat the review gate.
+
+name: promote
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Required for OIDC. Without it the token exchange fails with an opaque 400.
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: promote-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  # Runs with no cloud credentials at all. This is the gate a contractor can
+  # reproduce on a laptop, and the reason the suite is offline by default.
+  verify:
+    name: Offline verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Persona matrix, SDMx rules, contractor isolation, secret scan
+        run: pytest tests/ -v
+
+      - name: Validate the Asset Bundle
+        uses: databricks/setup-cli@main
+
+      - run: databricks bundle validate -t dev
+        env:
+          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          DATABRICKS_AUTH_TYPE: github-oidc
+
+  plan:
+    name: Terraform plan
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: plan
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Init
+        working-directory: terraform
+        run: terraform init -backend-config="${{ vars.TF_BACKEND_CONFIG || 'backend.hcl' }}"
+
+      - name: Format check
+        working-directory: terraform
+        run: terraform fmt -recursive -check
+
+      - name: Validate
+        working-directory: terraform
+        run: terraform validate
+
+      - name: Plan
+        working-directory: terraform
+        run: |
+          terraform plan -no-color -input=false \
+            -var="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
+            -var="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
+            -var="github_repository=${{ github.repository }}" \
+            -out=tfplan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: terraform/tfplan
+          retention-days: 5
+
+  apply:
+    name: Terraform apply
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Environment protection rules are the human gate. The federated credential
+    # for this identity is scoped to this environment name, so a workflow that
+    # skips it cannot authenticate at all.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Init
+        working-directory: terraform
+        run: terraform init -backend-config="${{ vars.TF_BACKEND_CONFIG || 'backend.hcl' }}"
+
+      - name: Apply infrastructure and access-control plane
+        working-directory: terraform
+        run: |
+          terraform apply -auto-approve -input=false \
+            -var="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
+            -var="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
+            -var="github_repository=${{ github.repository }}"
+
+      - name: Export the warehouse id
+        id: tf
+        working-directory: terraform
+        run: echo "warehouse_id=$(terraform output -raw sql_warehouse_id)" >> "$GITHUB_OUTPUT"
+
+    outputs:
+      warehouse_id: ${{ steps.tf.outputs.warehouse_id }}
+
+  bundle:
+    name: Deploy data and policy plane
+    needs: apply
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: databricks/setup-cli@main
+
+      # Table DDL, the policy UDFs and the row filter / mask bindings are the
+      # bundle's, not Terraform's. Applying them here keeps one writer per
+      # object: Terraform would otherwise report drift after every run.
+      - name: Deploy
+        env:
+          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          DATABRICKS_AUTH_TYPE: azure-cli
+        run: |
+          databricks bundle deploy -t dev \
+            --var="warehouse_id=${{ needs.apply.outputs.warehouse_id }}"
+
+      - name: Run the ingestion and validation pipeline
+        env:
+          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          DATABRICKS_AUTH_TYPE: azure-cli
+        run: databricks bundle run sovereignshield_sdmx_pipeline -t dev

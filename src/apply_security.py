@@ -1,10 +1,22 @@
 """Applies the SovereignShield Triple-Lock security architecture to Unity Catalog.
 
-Executes `unity_catalog_triple_lock.sql` statement by statement. Statements
-preceded by a `-- @tolerate-failure` marker are expected to fail on one of the
-two lifecycle paths (fresh create vs. re-apply) and are logged and skipped;
-every other failure aborts the deployment so the platform is never left in a
+Executes the DDL scripts statement by statement, in order. Statements preceded
+by a `-- @tolerate-failure` marker are expected to fail on one of the two
+lifecycle paths (fresh create vs. re-apply) and are logged and skipped; every
+other failure aborts the deployment so the platform is never left in a
 partially secured state.
+
+Two scripts, two ownership planes:
+
+* ``unity_catalog_triple_lock.sql`` - the data and policy plane: table DDL, the
+  policy UDFs, and the row filter / column mask bindings. Always applied here.
+* ``unity_catalog_grants.sql`` - the access-control plane. Terraform owns this
+  in the IaC deployment path; applying it here keeps the script-only quickstart
+  self-sufficient. GRANT is idempotent, and Terraform uses the additive
+  ``databricks_grant`` resource, so the two paths converge rather than fight.
+
+Set ``SOVEREIGNSHIELD_SKIP_GRANTS=1`` when Terraform owns the grants and you
+want the pipeline to leave them alone entirely.
 """
 
 import inspect
@@ -17,8 +29,11 @@ from pyspark.sql import SparkSession
 #: Marker comment declaring that the following statement may fail harmlessly.
 TOLERATE_MARKER = "@tolerate-failure"
 
-#: DDL script deployed alongside this module.
+#: Data and policy plane - always applied.
 SQL_FILENAME = "unity_catalog_triple_lock.sql"
+
+#: Access-control plane - skippable when Terraform owns it.
+GRANTS_FILENAME = "unity_catalog_grants.sql"
 
 
 def _candidate_directories() -> list[str]:
@@ -98,28 +113,34 @@ def parse_statements(sql_content: str):
 def apply_security_layer(sql_path: str | None = None) -> None:
     spark = SparkSession.builder.getOrCreate()
 
-    sql_path = sql_path or resolve_sql_path()
-    print(f"Reading SQL architecture from: {sql_path}")
-    with open(sql_path, "r", encoding="utf-8") as file:
-        sql_content = file.read()
+    scripts = [sql_path or resolve_sql_path()]
+    if os.getenv("SOVEREIGNSHIELD_SKIP_GRANTS", "").strip() not in ("1", "true", "True"):
+        scripts.append(resolve_sql_path(GRANTS_FILENAME))
+    else:
+        print("Skipping grants: SOVEREIGNSHIELD_SKIP_GRANTS is set (Terraform owns them).")
 
-    statements = parse_statements(sql_content)
-    print(f"Parsed {len(statements)} statement(s).")
+    total_skipped = 0
+    for script_path in scripts:
+        print(f"Reading SQL architecture from: {script_path}")
+        with open(script_path, "r", encoding="utf-8") as file:
+            sql_content = file.read()
 
-    skipped = 0
-    for index, (statement, tolerate) in enumerate(statements, start=1):
-        label = re.sub(r"\s+", " ", statement)[:70]
-        try:
-            spark.sql(statement)
-            print(f"  [{index}/{len(statements)}] OK      {label}")
-        except Exception as exc:
-            if not tolerate:
-                print(f"  [{index}/{len(statements)}] FAILED  {label}")
-                raise
-            skipped += 1
-            print(f"  [{index}/{len(statements)}] SKIPPED {label} -> {type(exc).__name__}")
+        statements = parse_statements(sql_content)
+        print(f"Parsed {len(statements)} statement(s).")
 
-    print(f"Zero-Trust Security Layer established successfully ({skipped} tolerated no-op(s)).")
+        for index, (statement, tolerate) in enumerate(statements, start=1):
+            label = re.sub(r"\s+", " ", statement)[:70]
+            try:
+                spark.sql(statement)
+                print(f"  [{index}/{len(statements)}] OK      {label}")
+            except Exception as exc:
+                if not tolerate:
+                    print(f"  [{index}/{len(statements)}] FAILED  {label}")
+                    raise
+                total_skipped += 1
+                print(f"  [{index}/{len(statements)}] SKIPPED {label} -> {type(exc).__name__}")
+
+    print(f"Zero-Trust Security Layer established successfully ({total_skipped} tolerated no-op(s)).")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""BIS-style portal UI, served by the same process as the API.
+"""Public Dissemination Gateway consumer tier, served by the same process as the API.
 
 Only the shell is rendered server-side. Every figure on the page arrives from
 ``/api/v1/*`` as the signed-in caller, so the browser can never be handed rows
@@ -47,5 +47,6 @@ def portal(request: Request) -> HTMLResponse:
             "sign_in_url": SIGN_IN_URL,
             "sign_out_url": SIGN_OUT_URL,
             "dataflow": "BIS:WS_LBS_D_PUB(1.0)",
+            "service_name": "Public Dissemination Gateway",
         },
     )

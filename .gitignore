@@ -216,3 +216,47 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# =====================================================================
+# Terraform
+# =====================================================================
+# Provider binaries: ~404 MB, one of them 239 MB. GitHub rejects files over
+# 100 MB, and `terraform init` reproduces all of it from the lock file.
+**/.terraform/*
+.terraform.tfstate.lock.info
+
+# State may contain resource identifiers and is held in the azurerm backend.
+*.tfstate
+*.tfstate.*
+
+# Value-bearing files. terraform.tfvars.example and backend.hcl.example are the
+# committed templates; the real ones stay local.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+backend.hcl
+
+# Saved plans can embed resolved values.
+tfplan
+*.tfplan
+crash.log
+crash.*.log
+
+# The dependency lock file IS committed - it pins provider versions across
+# machines and CI, which is the whole point of having one.
+!**/.terraform.lock.hcl
+
+# =====================================================================
+# Environment-specific provisioning output
+# =====================================================================
+# Written by sh/*.sh; carries workspace URLs and application ids.
+sh/spn_details
+sh/databricks_details
+
+# =====================================================================
+# Generated artefacts
+# =====================================================================
+# Synthetic submissions and the local Delta catalog are produced by
+# generate_sovereign_submissions.py and local_pandas_scd2.py on demand.
+data/local_delta_catalog/
+data/*_submission_*.xml

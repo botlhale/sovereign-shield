@@ -2,6 +2,15 @@
 
 > **What this is:** a working reference implementation exploring how **Azure Databricks and Unity Catalog** can express the security obligations of **international statistical data exchange** as platform-level constraints — the submission of confidential national banking statistics to an international body (BIS Locational Banking Statistics) under the **SDMx 3.0** standard. It complements, rather than replaces, the mature SDMx tooling institutions already operate.
 
+> ### ⚠️ Disclaimer
+>
+> This is an **independent reference architecture**, inspired by the design of public statistical portals such as the BIS Data Explorer. It is **not** a system of, affiliated with, or endorsed by the Bank for International Settlements or any central bank.
+>
+> It operates on **100% synthetic mock data**. No real submission, observation or institution identifier exists anywhere in this repository. The BIS Locational Banking Statistics data structure and the consistency rulebook it uses are **published public standards artefacts**; the numbers flowing through them are generated.
+>
+> BIS and SDMx are referenced as typeset text throughout, never as reproduced logos.
+
+
 ## 📖 Executive Summary
 
 Every quarter, national central banks transmit confidential banking statistics to international organisations — the Bank for International Settlements, the IMF, the UN Statistics Division — encoded in **SDMx**, the standard for Statistical Data and Metadata (ISO 17369). That exchange carries three simultaneous obligations: national data sovereignty, cell-level confidentiality, and arithmetic consistency with a rulebook the submitting agency does not own.
@@ -114,10 +123,13 @@ flowchart TB
 * **Compute Engine:** Azure Databricks (Runtime 18.x LTS)
 * **Storage:** Delta Lake (SCD2 Historization)
 * **Central Governance:** Unity Catalog (`USER_ISOLATION` Shared Compute)
-* **Orchestration:** Databricks Asset Bundles (CI/CD via Azure Service Principal)
+* **Infrastructure as Code:** Terraform (identity, workspace, catalog, warehouse, gateway) + Databricks Asset Bundles (tables, policy functions, jobs)
+* **Promotion:** GitHub Actions with OIDC workload identity federation — no client secret in repository settings
 * **Processing Framework:** PySpark & Spark SQL
 * **Dissemination:** Databricks Apps — FastAPI gateway and Tailwind portal in a single process; Azure Container Apps for the anonymous deployment
 * **Standards Layer:** `pysdmx` for SDMx 3.0 XML and DSD resolution; BIS consistency checks parsed at runtime from `docs/reference_standards/checks_lbs.xls`
+
+> **Design note — Terraform or Bicep.** Terraform is the primary declarative engine here because it spans Entra ID, Azure and Databricks in a single dependency graph. For the **Azure control plane alone**, Azure Bicep is interchangeable: resource groups, Key Vault, the Databricks workspace, the access connector and Container Apps all have direct Bicep equivalents, and an organisation standardised on Bicep loses nothing by using it for those. What Bicep cannot express is the Databricks provider layer — catalog, schema, grants and the SQL warehouse — which would remain Terraform or move to the Databricks CLI. The ownership boundary between infrastructure and the data/policy plane is unaffected by that choice.
 
 ## 📂 Project Structure
 
@@ -125,11 +137,33 @@ flowchart TB
 .
 ├── databricks.yml                          # Asset Bundle configuration and deployment rules
 ├── requirements.txt                        # Task-scoped Python dependencies (pysdmx, xlrd, ...)
+├── pytest.ini                              # Offline-by-default test configuration
 ├── Dockerfile                              # Portal image for the Azure Container Apps deployment
+├── steps.md                                # Operational rebuild runbook
+├── .github/
+│   ├── workflows/promote.yml               # OIDC promotion: verify -> plan -> apply -> bundle
+│   └── skills/                             # Single source of truth for agents and reviewers
+│       ├── SKILLS.md                       # Capability matrix and skill index
+│       ├── mvsd_specification.md           # Authoritative BIS LBS DSD + synthetic data contract
+│       ├── persona_security_matrix.md      # Four-tier entitlement model
+│       ├── contractor_zero_trust_workflow.md
+│       ├── triple_lock_security.md
+│       ├── sdmx_lbs_validation.md
+│       └── scd2_engine.md
 ├── docs/
+│   ├── ENTERPRISE_ONBOARDING_PLAYBOOK.md   # Three-phase client onboarding framework
+│   ├── ARCHITECTURE_DIAGRAMS.md
 │   └── reference_standards/
 │       └── checks_lbs.xls                  # BIS LBS consistency checks (parsed at runtime)
-├── sh/                                     # One-time Azure provisioning (NOT part of the pipeline)
+├── terraform/                              # Infrastructure & access-control plane
+│   ├── main.tf / variables.tf / outputs.tf / providers.tf / versions.tf
+│   └── modules/
+│       ├── identity/                       # Entra groups, SPNs, OIDC federation, Key Vault
+│       ├── databricks_workspace/           # Workspace, access connector, storage credential, secret scope
+│       ├── unity_catalog_governance/       # Catalog, schema, additive grants, SQL warehouse
+│       └── dissemination_gateway/          # Container Apps host for the anonymous tier
+├── tests/                                  # Offline persona, SDMx, isolation and secret assertions
+├── sh/                                     # Idempotent quickstart provisioning (alternative to Terraform)
 │   ├── pre_auth.ps1                        # Dot-sourced Key Vault -> session credential loader
 │   ├── kv_spn_create.sh                    # Idempotent Key Vault + CI/CD and public-proxy SPNs
 │   ├── kv_spn_remediation.sh               # Rotates the SPN and refreshes stored secrets
@@ -141,15 +175,16 @@ flowchart TB
 └── src/
     ├── app.yaml                            # Databricks App runtime and entrypoint
     ├── requirements.txt                    # Portal-only dependencies (no PySpark)
-    ├── apply_security.py                   # Idempotent Spark SQL executor for the Triple-Lock DDL
-    ├── unity_catalog_triple_lock.sql       # DDL, multi-persona RLS, DDM, and the Quarantine View
+    ├── apply_security.py                   # Idempotent Spark SQL executor for the DDL
+    ├── unity_catalog_triple_lock.sql       # Data & policy plane: DDL, RLS, DDM, quarantine view
+    ├── unity_catalog_grants.sql            # Access-control plane (Terraform owns this in IaC mode)
     ├── generate_sovereign_submissions.py   # Sovereign-isolated SDMx 3.0 XML submission generator
     ├── sdmx_rule_validator.py              # Dynamic BIS rule engine + atomic batch quarantine
     ├── scd2_merge_engine.py                # Micro-to-macro aggregation and Delta SCD2 state machine
-    ├── local_pandas_scd2.py                # Local pandas/delta-rs SCD2 prototype (no Spark required)
+    ├── local_pandas_scd2.py                # Local pandas/delta-rs SCD2 fixture (no Spark required)
     ├── sdmx_ml_exporter.py                 # SDMX-ML 3.0 / SDMX-JSON 2.0.0 / SDMX-CSV 2.0.0 writer
     ├── uc_query.py                         # Persona-agnostic query layer over the governed history
-    ├── api_gateway.py                      # FastAPI gateway; dual-mode identity resolution
+    ├── api_gateway.py                      # Public Dissemination Gateway; dual-mode identity resolution
     ├── portal_ui.py                        # BIS-style portal router
     └── templates/
         └── portal.html                     # Tailwind filter dashboard and export centre

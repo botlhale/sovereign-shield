@@ -8,6 +8,21 @@ This matrix documents the **operational capabilities the platform actually imple
 
 ---
 
+## 0. 📚 Skill index
+
+| Skill | Owns | Read it when |
+| --- | --- | --- |
+| [`mvsd_specification.md`](mvsd_specification.md) | The synthetic data contract: authoritative BIS LBS dimensions, codelist semantics, required test coverage, and the export rules that let an org hand over structure without handing over records | Adding a dimension, a jurisdiction, or a test fixture |
+| [`persona_security_matrix.md`](persona_security_matrix.md) | Who may read which rows, and the exact SQL that decides it | Changing an entitlement or adding a persona |
+| [`triple_lock_security.md`](triple_lock_security.md) | The three enforcement objects and their DDL lifecycle | Editing `unity_catalog_triple_lock.sql` |
+| [`sdmx_lbs_validation.md`](sdmx_lbs_validation.md) | Runtime rulebook compilation and the atomic batch verdict | Touching the validator or the check workbook |
+| [`scd2_engine.md`](scd2_engine.md) | The four-stage merge and the quarantine state machine | Touching historisation |
+| [`contractor_zero_trust_workflow.md`](contractor_zero_trust_workflow.md) | The delivery pattern: specification / execution / promotion boundaries and revocation | Onboarding a contributor, or reviewing the security posture |
+
+Every row in the sections below corresponds to code in this repository, not to aspirational scope.
+
+---
+
 ## 1. 📊 SDMx 3.0 & BIS LBS Standards Compliance
 
 | Capability | Implementation | Artifact |
@@ -48,9 +63,9 @@ Partial publication is rejected by design: aggregates that reconcile depend on c
 
 | Lock | Object | Binding | Granularity |
 | --- | --- | --- | --- |
-| **RLS (macro)** | `fn_rls_lbs_country_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE)` | Row |
+| **RLS (macro)** | `fn_rls_lbs_multi_persona_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)` | Row |
 | **RLS (micro)** | `fn_rls_micro_country_lock` | `WITH ROW FILTER ... ON (reporting_country)` | Row |
-| **DDM** | `fn_ddm_obs_conf_mask` | `OBS_VALUE DOUBLE MASK ... USING COLUMNS (OBS_CONF)` | Cell |
+| **DDM** | `fn_ddm_obs_conf_mask` | `OBS_VALUE DOUBLE MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | Cell |
 | **Quarantine View** | `v_lbs_sdmx_published` | `BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true` | Result set |
 
 **Persona resolution** — evaluated at query time via `is_account_group_member`:
@@ -58,9 +73,11 @@ Partial publication is rejected by design: aggregates that reconcile depend on c
 | Persona | Entra ID group | Reaches | RLS | DDM | Quarantine gate |
 | --- | --- | --- | --- | --- | --- |
 | CI/CD | `spn-sovereignshield-cicd` | All assets (owner) | Bypass — *requires* admin group membership | Bypass | No |
-| Admin | `sg-sovereignshield-admin` | Both base tables | Bypass | Bypass | No |
-| Submitter | `sg-sovereignshield-submitter-<cc>` | Both base tables | **Enforced** | Bypass (own data) | Sees own `QUARANTINE` + `FAILED_RULE_ID` |
-| Researcher | `sg-sovereignshield-researchers` | View only | Permissive | **Enforced** (`C`/`N` → `NULL`) | **Enforced** |
+| Admin / auditor | `sg-sovereignshield-admin` | Both base tables | Bypass | Bypass | No |
+| Submitter | `sg-sovereignshield-submitter-<cc>` | Both base tables | **Enforced** | Bypass for own segment 9 only | Sees own `QUARANTINE` + `FAILED_RULE_ID` |
+| Researcher | `sg-sovereignshield-researchers` | History table, `PUBLISHED` only | **Enforced** | **Enforced** (`C`/`N` → `NULL`) | **Enforced** |
+| Public | `sg-sovereignshield-public` | History table, `PUBLISHED` + `OBS_CONF = 'F'` | **Enforced** | Moot — no `C`/`N` row is visible | **Enforced** |
+| *(no membership)* | — | Nothing | **Fails closed** | — | — |
 
 Operational competencies exercised:
 

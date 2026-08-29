@@ -318,13 +318,21 @@ class DatabricksBackend:
         return bool(self.hostname and self.http_path)
 
     def _connect(self, access_token: Optional[str]):
-        from databricks import sql
-
+        # Configuration is validated before the optional connector is imported,
+        # so a caller with no credentials gets a refusal rather than an
+        # unrelated ModuleNotFoundError.
         if not self.configured:
             raise QueryError(
                 "Databricks connectivity is not configured; set DATABRICKS_SERVER_HOSTNAME "
                 "and DATABRICKS_HTTP_PATH (or DATABRICKS_WAREHOUSE_ID)."
             )
+        if not access_token and not (self.client_id and self.client_secret):
+            raise QueryError(
+                "No caller token and no public service principal credentials "
+                "(DATABRICKS_CLIENT_ID / DATABRICKS_CLIENT_SECRET)."
+            )
+
+        from databricks import sql
 
         if access_token:
             # On-behalf-of: Unity Catalog evaluates the row filter against the
@@ -333,12 +341,6 @@ class DatabricksBackend:
                 server_hostname=self.hostname,
                 http_path=self.http_path,
                 access_token=access_token,
-            )
-
-        if not (self.client_id and self.client_secret):
-            raise QueryError(
-                "No caller token and no public service principal credentials "
-                "(DATABRICKS_CLIENT_ID / DATABRICKS_CLIENT_SECRET)."
             )
 
         from databricks.sdk.core import Config, oauth_service_principal

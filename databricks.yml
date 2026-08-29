@@ -1,13 +1,27 @@
 bundle:
   name: sovereignshield_bundle
 
+# The bundle owns the DATA AND POLICY PLANE: table DDL, the policy UDFs, and the
+# row filter / column mask bindings. Terraform owns the infrastructure and
+# access-control plane (identity, workspace, catalog, schema, grants, warehouse).
+# One writer per object - see docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md.
+
 variables:
   warehouse_id:
     description: >-
-      Serverless SQL warehouse the portal queries through. Every statement it
+      Serverless SQL warehouse the dissemination gateway queries through.
+      Emitted by `terraform output -raw sql_warehouse_id`. Every statement it
       runs is subject to the Unity Catalog row filter and column mask, so the
       warehouse grants no entitlement of its own.
     default: ""
+
+  catalog:
+    description: Unity Catalog catalog. Must match unity_catalog_triple_lock.sql.
+    default: dbw_sovereignshield
+
+  schema:
+    description: Schema holding the governed tables.
+    default: sovereign_shield
 
 targets:
   dev:
@@ -36,7 +50,10 @@ targets:
         sovereignshield_sdmx_pipeline:
           name: "[DEV] SovereignShield SDMx Ingestion & Validation"
           tasks:
-            # Step 1: Provision / Refresh Triple-Lock Infrastructure
+            # Step 1: Provision / Refresh Triple-Lock Infrastructure.
+            # Runs FIRST on every execution so no table ever exists unprotected.
+            # The DDL is idempotent and non-destructive: dropping the history
+            # table here would erase the entire SCD2 lineage on each run.
             - task_key: setup_triple_lock_schema
               job_cluster_key: sovereign_cluster
               spark_python_task:

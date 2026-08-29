@@ -13,8 +13,15 @@ set -euo pipefail
 
 TENANT_DOMAIN="${TENANT_DOMAIN:-13668754CANADAINC.onmicrosoft.com}"
 
-# Only consulted when a user genuinely has to be created.
-TEMP_PASSWORD="${TEMP_PASSWORD:-Fe301A@Mat5helo}"
+# Only consulted when a user genuinely has to be created; an existing user's
+# password is never reset. Generated per run rather than committed - a literal
+# here would be a working credential for four demo personas in a real tenant,
+# and tests/test_secret_decoupling.py fails the build if one reappears.
+# Export TEMP_PASSWORD beforehand to choose your own.
+if [ -z "${TEMP_PASSWORD:-}" ]; then
+  TEMP_PASSWORD="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)Aa1!"
+  GENERATED_PASSWORD=1
+fi
 
 # display-name : mail-nickname
 GROUPS=(
@@ -105,6 +112,13 @@ fi
 
 echo
 echo "Zero-Trust Identity Layer Provisioned Successfully."
+if [ "${GENERATED_PASSWORD:-0}" = "1" ]; then
+  echo
+  echo "  Temporary password for any user created by this run:"
+  echo "    $TEMP_PASSWORD"
+  echo "  Printed once, stored nowhere. Users that already existed keep their own."
+fi
+echo
 echo "Remember: these groups must also exist at the Databricks ACCOUNT level"
 echo "before is_account_group_member() can resolve them inside Unity Catalog."
 echo "Run sh/databricks_account_setup.ps1 next."

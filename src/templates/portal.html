@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SovereignShield &middot; Locational Banking Statistics</title>
+  <title>SovereignShield &middot; Public Dissemination Gateway</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -25,7 +25,7 @@
 <header class="bg-ink text-white">
   <div class="mx-auto max-w-7xl px-6 py-5 flex flex-wrap items-center gap-4">
     <div class="flex-1 min-w-[16rem]">
-      <p class="text-[11px] uppercase tracking-[0.2em] text-teal-300">Sovereign statistical exchange</p>
+      <p class="text-[11px] uppercase tracking-[0.2em] text-teal-300">{{ service_name }}</p>
       <h1 class="text-2xl font-semibold leading-tight">SovereignShield Data Portal</h1>
       <p class="text-sm text-slate-300">Locational Banking Statistics &middot; {{ dataflow }}</p>
     </div>
@@ -46,6 +46,9 @@
   </div>
   <div class="bg-slate850 text-xs text-slate-300">
     <div class="mx-auto max-w-7xl px-6 py-2 flex flex-wrap gap-x-6 gap-y-1">
+      <span class="rounded bg-amber-400/20 px-2 py-0.5 font-medium text-amber-200">
+        Synthetic data &middot; independent reference architecture, not affiliated with the BIS
+      </span>
       <span>Row-level security and column masking are enforced by Unity Catalog at query time.</span>
       <a href="/api/docs" class="text-teal-300 hover:underline">REST API reference</a>
       <a href="/api/v1/health" class="text-teal-300 hover:underline">Service health</a>

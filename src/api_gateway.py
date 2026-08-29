@@ -1,29 +1,43 @@
-"""SovereignShield API gateway and portal host.
+"""Public Dissemination Gateway & Multi-Tenant Consumer Tier.
 
-A single ASGI application serves both the public REST API under ``/api/v1`` and
+A single ASGI application serving both the public REST API under ``/api/v1`` and
 the BIS-style portal at ``/``. Databricks Apps runs one process per app, so
-splitting the API and the UI into separate runtimes would double the
-deployment surface and force the UI to make a network hop back to its own host.
+splitting them into separate runtimes would double the deployment surface and
+force the UI to make a network hop back to its own host.
 
-**Authentication is dual-mode, and neither mode carries an entitlement.**
-The gateway decides *which identity* a query runs as; Unity Catalog decides
-*what that identity may see*. There is no code path here that filters rows by
-persona - if this file were compromised, the metastore would still refuse to
-return a quarantined or confidential observation to an unentitled caller.
+**Two-tier consumption model.**
 
-* **Delegated** - Databricks Apps injects ``X-Forwarded-Access-Token`` for the
-  signed-in user. The token is passed through to the SQL warehouse so the row
-  filter resolves against that user's own Entra ID groups. A raw
-  ``Authorization: Bearer`` header is accepted equivalently, which is what makes
-  the same image deployable behind Azure Container Apps.
-* **Proxy** - with no token, queries run as the app's service principal
-  (``spn-sovereignshield-public``), a member of ``sg-sovereignshield-public``.
-  The row filter restricts it to ``BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'``.
+* **Tier 1, anonymous.** No token. Queries run as the app's own service
+  principal, a member of ``sg-sovereignshield-public``, which the Unity Catalog
+  row filter restricts to ``BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'``.
+* **Tier 2, authenticated.** A caller token is passed through to the SQL
+  warehouse, so the row filter and column mask resolve against that caller's own
+  Entra ID groups and the elevated personas unlock.
+
+**Neither tier carries an entitlement.** The gateway decides *which identity* a
+query runs as; Unity Catalog decides *what that identity may see*. There is no
+code path here that filters rows by persona - if this file were compromised, the
+metastore would still refuse to return a quarantined or confidential observation
+to an unentitled caller.
+
+Token carriers, in precedence order:
+
+* ``X-Forwarded-Access-Token`` - injected by the Databricks Apps runtime for the
+  signed-in user (on-behalf-of).
+* ``X-MS-TOKEN-AAD-ACCESS-TOKEN`` - injected by Azure Container Apps built-in
+  authentication.
+* ``Authorization: Bearer`` - a direct API client.
+
+Credentials are never read from a literal. The app's own identity arrives as
+platform-injected environment references; on Container Apps those resolve from
+Key Vault through a managed identity, so no value passes on a command line or
+enters infrastructure state.
 
 Note on anonymity: a Databricks App always sits behind workspace SSO, so the
 "public" tier there is an authenticated visitor with no sovereign entitlement.
 Genuinely anonymous access requires fronting the same container with Azure
-Container Apps - see ``sh/container_apps_deploy.ps1``.
+Container Apps - see ``terraform/modules/dissemination_gateway`` or
+``sh/container_apps_deploy.ps1``.
 """
 
 from __future__ import annotations
@@ -72,13 +86,15 @@ SOVEREIGN_SENDERS = {
     "submitter-us": ("FRB", "Federal Reserve System"),
 }
 
+DEFAULT_SENDER = ("SOVEREIGNSHIELD", "SovereignShield Dissemination Gateway")
+
 app = FastAPI(
-    title="SovereignShield Data Portal API",
+    title="SovereignShield Public Dissemination Gateway",
     version="1.0.0",
     description=(
-        "Standards-compliant access to BIS Locational Banking Statistics. "
-        "Entitlement is enforced by Unity Catalog row filters and column masks, "
-        "not by this service."
+        "Standards-compliant public access to BIS Locational Banking Statistics, "
+        "served from 100% synthetic data. Entitlement is enforced by Unity Catalog "
+        "row filters and column masks, not by this service."
     ),
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
@@ -306,9 +322,7 @@ def export_sdmx_ml(
     Canada analyst's download is attributed to the Bank of Canada rather than to
     the portal that served it.
     """
-    sender_id, sender_name = SOVEREIGN_SENDERS.get(
-        principal.persona, ("SOVEREIGNSHIELD", "SovereignShield Data Portal")
-    )
+    sender_id, sender_name = SOVEREIGN_SENDERS.get(principal.persona, DEFAULT_SENDER)
     return _export(
         "sdmx-ml",
         replace(series_filter, limit=limit),
