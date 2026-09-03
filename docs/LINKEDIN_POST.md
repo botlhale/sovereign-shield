@@ -107,7 +107,7 @@ The submissions themselves are real SDMX 3.0, serialised with pysdmx — the BIS
 
 Four audiences query the same table and get four different answers. Public sees published figures. Researchers see everything published, with sensitive values blank. A national analyst sees their own jurisdiction in full. An auditor sees all of it.
 
-A fifth case matters more than those four. Someone in none of those groups sees zero rows. Not an error. Nothing.
+A fifth case matters more than those four. Public is a group you're granted, not a default you fall into — so someone in none of them sees zero rows. Not an error. Nothing.
 
 Which means off-boarding a contractor and enforcing sovereignty between two nations are the same mechanism. There's no separate revocation feature to forget.
 
@@ -189,7 +189,7 @@ The setup: confidential national banking statistics, submitted quarterly to an i
 
 The approach: put the rules in the catalogue instead of the application. Azure Databricks and Unity Catalog hold a row filter and a column mask, resolved against Microsoft Entra ID per caller, per row, at query time. Real SDMX 3.0 messages via pysdmx, the BIS's own open-source library. Portal modelled on the BIS Data Explorer.
 
-Four audiences query the same table and get four different answers. A fifth case matters more: someone in no group sees zero rows. Not an error — nothing.
+Four audiences query the same table and get four different answers. Public is one of those four — a group you're granted, not a default you fall into. Which is why the fifth case matters most: someone in none of them sees zero rows. Not an error — nothing.
 
 So off-boarding a contractor and enforcing sovereignty between two nations run through the same mechanism. No separate revocation feature to forget.
 
