@@ -66,7 +66,10 @@ The MVSD must exercise every control, or a test silently stops meaning anything:
   distinguishable and a filter that returns everything is detectable.
 - **Free and confidential rows in more than one jurisdiction.** A single-country
   corpus cannot detect a mask that checks group membership without checking the
-  reporting country — which is a real defect class, not a hypothetical.
+  reporting country — which is a real defect class, not a hypothetical. An early
+  draft of the mask in this repository had exactly that flaw; it was caught during
+  development on synthetic data, because the fixture spans more than one
+  jurisdiction.
 - **A revision of an already-published series**, so expiry is exercised. A
   simple `Q1 → Q2` progression only tests append.
 - **Deliberately malformed records**, because a realistic corpus structurally

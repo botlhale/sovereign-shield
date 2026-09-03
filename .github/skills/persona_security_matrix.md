@@ -143,7 +143,13 @@ END;
 
 Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is. Any submitter membership would then unmask every jurisdiction's restricted cells — a Bank of Canada analyst reading Federal Reserve confidential positions. The mask therefore repeats the segment-9 test rather than trusting the group name alone.
 
-> This was a real defect in an earlier revision of this repository, not a hypothetical. It is the reason §5.2 of the MVSD specification requires confidential rows in more than one jurisdiction: a single-country corpus cannot detect it.
+> **Provenance.** This was a genuine defect in an early draft of the mask in this
+> repository — not a hypothetical, and not something that ever reached a
+> deployment. It was written, then caught during development on synthetic data by
+> the multi-jurisdiction fixture and a mutation check on the test that was
+> supposed to cover it. That is the reason §5.2 of the MVSD specification requires
+> confidential rows in more than one jurisdiction: a single-country corpus cannot
+> detect it, and the first test written for it passed against the broken mask.
 
 ### A note on views
 

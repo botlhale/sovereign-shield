@@ -1,225 +1,246 @@
 # SovereignShield — Public Write-Up
 
-**Mix:** ~70% senior leadership, ~30% architects and advisors.
-**Rule for every version below:** no claim that the repository cannot back up.
+Three copy-paste-ready LinkedIn posts, plus the reasoning behind naming the
+actual technology stack.
 
-Three lengths. Pick one, do not stack them.
+* [Naming the stack — what is safe and what is not](#naming-the-stack)
+* [Version 1 — The Contractor Dilemma](#version-1--the-contractor-dilemma) (SLT-lead, flagship)
+* [Version 2 — The Bug My Test Missed](#version-2--the-bug-my-test-missed) (hook-lead, more technical)
+* [Version 3 — Short](#version-3--short) (feed-friendly)
+* [Comment reply for the inevitable question](#comment-reply)
+* [Before you post](#before-you-post)
 
-* **[Long](#long-version)** — the flagship post. Leads on the business problem,
-  earns technical credibility in the middle, closes on the limits.
-* **[Short](#short-version)** — for a busy feed, or as a comment under someone
-  else's post about data sovereignty.
-* **[Comment reply](#comment-reply-for-the-inevitable-question)** — the answer to
-  "is this production?", which will be the first question.
-
-Attach [`sovereign-shield_executive.jpg`](sovereign-shield_executive.jpg) to the
-long and short versions. Rationale in [Image selection](#image-selection).
+Attach `sovereign-shield_executive.jpg` to whichever you choose.
 
 ---
 
-## Long version
+## Naming the stack
 
-> Every quarter, national authorities send confidential banking statistics to an
-> international body. Three obligations apply at once — and they pull against
-> each other.
->
-> **Sovereignty.** A country's detailed figures are its own. They must not be
-> visible to another country, even inside a shared system.
->
-> **Confidentiality.** Within a country's own submission, some figures could
-> identify a single institution. Those must be withheld from researchers while
-> the surrounding structure stays intact.
->
-> **Integrity.** Nothing internally inconsistent may be published. Not the
-> inconsistent part — *none of it*. The totals that reconcile depend on the
-> components that did not.
->
-> Institutions uphold all three today, rigorously, using mature specialised
-> software and decades of operational protocol. I am not proposing a replacement.
->
-> I spent a few weeks on an adjacent question:
->
-> **What if those obligations were properties of the platform itself, rather
-> than rules the application is trusted to follow?**
->
-> ---
->
-> **What that changes**
->
-> The rules live *with the data*, not in the software that reads it. So they
-> apply identically through a dashboard, a notebook, a spreadsheet, a public web
-> page, or a direct database connection.
->
-> There is no code path that can forget to apply them — because they are not in
-> the code path at all.
->
-> Four audiences query the same table and get four different answers:
->
-> → **Public** — published, free-to-publish figures only
-> → **Researcher** — everything published; sensitive values arrive blank
-> → **National analyst** — their own jurisdiction in full, other countries' public data only
-> → **Auditor** — the complete picture, including the audit trail
->
-> A fifth case matters more than the four: **someone in none of those groups sees
-> zero rows.** Not an error. Nothing.
->
-> Which means off-boarding a contractor and enforcing sovereignty between two
-> nations are *the same mechanism*. There is no separate revocation feature to
-> forget, to let rot, or to test less rigorously than the primary one.
->
-> ---
->
-> **The part I did not expect to be the point**
->
-> Specialist platform work needs people who have done it before. Those people are,
-> almost by definition, outside your organisation. The data is confidential.
->
-> The usual answer is procedural: NDAs, supervised environments, quarterly access
-> reviews. It works. But it scales with headcount, decays between reviews, and
-> leaves residue — accounts and memberships whose removal has to be *verified*
-> rather than *guaranteed*.
->
-> So the whole thing was built without the data.
->
-> Not "with access controls". Without. The organisation publishes a **specification**
-> — structure, code lists, the rulebook, the access matrix — and the builder works
-> against generated figures. Every test runs on a laptop with no cloud credentials.
-> Deployment happens through a federated identity that only a reviewed, merged
-> commit can assume.
->
-> A leaked copy of the repository is not a data incident. It contains no
-> credential and no observation.
->
-> ---
->
-> **For the architects reading this**
->
-> Entitlement is a row filter and a column mask attached to the table in Unity
-> Catalog, resolved per caller, per row, at query time. The API gateway in front
-> of it **chooses an identity — it never chooses rows.** Compromise it entirely
-> and the metastore still refuses.
->
-> Three things I would have got wrong without building it:
->
-> **1.** The column mask needs the *series key*, not just the confidentiality
-> flag. Mask on group membership alone and any national analyst can read every
-> other country's restricted figures. I shipped that bug, then caught it — but
-> only because the test data covers more than one jurisdiction. A single-country
-> fixture cannot detect it.
->
-> **2.** My test for that bug was initially **vacuous**. The row filter already
-> removed those rows, so the assertion passed against a completely broken mask. I
-> only found out by deliberately reintroducing the bug to see if the suite went
-> red. It didn't. A test you have never watched fail is a test you have not
-> written.
->
-> **3.** A rejected submission must degrade to **stale data, never missing data**.
-> The previously published figure stays live; the rejection is recorded for audit
-> and diagnosis. Getting this wrong doesn't throw an error — it quietly deletes a
-> published series.
->
-> Infrastructure is Terraform; tables and policy functions are Databricks Asset
-> Bundles. Strictly one writer per object — the filters are re-applied on every
-> pipeline run, so if Terraform also owned them the two would fight forever.
->
-> ---
->
-> **What this is not**
->
-> It is a reference architecture on **100% synthetic data**. Independent work,
-> not affiliated with or endorsed by any central bank or international
-> organisation. The statistical standard and the validation rulebook are public
-> artefacts; every number flowing through them is generated.
->
-> It demonstrates that the control model is correct. It says nothing about
-> performance at real volume — that needs a production dry-run I have not done.
->
-> Repository in the comments. I would genuinely like to be told where this breaks.
+Your instinct is right: "a cloud data platform" persuades nobody. Naming Azure
+Databricks, Unity Catalog, Entra ID, Key Vault and pysdmx is what makes the post
+checkable — and checkable is what makes it credible.
+
+It is also legally routine, provided you stay on the right side of one line.
+
+### The line
+
+**Nominative use** — naming a product to describe what you actually used — is
+lawful and needs no permission. What is not lawful is implying **affiliation,
+endorsement, sponsorship or certification**.
+
+| Safe | Not safe |
+| --- | --- |
+| "Built on Azure Databricks and Unity Catalog" | "Microsoft-approved", "Databricks-certified", "in partnership with…" |
+| "Serialised with pysdmx" | "An official SDMX toolkit" |
+| "Inspired by the BIS Data Explorer" | "A BIS system", "developed for the BIS" |
+| Product names as plain text | Any rendered logo or brand mark |
+| Describing what the tool does | Suggesting the vendor reviewed or blessed your work |
+
+### pysdmx specifically
+
+Worth knowing before you name it: **pysdmx is maintained by the BIS itself**
+(`github.com/bis-med-it/pysdmx`, Apache-2.0, authored from a `bis.org` address).
+
+That cuts both ways. It strengthens the post — you used the standards body's own
+library rather than hand-rolling the format. It also **raises the bar on the
+disclaimer**, because a reader could slide from "uses the BIS library" to "is a
+BIS project" without noticing.
+
+Apache-2.0 §6 is explicit that the licence grants **no trademark rights**. So:
+use the name to *describe a dependency*, never as a badge.
+
+This is why all three versions below carry the non-affiliation statement in the
+post body, not only inside the image.
+
+### The BIS Data Explorer
+
+Naming a public website as design inspiration is fine. The failure mode is not
+trademark — it is a reader assuming you had access to real submissions. Every
+version therefore says "synthetic" explicitly and early.
+
+### The risk that actually bites
+
+Not trademark. **Employment.** If you have an employer, check your contract for
+IP-assignment and outside-work clauses before publishing a portfolio project,
+and make sure nothing in the post implies your employer built, endorsed or
+sponsored it. That is the exposure most people overlook while worrying about
+logos.
+
+Not legal advice. If you have counsel, a two-minute read is cheap insurance.
+
+### Two LinkedIn mechanics
+
+**Do not @-tag the company pages.** A tag creates an association signal and can
+pull a brand-monitoring team into your comments. Plain text mentions do not.
+
+**LinkedIn does not render Markdown.** No `**bold**`, no `# headings`, no
+`[text](url)` — they appear literally. The versions below are plain text and are
+meant to be copied exactly as they are. Unicode "bold" characters are avoided
+deliberately: screen readers skip or spell them out.
 
 ---
 
-## Short version
+## Version 1 — The Contractor Dilemma
 
-> Confidential national statistics, shared with an international body. Three
-> obligations that pull against each other: **sovereignty**, **confidentiality**,
-> **integrity**.
->
-> I spent a few weeks asking what happens when you stop enforcing those in
-> application code and make them properties of the data platform itself.
->
-> Four audiences query the same table and get four different answers. A fifth
-> case matters more: someone in no group sees **zero rows** — not an error,
-> nothing.
->
-> Which means off-boarding a contractor and enforcing sovereignty between two
-> nations run through the *same mechanism*. No separate revocation feature to
-> forget.
->
-> The part I didn't expect to be the point: it was built entirely **without the
-> data**. Specification in, working platform out, every test running on a laptop
-> with no cloud credentials. A leaked copy of the repo isn't a data incident —
-> there's no credential and no observation in it.
->
-> Reference architecture, synthetic data, independent work. Repository below —
-> tell me where it breaks.
+**~2,750 characters. SLT-lead, roughly 70/30. This is the flagship.**
 
----
+```text
+The people you need for specialist data work are, almost by definition, the people who shouldn't have the data.
 
-## Comment reply, for the inevitable question
+That's not a hiring problem. It's an architecture problem.
 
-Someone will ask whether it's in production. Answer plainly and immediately:
+Every quarter, national authorities send confidential banking statistics to international bodies. Three obligations apply at once, and they pull against each other:
 
-> No — and I'd be suspicious of anyone claiming otherwise on a first pass at
-> this. It's a working reference architecture running the genuine published
-> validation rulebook and real standard message formats against generated
-> submissions.
->
-> What it demonstrates is that the controls can be expressed as platform
-> constraints rather than application logic. Because they're attached to
-> catalogue objects, they activate on real data at first run — there's no
-> "productionisation" phase where the security model gets re-implemented, and
-> therefore no phase where it can be re-implemented incorrectly.
->
-> What it does *not* demonstrate is behaviour at real volume. That needs a
-> production dry-run.
+→ Sovereignty. A country's detailed figures are its own. Not visible to another country, even inside a shared system.
+→ Confidentiality. Some figures could identify a single institution. Withheld from researchers, without breaking the surrounding structure.
+→ Integrity. Nothing internally inconsistent gets published. Not the inconsistent part — none of it. The totals that reconcile depend on the components that didn't.
+
+Institutions uphold all three today, rigorously, with mature software and decades of protocol. I'm not proposing a replacement.
+
+I spent a few weeks on an adjacent question: what if those obligations were properties of the platform itself, rather than rules the application is trusted to follow?
+
+So I built it.
+
+Azure Databricks and Unity Catalog hold the rules. Not the application — the catalogue. A row filter and a column mask are attached to the table, resolved against Microsoft Entra ID per caller, per row, at query time. Delta Lake keeps full history. Credentials live in Azure Key Vault and are never written to disk. Terraform provisions it; GitHub Actions deploys via OpenID Connect, so no secret is stored anywhere.
+
+The submissions themselves are real SDMX 3.0, serialised with pysdmx — the BIS's own open-source library — against the genuine published Locational Banking Statistics structure. The validation rulebook is parsed at runtime from the published workbook, so a standards revision needs no code change. The portal is modelled on the BIS Data Explorer.
+
+Four audiences query the same table and get four different answers. Public sees published figures. Researchers see everything published, with sensitive values blank. A national analyst sees their own jurisdiction in full. An auditor sees all of it.
+
+A fifth case matters more than those four. Someone in none of those groups sees zero rows. Not an error. Nothing.
+
+Which means off-boarding a contractor and enforcing sovereignty between two nations are the same mechanism. There's no separate revocation feature to forget.
+
+And it was built without the data. Specification in, working platform out. Every test runs on a laptop with no cloud credentials.
+
+A leaked copy of that repository isn't a data incident. There's no credential and no observation in it.
+
+Independent reference architecture. 100% synthetic data. Not affiliated with or endorsed by the BIS, any central bank, or any vendor named above.
+
+Repository in the comments. I'd genuinely like to be told where this breaks.
+```
 
 ---
 
-## Image selection
+## Version 2 — The Bug My Test Missed
 
-**Attach the executive image** (`sovereign-shield_executive.jpg`) to both the
-long and short posts.
+**~2,850 characters. Hook-lead, closer to 50/50. Use this if your audience skews
+technical, or as a follow-up to Version 1.**
 
-It reads at thumbnail size, which is the only size most people will see. The
-narrative runs left to right, the four audiences are legible without zooming,
-and the widening beams communicate graduated access before anyone reads a word.
+> **Accuracy note.** This describes a defect written and caught **during
+> development**, on synthetic data, before anything was deployed to anyone. Say
+> "wrote" and "caught", never "shipped" — shipped implies it reached a user, and
+> a reader who later discovers otherwise loses trust in the whole post. The
+> honest version is also the better story: the controls caught it.
 
-**Do not lead with the technical diagram.** It is dense by design — excellent
-when someone has already asked a question, unreadable in a feed. Hold it back for
-a reply, or for the second post in a series.
+```text
+I wrote a data-sovereignty bug that would have let any national analyst read every other country's confidential figures.
 
-**Both images carry their disclaimer inside the frame**, not in the caption. This
-is deliberate: an image that gets screenshotted, reshared or embedded elsewhere
-takes its own context with it. LinkedIn captions do not survive a screenshot.
+Then I wrote a test for it that passed anyway.
 
-Neither image contains a vendor logo, a national flag, or an identifiable
-institution — which is a legal position, and also a practical one, since image
-models render trademarks badly.
+Both were caught in development, on synthetic data, before any of it was deployed. That's the point of the story, not a footnote to it.
+
+Context: I've been building a reference architecture for confidential statistical exchange — the quarterly submission of national banking statistics to an international body. The question I was chasing is whether sovereignty, confidentiality and integrity can be properties of the data platform rather than rules the application is trusted to follow.
+
+The stack: Azure Databricks with Unity Catalog holding the policy, Microsoft Entra ID resolving identity, Delta Lake keeping history, Azure Key Vault holding credentials, Terraform provisioning it, and pysdmx — the BIS's own open-source library — producing genuine SDMX 3.0 messages against the published Locational Banking Statistics structure.
+
+Entitlement is a row filter plus a column mask, attached to the table, evaluated per caller and per row at query time.
+
+Here's the bug.
+
+The column mask decided whether to hide a value based on the confidentiality flag and the caller's group. That reads as correct. It isn't. It knows a value is confidential, but not whose it is — so any national analyst would have unmasked every jurisdiction's restricted figures, not just their own.
+
+The fix was to pass the series key into the mask, so it re-checks the reporting country rather than trusting the group name.
+
+Here's the worse part.
+
+My test for that fix passed against a completely broken mask. The row filter had already removed those rows before the mask ran, so the assertion was vacuous — it asserted something that was true for the wrong reason.
+
+I only found out by deliberately putting the bug back to watch the suite go red. It didn't.
+
+A test you have never watched fail is a test you have not written.
+
+Two more things I'd have got wrong without building it:
+
+A rejected submission has to degrade to stale data, never missing data. The previously published figure stays live and the rejection is recorded for audit. Get this wrong and it doesn't throw an error — it quietly deletes a published series.
+
+And a fixture with one country cannot catch a cross-border leak. The bug above is undetectable unless your test data has confidential rows in more than one jurisdiction.
+
+The whole thing runs on synthetic data and was built without access to anything real. Every test runs offline with no cloud credentials, which is the point: the person building it never needs to hold what it protects.
+
+Independent reference architecture. 100% synthetic data. Not affiliated with or endorsed by the BIS, any central bank, or any vendor named above.
+
+Repository in the comments. Tell me what else is wrong with it.
+```
 
 ---
 
-## Before posting
+## Version 3 — Short
 
-- [ ] Repository is public, and the README disclaimer is the first thing visible
-- [ ] Every number and claim in the post traces to something in the repository
-- [ ] The synthetic-data statement appears in the post itself, not only the image
-- [ ] No client, employer or institution is named or implied
-- [ ] Post the repository link as a **comment**, not in the body — LinkedIn
+**~1,250 characters. For a busy feed, or as a comment under someone else's post
+about data sovereignty.**
+
+```text
+The people you need for specialist data work are, almost by definition, the people who shouldn't have the data.
+
+I spent a few weeks treating that as an architecture problem rather than a hiring one.
+
+The setup: confidential national banking statistics, submitted quarterly to an international body. Sovereignty, confidentiality and arithmetic integrity all apply at once, and they pull against each other.
+
+The approach: put the rules in the catalogue instead of the application. Azure Databricks and Unity Catalog hold a row filter and a column mask, resolved against Microsoft Entra ID per caller, per row, at query time. Real SDMX 3.0 messages via pysdmx, the BIS's own open-source library. Portal modelled on the BIS Data Explorer.
+
+Four audiences query the same table and get four different answers. A fifth case matters more: someone in no group sees zero rows. Not an error — nothing.
+
+So off-boarding a contractor and enforcing sovereignty between two nations run through the same mechanism. No separate revocation feature to forget.
+
+And it was built without the data. Every test runs on a laptop with no cloud credentials. A leaked copy of the repo isn't a data incident.
+
+Independent reference architecture, 100% synthetic data, not affiliated with any organisation named. Repository below.
+```
+
+---
+
+## Comment reply
+
+Someone will ask whether it's in production. Have this ready.
+
+```text
+No — and I'd be sceptical of anyone claiming otherwise on a first pass at this.
+
+It's a working reference architecture running the genuine published validation rulebook and real SDMX 3.0 message structures against generated submissions. What it demonstrates is that the controls can be expressed as platform constraints rather than application logic.
+
+Because they're attached to catalogue objects rather than embedded in pipeline code, they activate on real data at first run. There's no "productionisation" phase where the security model gets re-implemented, and therefore no phase where it can be re-implemented incorrectly.
+
+What it does not demonstrate is behaviour at real volume. That needs a production dry-run I haven't done.
+```
+
+---
+
+## Before you post
+
+- [ ] Repository public, README disclaimer visible without scrolling
+- [ ] Every claim traces to something in the repository
+- [ ] Non-affiliation and synthetic-data statement present in the post body
+- [ ] No employer, client or institution named or implied
+- [ ] No company pages @-tagged
+- [ ] Repository link posted as the **first comment**, not in the body — LinkedIn
       suppresses reach on posts with outbound links
-- [ ] Be ready for "is this production?" within the first hour
+- [ ] Employment agreement checked for IP-assignment and outside-work clauses
+- [ ] Ready for "is this production?" within the first hour
 
-**Tone check.** The credibility of this write-up rests on the limitations section,
-not the achievements. Practitioners in statistical exchange have been solving
-these problems for decades and will recognise overreach instantly. Naming the
-bug I shipped, and the test that failed to catch it, is what earns the rest of it
-a fair hearing.
+**On the first two lines.** LinkedIn truncates at roughly 140–210 characters on
+mobile. Versions 1 and 3 open on the contractor paradox and Version 2 on the
+defect caught in testing, because both are complete thoughts that survive
+truncation. An
+opening like "Excited to share…" spends that budget on nothing.
+
+**On tone.** The credibility of this rests on the limitations, not the
+achievements. People who have worked in statistical exchange have decades on
+this and will spot overreach instantly. Naming the defect you wrote and caught,
+and the test that failed to catch it, is what earns the rest a fair hearing.
+
+**On precision about that defect.** It was written and caught in development, on
+synthetic data, before any deployment. Never say "shipped", "in production" or
+"a customer found" — all three are false, and being caught embellishing a bug
+story costs more credibility than the bug story earns. The accurate account is
+stronger anyway: the fixture design and the mutation check are what found it.

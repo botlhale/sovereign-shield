@@ -145,10 +145,12 @@ def test_dual_membership_still_masks_foreign_confidential(corpus):
     admits every published row, so the column mask - not the row filter -
     becomes the control of record.
 
-    An earlier revision masked on group membership alone, without testing
-    segment 9, which let a Bank of Canada analyst read Federal Reserve
-    confidential positions. This test fails against that implementation; the
-    single-membership tests above do not.
+    An early draft of the mask keyed on group membership alone, without testing
+    segment 9, which would have let a Bank of Canada analyst read Federal
+    Reserve confidential positions. It was caught in development, on synthetic
+    data, and never reached a deployment - but only because this fixture spans
+    more than one jurisdiction. This test fails against that implementation;
+    the single-membership tests above do not.
     """
     from uc_query import LocalDeltaBackend, Principal
 
