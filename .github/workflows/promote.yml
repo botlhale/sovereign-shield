@@ -51,6 +51,77 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
+  # Distinguishes "this repository has not been wired up yet" from "it has been
+  # wired up incorrectly". Those need opposite responses, and azure/login cannot
+  # tell them apart - it reports only "Not all values are present", naming
+  # neither the variable nor how to set it.
+  #
+  #   nothing set  -> deployment jobs skip cleanly; a fork or a fresh clone is
+  #                   not broken, it is simply not connected to a subscription
+  #   some set     -> fail loudly and name the gap; a half-configured deployment
+  #                   is a misconfiguration, not an absence
+  preflight:
+    name: Configuration preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check deployment variables
+        id: check
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+          TF_STATE_RESOURCE_GROUP: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+          TF_STATE_STORAGE_ACCOUNT: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+        run: |
+          required=(AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID \
+                    DATABRICKS_HOST TF_STATE_RESOURCE_GROUP TF_STATE_STORAGE_ACCOUNT)
+          missing=()
+          for name in "${required[@]}"; do
+            [ -z "${!name}" ] && missing+=("$name")
+          done
+
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "### Deployment configured" >> "$GITHUB_STEP_SUMMARY"
+            echo "All ${#required[@]} repository variables are present." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ ${#missing[@]} -eq ${#required[@]} ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Deployment skipped - repository not connected to a subscription"
+              echo
+              echo "Offline verification ran and is the meaningful gate here."
+              echo "To enable deployment, run:"
+              echo
+              echo '```powershell'
+              echo './sh/github_environment_setup.ps1 -Repository ${{ github.repository }} \'
+              echo '    -Reviewers <github-username> \'
+              echo '    -AzureClientId <app-id> -AzureTenantId <tenant> -AzureSubscriptionId <sub> \'
+              echo '    -DatabricksHost <workspace-host> \'
+              echo '    -TfStateResourceGroup <rg> -TfStateStorageAccount <account>'
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "### Deployment misconfigured"
+            echo
+            echo "Some variables are set and others are not, so this is a gap rather"
+            echo "than an absence. Missing:"
+            echo
+            for name in "${missing[@]}"; do echo "- \`$name\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Partially configured. Missing: ${missing[*]}"
+          exit 1
+
   # Runs with NO cloud credentials. This is the gate a contractor reproduces on
   # a laptop, and the reason the test suite is offline by default.
   #
@@ -95,8 +166,10 @@ jobs:
   # in this job can apply.
   plan:
     name: Terraform plan
-    needs: verify
-    if: github.event_name == 'pull_request'
+    needs: [verify, preflight]
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -139,8 +212,11 @@ jobs:
   # that skips it cannot authenticate at all.
   apply:
     name: Terraform apply
-    needs: verify
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [verify, preflight]
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
     environment: production
     permissions:

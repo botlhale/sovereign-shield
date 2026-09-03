@@ -101,6 +101,12 @@ PR ──▶ offline test suite ──▶ human review ──▶ merge
                             terraform apply  ·  databricks bundle deploy
 ```
 
+![The promotion plane and ownership boundary: pull request to offline tests (no credentials required) to review to merge to a short-lived OIDC token with no stored secret, which fans out to Terraform for infrastructure and to the Asset Bundle for data and policy, separated by a divider reading "one writer per object".](../../docs/sovereign-shield_technical_vision.jpg)
+
+*The top two bands are this section. The contractor works entirely inside
+"offline tests" — the only band that needs no credentials — and never crosses the
+OIDC boundary.*
+
 **Pipeline identity uses OIDC, not a stored secret.** GitHub Actions requests a
 short-lived token from Entra ID via workload identity federation, scoped to a
 specific repository, branch and environment. There is no client secret in

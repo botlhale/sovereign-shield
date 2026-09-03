@@ -79,6 +79,12 @@ A principal with no recognised membership resolves to `FALSE` — zero rows.
 
 ## Enforcement objects
 
+![The Unity Catalog policy enforcement point: the row filter and column mask signatures above a persona list — public (published and free only), researcher (published, values masked), submitter (own jurisdiction in full), auditor (unrestricted), and no group (zero rows, fails closed).](../../docs/sovereign-shield_technical_vision.jpg)
+
+*The right-hand column of this diagram is the table below, drawn. The dimmed
+final row is the fail-closed default — the one entry that makes the other four
+safe to grant.*
+
 | Lock | Object | Binding | Granularity |
 | --- | --- | --- | --- |
 | RLS (macro) | `fn_rls_lbs_multi_persona_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)` | Row |

@@ -6,6 +6,11 @@ This matrix documents the **operational capabilities the platform actually imple
 
 **Namespace:** `dbw_sovereignshield.sovereign_shield` · **Runtime:** Databricks 18.x LTS · **Standard:** SDMx 3.0 / BIS LBS
 
+![Policy as a Metastore Object — promotion plane, the Terraform/pipeline ownership boundary, a data plane with quarantine isolation, and a consumption band, all resolving into a Unity Catalog enforcement point that maps five personas ending in "no group — zero rows, fails closed".](../../docs/sovereign-shield_technical_vision.jpg)
+
+*Every capability below appears somewhere in this diagram. If a claim here has no
+counterpart in the image, one of the two is out of date.*
+
 ---
 
 ## 0. 📚 Skill index

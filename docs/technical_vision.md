@@ -4,6 +4,11 @@
 **Use:** one dense diagram to anchor a design discussion or architecture review
 **Companion:** [`executive_vision.md`](executive_vision.md) for the SLT version
 
+![Policy as a Metastore Object — four bands: a promotion plane from pull request to OIDC token; an ownership boundary splitting Terraform from the pipeline across a divider reading "one writer per object"; a data plane routing passes to a history table and failures to audit-only quarantine; and a consumption band whose gateway "chooses an identity, never chooses rows". All resolve into a Unity Catalog enforcement point listing five personas.](sovereign-shield_technical_vision.jpg)
+
+*Rendered output. Every talking point below maps to something visible in it, so
+you can point rather than assert.*
+
 ---
 
 ## Design intent

@@ -29,6 +29,12 @@ touch the delivered code.
 This is a structural property of the architecture. Section 5 states where it
 stops.
 
+![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions submit standardised documents; an automated rule check holds one for correction while the rest reach a governed vault wrapped in policy rings; four audiences read from that single source with progressively wider access.](sovereign-shield_executive.jpg)
+
+*The whole engagement in one frame. The specialist builds everything left of the
+vault and never holds anything inside it — the rings are Unity Catalog policy,
+and they are what makes that separation safe rather than merely agreed.*
+
 ---
 
 ## Phase 1 — Client organisation setup

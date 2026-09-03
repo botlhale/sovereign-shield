@@ -10,6 +10,7 @@
 >
 > BIS and SDMx are referenced as typeset text throughout, never as reproduced logos.
 
+![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions submit standardised documents along a pathway; an automated rule check deflects one submission into a "held for correction" tray while the rest continue into a governed data vault wrapped in three policy rings labelled "who you are", "what you may see" and "what is published"; four audiences (public, researcher, national analyst, auditor) draw from that single source through beams of increasing width.](docs/sovereign-shield_executive.jpg)
 
 ## 📖 Executive Summary
 
@@ -38,6 +39,8 @@ The validation rulebook is treated as **metadata, not code** — an approach the
 ---
 
 ## 🗺️ System Architecture
+
+![Policy as a Metastore Object — four horizontal bands. A promotion plane runs pull request to offline tests to review to merge to a short-lived OIDC token. An ownership boundary splits Terraform (infrastructure and access) from the pipeline (data and policy) either side of a divider reading "one writer per object". A data plane routes validated submissions to a history table and failures to an audit-only quarantine, with the prior published record staying live. A consumption band shows the dissemination gateway choosing an identity but never choosing rows. All four connect into a policy enforcement point in Unity Catalog resolving five personas, ending with "no group — zero rows, fails closed".](docs/sovereign-shield_technical_vision.jpg)
 
 Credentials never leave Azure Key Vault as literals, compute is ephemeral and single-node, and every consumer is resolved to an Entra ID security group at query time by Unity Catalog.
 

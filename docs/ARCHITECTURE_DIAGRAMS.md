@@ -6,6 +6,12 @@
 > operating on **100% synthetic mock data**. BIS and SDMx appear as typeset text
 > only, never as reproduced logos.
 
+![Policy as a Metastore Object — promotion plane, ownership boundary between Terraform and the pipeline, data plane with quarantine isolation, and a consumption band, all resolving into a Unity Catalog policy enforcement point that maps five personas from public through auditor to "no group — zero rows, fails closed".](sovereign-shield_technical_vision.jpg)
+
+*Rendered from [`technical_vision.md`](technical_vision.md). The Mermaid diagrams
+below decompose the same system — use this one to orient an audience, and those
+to answer the follow-up questions.*
+
 Presentation-ready assets for **SovereignShield** — an exploration of how Azure Databricks and Unity Catalog can carry the security obligations of **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics) as platform constraints, alongside the mature SDMx tooling institutions already run.
 
 **Part 1** contains live-renderable Mermaid.js diagrams (GitHub, VS Code, Notion, Confluence, and most slide tooling render these natively).

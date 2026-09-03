@@ -4,6 +4,12 @@
 **Use:** one slide, 5-minute narrative
 **Companion:** [`technical_vision.md`](technical_vision.md) for architects and advisors
 
+![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions labelled AA, BB and CC submit standardised documents along a pathway; an automated rule check deflects one into a "held for correction" tray while the rest continue into a governed vault wrapped in three rings labelled "who you are", "what you may see" and "what is published"; four audiences draw from that single source through beams of increasing width.](sovereign-shield_executive.jpg)
+
+*Rendered output. Note what is absent: no vendor logo, no national flag, no
+identifiable institution — and the non-affiliation caption is part of the image
+rather than the slide around it, so it survives being screenshotted.*
+
 ---
 
 ## Why this prompt is worded the way it is
