@@ -84,13 +84,16 @@ engineering one — the specialist implements it, they do not define it.
 
 ### 1.3 Create the identities
 
-`terraform/modules/identity`, or `sh/grp_users_create.sh` for the quickstart
-path. The specialist is added to **none** of these groups.
+`terraform/modules/identity` provisions the persona groups, both service
+principals and the OIDC federated credentials in one apply. `sh/` holds an
+imperative quickstart for laptop demos; it is not the route to a governed
+environment. The specialist is added to **none** of these groups.
 
 Groups must exist at the Databricks **account** level. `is_account_group_member()`
 does not resolve workspace-scoped groups, which look identical in the console and
 silently match nothing — the single most common cause of "deployment worked, no
-data visible".
+data visible". No Terraform provider addresses account scope, so
+`sh/databricks_account_setup.ps1` mirrors them and remains a required step.
 
 ---
 
@@ -222,10 +225,13 @@ credential and no observation.
 
 Three actions, none of which touch the delivered code:
 
-1. **Rotate the service principal.** `sh/kv_spn_remediation.sh` deletes the app
-   registration, mints fresh credentials and overwrites the stored secrets under
-   the same names. Any retained copy is dead immediately, and the pipeline keeps
-   working with **no code change** — `pre_auth.ps1` resolves secrets by name.
+1. **Rotate the service principal.** Terraform re-mints the dissemination proxy
+   credential automatically every 90 days (`time_rotating`); for an immediate
+   rotation use `terraform apply -replace="module.identity.azuread_service_principal_password.public_proxy"`,
+   or `sh/kv_spn_remediation.sh` for the CI/CD principal. Either way the secret is
+   overwritten under the **same name**, so any retained copy dies immediately and
+   the pipeline keeps working with no code change — every consumer resolves
+   secrets by name, never by value.
 2. **Remove the Key Vault role assignment.** Without it they cannot hydrate a
    session at all.
 3. **Remove them from every Entra ID group.** The row filter grants rows only on

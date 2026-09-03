@@ -2,11 +2,28 @@
 #
 # The contractor opens a pull request; they cannot deploy it. Authentication to
 # Azure uses OpenID Connect workload identity federation, so there is no client
-# secret in repository settings to leak, rotate or forget. GitHub mints a
-# short-lived token, Entra ID exchanges it for an access token, and the
-# federated credential is scoped to this repository AND this environment - a
-# subject of `ref:refs/heads/*` would let any branch assume the production
-# identity and defeat the review gate.
+# secret in repository settings to leak, rotate or forget.
+#
+# Job/credential pairing is deliberate and must stay in step with the federated
+# credentials in terraform/modules/identity/main.tf. A job can only authenticate
+# if a credential exists for its exact OIDC subject:
+#
+#   pull_request  -> repo:<owner>/<repo>:pull_request
+#   push to main  -> repo:<owner>/<repo>:environment:production
+#
+# A job requesting an environment with no matching credential fails at the token
+# exchange with an opaque 400, so adding one here means adding one there.
+
+# ACTION PINNING
+#
+# Every action is pinned to an immutable commit SHA, not a tag. A tag is a
+# movable pointer: whoever controls the action repository can repoint v3 at new
+# code, and `@main` re-resolves on every run. Either would let an upstream
+# compromise reach a job that holds a token capable of applying infrastructure.
+#
+# The trailing comment records which release each SHA is, so a bump is a
+# deliberate, reviewable diff. Verify before changing one:
+#   gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha
 
 name: promote
 
@@ -17,11 +34,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Least privilege at the top; id-token is granted per job, only where a token is
+# actually exchanged. The offline job must never be able to request one.
 permissions:
   contents: read
-  # Required for OIDC. Without it the token exchange fails with an opaque 400.
-  id-token: write
-  pull-requests: write
 
 concurrency:
   group: promote-${{ github.ref }}
@@ -35,15 +51,20 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
-  # Runs with no cloud credentials at all. This is the gate a contractor can
-  # reproduce on a laptop, and the reason the suite is offline by default.
+  # Runs with NO cloud credentials. This is the gate a contractor reproduces on
+  # a laptop, and the reason the test suite is offline by default.
+  #
+  # Nothing requiring authentication belongs here. `databricks bundle validate`
+  # resolves the workspace and so needs a host and a token; it runs in `bundle`.
   verify:
     name: Offline verification
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -54,43 +75,56 @@ jobs:
       - name: Persona matrix, SDMx rules, contractor isolation, secret scan
         run: pytest tests/ -v
 
-      - name: Validate the Asset Bundle
-        uses: databricks/setup-cli@main
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.15.8"
 
-      - run: databricks bundle validate -t dev
-        env:
-          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
-          DATABRICKS_AUTH_TYPE: github-oidc
+      - name: Terraform format
+        working-directory: terraform
+        run: terraform fmt -recursive -check
 
+      # -backend=false resolves providers and type-checks the configuration
+      # without contacting the state backend, so this stays credential-free.
+      - name: Terraform validate
+        working-directory: terraform
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+  # Pull requests only, matching the pull_request federated credential. Nothing
+  # in this job can apply.
   plan:
     name: Terraform plan
     needs: verify
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    environment: plan
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: azure/login@v2
+      - uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: "1.15.8"
 
+      # backend.hcl is gitignored because it names a storage account, so the
+      # backend is configured from repository variables rather than a file.
       - name: Init
         working-directory: terraform
-        run: terraform init -backend-config="${{ vars.TF_BACKEND_CONFIG || 'backend.hcl' }}"
-
-      - name: Format check
-        working-directory: terraform
-        run: terraform fmt -recursive -check
-
-      - name: Validate
-        working-directory: terraform
-        run: terraform validate
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="key=sovereignshield.tfstate" \
+            -backend-config="use_azuread_auth=true"
 
       - name: Plan
         working-directory: terraform
@@ -98,40 +132,44 @@ jobs:
           terraform plan -no-color -input=false \
             -var="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
             -var="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
-            -var="github_repository=${{ github.repository }}" \
-            -out=tfplan
+            -var="github_repository=${{ github.repository }}"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tfplan
-          path: terraform/tfplan
-          retention-days: 5
-
+  # Pushes to main only. Environment protection rules are the human gate, and
+  # the federated credential is scoped to this environment name - a workflow
+  # that skips it cannot authenticate at all.
   apply:
     name: Terraform apply
-    needs: plan
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: verify
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Environment protection rules are the human gate. The federated credential
-    # for this identity is scoped to this environment name, so a workflow that
-    # skips it cannot authenticate at all.
     environment: production
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      warehouse_id: ${{ steps.tf.outputs.warehouse_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: azure/login@v2
+      - uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: "1.15.8"
 
       - name: Init
         working-directory: terraform
-        run: terraform init -backend-config="${{ vars.TF_BACKEND_CONFIG || 'backend.hcl' }}"
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="key=sovereignshield.tfstate" \
+            -backend-config="use_azuread_auth=true"
 
       - name: Apply infrastructure and access-control plane
         working-directory: terraform
@@ -146,38 +184,36 @@ jobs:
         working-directory: terraform
         run: echo "warehouse_id=$(terraform output -raw sql_warehouse_id)" >> "$GITHUB_OUTPUT"
 
-    outputs:
-      warehouse_id: ${{ steps.tf.outputs.warehouse_id }}
-
   bundle:
     name: Deploy data and policy plane
     needs: apply
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_AUTH_TYPE: azure-cli
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: azure/login@v2
+      - uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - uses: databricks/setup-cli@main
+      - uses: databricks/setup-cli@602f285bac0c85e5985bf4c16d5a2befed0578d9 # v1.14.1
 
       # Table DDL, the policy UDFs and the row filter / mask bindings are the
       # bundle's, not Terraform's. Applying them here keeps one writer per
       # object: Terraform would otherwise report drift after every run.
+      - name: Validate
+        run: databricks bundle validate -t dev --var="warehouse_id=${{ needs.apply.outputs.warehouse_id }}"
+
       - name: Deploy
-        env:
-          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
-          DATABRICKS_AUTH_TYPE: azure-cli
-        run: |
-          databricks bundle deploy -t dev \
-            --var="warehouse_id=${{ needs.apply.outputs.warehouse_id }}"
+        run: databricks bundle deploy -t dev --var="warehouse_id=${{ needs.apply.outputs.warehouse_id }}"
 
       - name: Run the ingestion and validation pipeline
-        env:
-          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
-          DATABRICKS_AUTH_TYPE: azure-cli
         run: databricks bundle run sovereignshield_sdmx_pipeline -t dev

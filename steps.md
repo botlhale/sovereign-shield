@@ -47,6 +47,32 @@ pytest tests/                 # expect 59 passed, 2 skipped
 The 2 skips are the `--live` tests; they need a workspace and are meant to skip
 here.
 
+### 0.1 GitHub repository controls (CI only)
+
+Skip if you are deploying by hand. Required before the promotion workflow means
+anything:
+
+```powershell
+./sh/github_environment_setup.ps1 -Repository <owner>/<repo> `
+    -Reviewers <github-username> `
+    -AzureClientId <app-id> -AzureTenantId <tenant> -AzureSubscriptionId <sub> `
+    -DatabricksHost <workspace-host> `
+    -TfStateResourceGroup rg-sovereignshield-tfstate `
+    -TfStateStorageAccount <state-storage-account>
+```
+
+GitHub creates an environment implicitly the first time a job references one,
+**with no protection rules attached**. Without this step `environment: production`
+is decorative: the workflow looks like it has a human gate while every merge
+deploys straight through.
+
+The script sets required reviewers, prevents self-review, restricts deployments
+to protected branches, and writes the repository variables the workflow reads.
+
+One thing it cannot do for you: **protect the `main` branch**. Settings → Branches
+→ require a pull request before merging. Restricting deployments to protected
+branches means nothing if no branch is protected.
+
 ---
 
 ## Stage 1 — Provision infrastructure
@@ -343,10 +369,105 @@ rows.
 
 ---
 
+## Stage 9 — Teardown
+
+### 9.1 Pause between demos
+
+Costs nothing to resume, and keeps every identity and grant intact:
+
+```powershell
+databricks apps stop sovereignshield-portal
+cd terraform; terraform apply -var="deploy_dissemination_gateway=false"; cd ..
+```
+
+The SQL warehouse auto-stops after 10 idle minutes on its own, and the job
+cluster is spot-priced and terminates on completion. What stays billable is the
+storage account and Key Vault — pennies.
+
+### 9.2 Full teardown
+
+Order matters. Terraform does not own the tables or the policy bindings, so it
+cannot remove them, and Unity Catalog refuses to drop a schema whose tables carry
+live row filters. Destroying in the wrong order produces a dependency error that
+does not name the cause.
+
+```powershell
+# 1. Data and policy plane: tables, policy UDFs, row filters, masks, the view.
+databricks bundle destroy -t dev
+
+# 2. Release the table grants so those securables are no longer referenced.
+cd terraform
+terraform apply -var="grant_tables=false"
+
+# 3. Everything Terraform owns: gateway, warehouse, catalog, schema, workspace,
+#    storage, Key Vault, service principals, Entra groups.
+terraform destroy
+cd ..
+
+# 4. Purge the soft-deleted vault. purge_protection_enabled is on, so the vault
+#    survives destroy by design and its name stays reserved until purged.
+az keyvault purge --name <vault-name> --location canadacentral
+```
+
+### 9.3 What survives, and why
+
+| Resource | Why Terraform leaves it | Remove with |
+| --- | --- | --- |
+| Databricks **account** groups and service principals | Account scope; the provider is workspace-scoped | Account console, or reverse `databricks_account_setup.ps1` |
+| Entra persona **users** | Never created by Terraform — membership is an administrative act with its own approval path | `az ad user delete --id boc_analyst@<tenant>` |
+| Terraform state storage account | Bootstrap resource, created before the configuration existed | `az group delete -n rg-sovereignshield-tfstate` |
+| Key Vault (soft-deleted) | `purge_protection_enabled` is deliberate — it stops an accidental destroy discarding secrets other environments reference | `az keyvault purge` |
+
+Account-level identities surviving is usually what you want: a rebuild becomes
+near-instant and Stage 2 collapses to `[skip]` lines. Remove them only when the
+engagement is genuinely over.
+
+### 9.4 Confirm nothing is billing
+
+```powershell
+az resource list --resource-group rg-sovereignshield --output table
+az keyvault list-deleted --query "[].name" -o tsv
+```
+
+An empty resource list and a purged vault means teardown is complete. If the
+resource group lingers, `az group delete -n rg-sovereignshield` — but run
+`terraform destroy` first so state stays consistent with reality. Deleting the
+group behind Terraform's back leaves state describing resources that no longer
+exist, and the next `apply` fails on refresh.
+
+---
+
+## When it doesn't work
+
+**The portal renders empty for a persona that should see rows.** Almost always
+account groups created at *workspace* scope. They look identical in the UI:
+
+```powershell
+databricks account groups list --filter "displayName eq 'sg-sovereignshield-public'"
+```
+
+An empty result is the diagnosis. `is_account_group_member()` resolves account
+scope only, so the row filter falls through to its fail-closed default.
+
+**`terraform apply` wants to change a row filter or mask.** The ownership
+boundary has been violated — those belong to `unity_catalog_triple_lock.sql`.
+Terraform must not manage them, or it fights the pipeline on every run.
+
+**The bundle deploy 401s.** A stale `databricks-workspace-url` in Key Vault,
+pointing at a workspace that no longer exists. `pre_auth.ps1` prints the
+workspace it resolved for exactly this reason.
+
+**`terraform destroy` fails on the catalog.** Step 1 of the teardown was skipped;
+tables still carry live row filters.
+
+---
+
 ## What re-running does
 
-| Script | Re-run behaviour |
+| Command | Re-run behaviour |
 |---|---|
+| `terraform apply` | Converges. Reports drift on anything it owns; never touches policy objects |
+| `databricks bundle deploy` | Re-applies DDL idempotently: `CREATE TABLE IF NOT EXISTS` plus detach → replace → re-attach for policy functions |
 | `kv_spn_create.sh` | Reuses RG, vault, both SPNs. Mints a credential **only** if its vault secret is missing |
 | `databricks_create.sh` | Reuses the workspace; always refreshes `databricks-workspace-url` if it changed |
 | `grp_users_create.sh` | Reuses groups and users; never resets an existing password |
@@ -358,14 +479,5 @@ rows.
 
 ## Cost control
 
-Since cost is why you tore it down: set the SQL warehouse auto-stop to 10 minutes, and set the app's `min-replicas` to 0 if you use Container Apps. Between sessions:
-
-```powershell
-databricks apps stop sovereignshield-portal
-```
-
-The job cluster is already spot-priced and terminates on completion. When you're done entirely, `az group delete -n rg-sovereignshield` removes everything — but that also deletes the Key Vault and both service principals' stored secrets, so the next rebuild mints fresh credentials. Deleting only the **workspace** is the cheaper teardown: identities and vault survive, and Phases 1–3 become near-no-ops.
-
-**Most likely failure now:** account groups that exist at workspace scope rather than account scope, from an earlier manual attempt. They look identical in the UI. If the portal renders empty for a persona that should see rows, check that first — `databricks account groups list --filter "displayName eq 'sg-sovereignshield-public'"` should return a match.
-
-Made changes.
+Between sessions, Stage 9.1 is the cheap pause. `terraform destroy` is the full
+teardown; see Stage 9.2 for the ordering that avoids a dependency error.

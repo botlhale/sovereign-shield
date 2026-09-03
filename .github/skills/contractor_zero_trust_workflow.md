@@ -158,11 +158,13 @@ credential and no observation.
 
 Three actions, none of which touch the delivered code:
 
-1. **Rotate the service principal** — `sh/kv_spn_remediation.sh` deletes the app
-   registration, mints fresh credentials and overwrites the stored secrets under
-   the same names. Any copy the contractor retained is dead immediately, and the
-   pipeline continues working with **no code change**, because `pre_auth.ps1`
-   resolves secrets by name and never by value.
+1. **Rotate the service principal** — Terraform re-mints the dissemination proxy
+   credential every 90 days on its own, and
+   `terraform apply -replace="module.identity.azuread_service_principal_password.public_proxy"`
+   forces it immediately; `sh/kv_spn_remediation.sh` does the same for the CI/CD
+   principal. The secret is overwritten under the **same name**, so any copy the
+   contractor retained is dead immediately and the pipeline continues working
+   with **no code change** — consumers resolve secrets by name, never by value.
 2. **Remove the Key Vault access policy** for the contractor's identity. Without
    it they cannot hydrate a session at all.
 3. **Remove them from every Entra ID group.** The row filter grants rows only on
