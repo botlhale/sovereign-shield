@@ -17,7 +17,9 @@ International financial institutions, central banks, and sovereign statistical b
 
 Modernizing legacy statistical platforms to hyperscaler lakehouses typically stalls on **The Contractor Dilemma**: *How can an enterprise engage external systems integrators, specialized consultants, or autonomous engineering agents to build, tune, and test complex data governance and temporal merge engines without exposing confidential sovereign microdata or granting access to production environments?*
 
-![Sovereign Shield executive architecture: an external contractor zone holding only a synthetic dataset, separated by an OIDC-federated promotion path from the sovereign production plane, which feeds a public dissemination gateway.](../sovereign-shield_executive.jpg)
+![Sovereign Shield Executive Architecture](../sovereign-shield_executive.jpg)
+
+*Figure 1 — An external contractor zone holding only a synthetic dataset, separated by an OIDC-federated promotion path from the sovereign production plane, which in turn feeds a public dissemination gateway.*
 
 
 ```
@@ -46,6 +48,8 @@ To resolve this bottleneck, I architected **Sovereign Shield**—an independent,
 Sovereign Shield demonstrates an end-to-end operating model where external engineering talent delivers audit-grade security controls, dynamic masking, and temporal merges against an authentic Minimal Viable Synthetic Dataset (MVSD). Deployment to the sovereign production plane is executed entirely through air-gapped CI/CD pipelines backed by Entra ID Workload Identity Federation—guaranteeing that zero contractor credentials touch production data.
 
 ---
+
+<div style="page-break-after: always;"></div>
 
 ## 2. The Dual Consumption Model
 
@@ -88,11 +92,15 @@ Databricks Apps enforce mandatory Entra ID Single Sign-On (SSO), making an anony
 
 ---
 
+<div style="page-break-after: always;"></div>
+
 ## 3. The Triple-Lock Security Blueprint
 
 At the core of the data plane sits the **Triple-Lock Governance Architecture**, implemented natively within Unity Catalog SQL functions and Entra ID security claims.
 
-![The Unity Catalog policy enforcement point: row filter and column mask signatures above the persona list, ending in "no group - zero rows, fails closed".](../sovereign-shield_technical_vision.jpg)
+![Triple-Lock Technical Architecture](../sovereign-shield_technical_vision.jpg)
+
+*Figure 2 — The Unity Catalog policy enforcement point: row filter and column mask signatures above the persona list, ending in "no group — zero rows, fails closed".*
 
 ```
 
@@ -187,6 +195,8 @@ Two details carry disproportionate weight. `try_element_at` is used instead of `
 
 ---
 
+<div style="page-break-after: always;"></div>
+
 ## 4. Declarative Governance: Separation of Concerns
 
 To prevent declarative state drift and pipeline locks, I enforced a strict architectural separation of concerns between infrastructure provisioning and data plane modeling.
@@ -212,6 +222,8 @@ To prevent declarative state drift and pipeline locks, I enforced a strict archi
 
 ---
 
+<div style="page-break-after: always;"></div>
+
 ## 5. Temporal Integrity & SDMx Compliance
 
 Statistical reporting data is non-destructive; retrospective revisions are common as member institutions re-evaluate balance sheet exposure. A robust platform must maintain a complete historical audit trail without breaking downstream analytics.
@@ -235,6 +247,8 @@ Statistical reporting data is non-destructive; retrospective revisions are commo
 * **Domain Validation:** Ingested records are checked against the SDMx 3.0 Data Structure Definition (DSD) using `pysdmx` object models, validating mandatory dimensions (`FREQ`, `L_REP_CTY`, `L_POS_TYPE`, `L_MEASURE`, `L_TYPE`, `L_REP_BANK_TYPE`, `L_CP_SECTOR`, `L_CP_CTY`, `CURR_TYPE`) and observation attributes before data enters the Silver tier.
 
 ---
+
+<div style="page-break-after: always;"></div>
 
 ## 6. Operational Playbook & Scale Strategy
 
@@ -272,6 +286,8 @@ Single-node compute is a **cost choice, not an architectural constraint**. Row f
 > **Measurement note.** The published figures are the corpus shape and the linearity assertion, both reproducible offline. Latency under concurrent multi-user load on production-sized hardware has not been benchmarked here, and is not claimed.
 
 ---
+
+<div style="page-break-after: always;"></div>
 
 ## Conclusion
 

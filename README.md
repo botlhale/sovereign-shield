@@ -406,12 +406,13 @@ Routed by what you are trying to establish.
 | --- | --- | --- |
 | **Reading the code** | [Technical guide](docs/technical_guide.md) — an eight-pass reading order | [Technical reference](docs/technical_reference.md) |
 | **Assessing the security model** (CISO / risk) | [Persona security matrix](.github/skills/persona_security_matrix.md) | [Triple-Lock detail](docs/technical_reference.md) · [Test suite](tests/test_persona_access_matrix.py) |
-| **Evaluating the business case** (SLT) | [Executive vision](docs/executive_vision.md) | [Whitepaper](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) |
+| **Evaluating the business case** (SLT) | [Executive vision](docs/executive_vision.md) — case, governance posture, positioning | [Whitepaper](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) |
 | **Deploying it** (platform / DevOps) | [steps.md](steps.md) — runbook, Stage 0 to teardown | [Terraform](terraform/main.tf) · [CI workflow](.github/workflows/promote.yml) |
 | **Sizing it for production** | [Scaling blueprint](docs/technical_guide.md) | [Cluster policy](terraform/modules/databricks_workspace/compute.tf) |
 | **Engaging a contractor** | [Onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) | [Contractor workflow](.github/skills/contractor_zero_trust_workflow.md) |
+| **Consuming the API** | [Technical vision](docs/technical_vision.md) — data model, cadences, endpoints | [Gateway detail](docs/technical_reference.md) |
 | **Checking SDMx conformance** (statistical audit) | [SDMx LBS validation](.github/skills/sdmx_lbs_validation.md) | [MVSD specification](.github/skills/mvsd_specification.md) |
-| **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Technical vision](docs/technical_vision.md) |
+| **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Image prompts](docs/image_prompts.md) |
 | **Presenting it** | [Executive vision](docs/executive_vision.md) | [Public write-up](docs/LINKEDIN_POST.md) |
 
 ---
@@ -489,15 +490,11 @@ checklist.
 
 ## 🎤 Presentation & Communication Assets
 
-Material for explaining the architecture to different audiences — useful for conference submissions, internal review, and public write-ups.
-
 | Asset | Contents |
 | --- | --- |
-| [docs/executive_vision.md](docs/executive_vision.md) | **SLT pack** — one-shot image prompt plus a five-minute read-aloud narrative. No vendor logos, no flags, mandatory synthetic-data caption |
-| [docs/technical_vision.md](docs/technical_vision.md) | **Architect pack** — dense four-band architecture prompt, plus the talking points and anticipated challenges it is built to support |
+| [docs/executive_vision.md](docs/executive_vision.md) | Strategic business case, governance posture, regulatory positioning, and a five-minute presenting narrative |
+| [docs/technical_vision.md](docs/technical_vision.md) | Data model, multi-frequency cadences, Dissemination Gateway API, and the architecture-review Q&A |
+| [docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) | Full executive whitepaper, PDF-ready |
 | [docs/ARCHITECTURE_DIAGRAMS.md](docs/ARCHITECTURE_DIAGRAMS.md) | Live-renderable Mermaid diagrams (system topology, ownership boundary, atomic quarantine sequence, triple-lock enforcement path) |
-| [docs/LINKEDIN_POST.md](docs/LINKEDIN_POST.md) | Public write-up, long and short versions, with image selection rationale |
-
-> **Superseded prompts.** Two earlier local drafts — `docs/slt_image_prompt.md` and `docs/architects_image_prompt.md` — instruct the image model to reproduce vendor logos and to draw national flags on central-bank buildings, which contradicts the attribution policy below. They are deliberately left uncommitted. Use the two prompts above instead.
-
-> **Attribution discipline.** BIS and SDMx are referenced as typeset text throughout, never as reproduced logos. Vendor names may appear as plain text — nominative use — but no brand mark is rendered. Dissemination targets are drawn abstractly: no national flags, no identifiable institutional buildings, no country outlines. Every generated image carries a visible caption stating that this is an independent reference architecture running on synthetic data and is not affiliated with or endorsed by any central bank or international organisation. When publishing externally, state that plainly — accurate scoping is what makes the technical claims credible to the standards community.
+| [docs/image_prompts.md](docs/image_prompts.md) | The prompts that generate the two rendered diagrams |
+| [docs/LINKEDIN_POST.md](docs/LINKEDIN_POST.md) | Public write-up, primary and long-form versions |

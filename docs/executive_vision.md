@@ -1,121 +1,103 @@
-# Executive Vision — Image Prompt
+# Executive Vision — Strategic Business Case
 
-**Audience:** Senior Leadership Team, board, non-technical sponsors
-**Use:** one slide, 5-minute narrative
-**Companion:** [`technical_vision.md`](technical_vision.md) for architects and advisors
+**Audience:** senior leadership, board, non-technical sponsors, procurement
+**Companion:** [`technical_vision.md`](technical_vision.md) for architects ·
+[`image_prompts.md`](image_prompts.md) to regenerate the diagram
 
 ![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions labelled AA, BB and CC submit standardised documents along a pathway; an automated rule check deflects one into a "held for correction" tray while the rest continue into a governed vault wrapped in three rings labelled "who you are", "what you may see" and "what is published"; four audiences draw from that single source through beams of increasing width.](sovereign-shield_executive.jpg)
 
-*Rendered output. Note what is absent: no vendor logo, no national flag, no
-identifiable institution — and the non-affiliation caption is part of the image
-rather than the slide around it, so it survives being screenshotted.*
-
 ---
 
-## Why this prompt is worded the way it is
+## The problem worth solving
 
-The earlier `slt_image_prompt.md` instructed the model to render **actual vendor
-logos** ("the Microsoft Azure Key Vault icon", "the Microsoft Entra ID icon") and
-to draw **national central-bank buildings with flag pennants**. That directly
-contradicts the policy stated in the repository README — *"BIS and SDMx are
-referenced as typeset text throughout, never as reproduced logos"* — and creates
-three avoidable exposures:
+Regulated data modernisation stalls on a paradox, not on technology.
 
-| Risk | Why it matters | How this prompt avoids it |
+The people qualified to build confidential statistical infrastructure — specialist
+architects, systems integrators, vendor teams — are, almost by definition, the
+people who should not hold the data. Security policy forbids third-party access to
+production. So the work either waits for internal capacity that does not exist, or
+proceeds under supervised-access arrangements that are slow, expensive, and
+themselves a risk surface.
+
+I treated that as an architecture problem rather than a staffing one.
+
+## The strategic claim
+
+**Entitlement can be a property of the data platform rather than of the
+applications that read it.**
+
+When sovereignty, confidentiality and integrity are expressed as catalogue
+constraints, three things follow that matter commercially:
+
+1. A specialist can build and prove the entire control model without ever holding
+   a real observation.
+2. The controls activate on real data at first run, because there is no
+   re-implementation step between the synthetic build and production.
+3. Off-boarding is an administrative action, not a project.
+
+## Where the value lands
+
+| Concern | Conventional posture | This architecture |
 | --- | --- | --- |
-| **Trademark use** | Vendor logos are trademarks. Reproducing them in a deck that promotes your own work can imply partnership or endorsement | Vendors named as **typeset text only**, in a neutral "built on" line |
-| **Implied institutional affiliation** | Flags and neoclassical bank facades read as *"this is a real central bank system"* | Abstract, non-national jurisdiction markers; no flags, no identifiable buildings |
-| **Implied real data** | An audience assumes a data platform diagram shows real data | A mandatory on-image caption stating synthetic data and no affiliation |
-| **Generated-logo distortion** | Image models render logos inaccurately, which is worse than omitting them | Nothing logo-shaped is requested at all |
+| **Engaging external specialists** | Supervised environments, provisioned access, access reviews | The specialist never holds real data at any point |
+| **Off-boarding** | A bespoke revocation path, separately built and separately tested | Group removal — the same predicate that separates two jurisdictions |
+| **Assurance** | Review the application code that enforces policy | Review the catalogue objects. No code path can skip them |
+| **New consumers** | Each new tool re-implements entitlement | A new dashboard, notebook or API inherits the policy automatically |
+| **Repository exposure** | Potentially a data incident | No credential and no observation exists in it |
 
-> Generative image tools also frequently refuse or mangle trademark reproduction.
-> Removing logos improves output quality as well as your legal position.
+## Governance and audit posture
 
-**This is not legal advice.** If the deck goes outside your organisation, have
-whoever normally reviews external material look at it.
+* **One enforcement point.** Policy is evaluated per caller, per row, at query
+  time, inside the metastore. The same entitlement holds across a notebook, a SQL
+  warehouse, a BI tool and the public API.
+* **Auditable anonymity.** The public tier is an explicit identity group, not an
+  unauthenticated fall-through. Anonymous entitlement appears in the directory
+  like any other and is reviewed the same way.
+* **Fails closed.** A principal in no group resolves to zero rows. Not an error,
+  not a partial view.
+* **Rulebook as metadata.** Consistency checks are parsed from the published
+  standards workbook at runtime, so a rulebook revision needs no deployment and no
+  change-control cycle against application code.
+* **Integrity over availability, deliberately.** A submission that fails validation
+  is quarantined whole. The previously published figure stays live and the
+  rejection is recorded for audit — stale data, never missing data.
 
----
+## Regulatory positioning
 
-## The prompt
+This is an **independent reference architecture** operating on 100% synthetic
+data. It is not a system of, affiliated with, or endorsed by any central bank or
+international organisation.
 
-Paste whole into Gemini, Microsoft 365 Copilot, DALL·E or Midjourney. Self-contained,
-one-shot, no compositing.
+The data structure and consistency rulebook it exercises are published public
+standards artefacts. The figures flowing through them are generated. Vendor and
+standards names appear as typeset text — describing what was used — never as
+reproduced brand marks.
 
-```text
-Create a polished 16:9 enterprise keynote graphic explaining a data governance
-platform for INTERNATIONAL STATISTICAL REPORTING — the submission of confidential
-national banking statistics to an international standards body.
+That scoping is not a disclaimer bolted on afterwards. Accurate scope is what
+makes the technical claims credible to the standards community, and overstating
+provenance is the fastest way to lose a specialist audience.
 
-STYLE: Premium corporate, clean and confident, suitable for a board presentation.
-Light background: soft white on the left blending to pale ice-blue on the right.
-Subtle reflective floor, gentle depth. Flat vector illustration with soft
-shadows. No photorealism. Muted institutional palette: deep navy, slate grey,
-teal accent, warm amber for the one warning element.
+## What this does not claim
 
-CRITICAL CONSTRAINTS — follow exactly:
-- Do NOT draw any company logo, brand mark, product icon or trademark.
-- Do NOT draw national flags, country outlines, maps, or recognisable
-  government or central-bank buildings.
-- Do NOT invent institution names. The only text is what is specified below.
-- Represent organisations as neutral abstract shapes only.
+The credibility of the work rests on the boundaries, so they are stated rather
+than buried:
 
-COMPOSITION: a single left-to-right narrative along a softly glowing horizontal
-pathway, in four zones.
-
-ZONE 1 — FAR LEFT, "REPORTING JURISDICTIONS". Three identical simple hexagonal
-tiles stacked vertically, each a different muted colour (slate blue, muted teal,
-warm grey), each bearing only a two-letter abstract placeholder in clean sans
-type: "AA", "BB", "CC". No flags. From each tile a crisp white document glyph
-marked with angle brackets < > drifts rightward and merges onto the pathway.
-Label beneath the group: "REPORTING JURISDICTIONS". Label on the document
-stream: "STANDARDISED SUBMISSIONS".
-
-ZONE 2 — LEFT-CENTRE, "AUTOMATED VALIDATION". A tall translucent glass gate
-across the pathway. Most documents pass through and continue. ONE document is
-deflected downward into a small amber-outlined tray beneath the pathway, marked
-with a clean pause symbol. Label above the gate: "AUTOMATED RULE CHECK". Label
-on the amber tray: "HELD FOR CORRECTION". A thin caption beneath: "One
-jurisdiction's error never blocks another's".
-
-ZONE 3 — CENTRE, "THE GOVERNED VAULT". The visual anchor: a large softly glowing
-translucent cylinder standing on the pathway, deep navy with an inner teal light.
-Wrapped around it, three concentric rings, each a different tone, each labelled
-in small clean type on the ring itself:
-  inner ring  — "WHO YOU ARE"
-  middle ring — "WHAT YOU MAY SEE"
-  outer ring  — "WHAT IS PUBLISHED"
-Label beneath the cylinder: "POLICY ENFORCED AT THE DATA, NOT IN THE APPLICATION".
-
-ZONE 4 — RIGHT, "FOUR AUDIENCES, ONE SOURCE". Four simple abstract human
-silhouettes in a row, each standing on a small white pedestal, each connected
-back to the cylinder by a distinct coloured beam. Beside each figure a compact
-card with a title and one short line:
-
-  Figure 1, grey beam, card: "PUBLIC" / "Published figures only"
-  Figure 2, indigo beam, card: "RESEARCHER" / "All published data, sensitive
-    values hidden"
-  Figure 3, teal beam, card: "NATIONAL ANALYST" / "Own jurisdiction in full"
-  Figure 4, deep red beam, card: "AUDITOR" / "Complete view, fully accountable"
-
-Show the beams as visibly different widths — narrowest to the PUBLIC figure,
-widest to the AUDITOR figure — so the graduation of access is obvious at a glance.
-
-TITLE, top-left, large and confident:
-  "Sovereignty as a Platform Guarantee"
-SUBTITLE, directly beneath, smaller:
-  "Confidential statistical exchange, governed at the data layer"
-
-FOOTER, bottom edge, small but clearly legible, in neutral grey:
-  "Independent reference architecture · Illustrative synthetic data · Not
-  affiliated with or endorsed by any central bank or international organisation"
-
-Balanced composition, generous white space, no clutter. Every label must be
-crisp and correctly spelled.
-```
+* **It does not replace existing tooling.** Institutions uphold these obligations
+  today, rigorously, with mature software and decades of protocol.
+* **It does not demonstrate behaviour at real volume.** Correctness of the control
+  model is demonstrated; volumetrics, skew and cost at production scale need a
+  dry-run that has not been done.
+* **It does not eliminate the trusted set.** Someone must hold administrative
+  rights to run a rotation. The model shrinks that set to the organisation's own
+  administrators.
+* **The builder knows the design.** Intentionally — security depends on group
+  membership and catalogue policy, not on the architecture being secret.
 
 ---
 
-## Read-aloud narrative — 5 minutes
+## Five-minute narrative
+
+For presenting the diagram above.
 
 > **Slide up. Pause. Let them read the title.**
 
@@ -153,7 +135,7 @@ code path at all.
 *(Gesture to Zone 4 — the four figures and the widening beams.)*
 
 Same data. Four audiences. Four different answers — and the difference is
-produced by the platform, not by four different applications we have to keep in
+produced by the platform, not by four separate applications that must be kept in
 step with each other.
 
 **Three things worth taking away.**
@@ -175,17 +157,3 @@ is the delivery model.
 > whether the approach holds. What it demonstrates is that the controls can be
 > expressed as platform constraints — and that the same constraints activate on
 > real data at first run, with no separate hardening phase.
-
----
-
-## Adaptation notes
-
-* **Board or regulator audience** — enlarge the footer disclaimer and repeat it
-  verbally in the first fifteen seconds.
-* **Naming the vendors** — if the deck must show the technology stack, add one
-  neutral typeset line beneath the footer: *"Built on Azure Databricks and
-  Microsoft Entra ID."* Typeset text is nominative use; a rendered logo is not.
-* **If asked for a real jurisdiction** — substitute real ISO codes in Zone 1
-  only after confirming with your reviewer that no institutional affiliation is
-  implied. The abstract placeholders exist to make that a conscious decision
-  rather than a default.

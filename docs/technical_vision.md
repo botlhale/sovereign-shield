@@ -1,136 +1,169 @@
-# Technical Vision — Image Prompt
+# Technical Vision — Data Model & Dissemination Specification
 
 **Audience:** architects, security advisors, platform engineers, technical review boards
-**Use:** one dense diagram to anchor a design discussion or architecture review
-**Companion:** [`executive_vision.md`](executive_vision.md) for the SLT version
+**Companion:** [`executive_vision.md`](executive_vision.md) for the SLT case ·
+[`technical_reference.md`](technical_reference.md) for implementation detail ·
+[`image_prompts.md`](image_prompts.md) to regenerate the diagram
 
 ![Policy as a Metastore Object — four bands: a promotion plane from pull request to OIDC token; an ownership boundary splitting Terraform from the pipeline across a divider reading "one writer per object"; a data plane routing passes to a history table and failures to audit-only quarantine; and a consumption band whose gateway "chooses an identity, never chooses rows". All resolve into a Unity Catalog enforcement point listing five personas.](sovereign-shield_technical_vision.jpg)
-
-*Rendered output. Every talking point below maps to something visible in it, so
-you can point rather than assert.*
 
 ---
 
 ## Design intent
 
-This image has to survive being *interrogated*. An architect will ask "where is
-the policy actually evaluated?" and "what stops the pipeline and Terraform
-fighting?" — so the diagram carries the two ownership boundaries and the
-enforcement point explicitly, rather than hiding them behind a generic "governance"
-box.
-
-Same legal constraints as the executive version: no vendor logos, no flags, no
-implied affiliation, visible synthetic-data caption. Vendors appear as typeset
-text because architects need the stack named, which is nominative use rather than
-brand reproduction.
-
-**Not legal advice.** Route external material through your usual reviewer.
+The architecture carries two ownership boundaries and one enforcement point, and
+all three are explicit rather than hidden behind a generic "governance" layer.
+An architect will ask where policy is evaluated and what stops the pipeline and
+Terraform fighting; both answers are structural, not procedural.
 
 ---
 
-## The prompt
+## The series key
+
+Every entitlement decision reads the same artefact: an 11-segment dot-separated
+SDMx key.
 
 ```text
-Create a detailed 16:9 technical architecture diagram for a Zero-Trust data
-governance platform handling confidential statistical submissions.
-
-STYLE: Dark-mode engineering blueprint. Deep charcoal-navy background (#0b1f33)
-with a faint grid. Crisp flat vector, thin bright strokes, subtle outer glow on
-active paths. Palette: cyan for control plane, teal for data plane, amber for
-quarantine, magenta for identity, muted grey for inert. Monospace-style labels.
-Precise and legible over decorative — this is read closely, not glanced at.
-
-CRITICAL CONSTRAINTS — follow exactly:
-- Do NOT draw any company logo, brand mark, product icon or trademark.
-- Do NOT draw national flags, country outlines or maps.
-- Vendor and product names appear ONLY as plain typeset text labels.
-- Every label must be crisp and correctly spelled.
-
-LAYOUT: four stacked horizontal bands, plus a vertical enforcement column on the
-right that all bands connect into.
-
-BAND 1 (top) — "PROMOTION PLANE", cyan.
-Left to right, five rounded rectangles joined by arrows:
-  "PULL REQUEST" -> "OFFLINE TESTS" -> "REVIEW" -> "MERGE" -> "OIDC TOKEN"
-Beneath "OFFLINE TESTS", a small caption: "no credentials required".
-From "OIDC TOKEN" two arrows fan downward and to the right, one labelled
-"TERRAFORM", the other labelled "ASSET BUNDLE".
-A small padlock glyph on the OIDC arrow with the caption:
-  "short-lived · no stored secret"
-
-BAND 2 — "OWNERSHIP BOUNDARY", split into two clearly separated panels with a
-bold vertical dashed divider between them and the words "ONE WRITER PER OBJECT"
-printed vertically along the divider.
-
-  LEFT PANEL, magenta border, heading "TERRAFORM — INFRASTRUCTURE & ACCESS":
-    a bulleted list in small mono type:
-      "identity groups · service principals"
-      "key vault · federated credentials"
-      "workspace · storage credential"
-      "catalog · schema · warehouse"
-      "GRANT usage / select"
-
-  RIGHT PANEL, teal border, heading "PIPELINE — DATA & POLICY":
-    "table DDL"
-    "row filter function"
-    "column mask function"
-    "SET ROW FILTER / SET MASK"
-    "published view"
-
-  Beneath the divider, a small amber caption:
-    "grants decide reachability · filters decide visibility"
-
-BAND 3 — "DATA PLANE", teal.
-Left to right:
-  A stack of three small document glyphs marked < > labelled "SUBMISSIONS (SYNTHETIC)".
-  Arrow into a hexagon labelled "RULE ENGINE" with a sub-caption
-    "checks parsed at runtime".
-  Two arrows leave the hexagon:
-    upper arrow, teal, labelled "PASS" into a cylinder labelled "HISTORY TABLE"
-    lower arrow, amber, labelled "FAIL -> QUARANTINE" into a smaller amber-outlined
-      box labelled "AUDIT ONLY · NOT CURRENT"
-  A curved amber arrow loops from the quarantine box back beneath the cylinder,
-  labelled: "prior published record stays live".
-  Beneath the cylinder, small mono text: "SCD2 · valid_from · valid_to · is_current".
-
-BAND 4 (bottom) — "CONSUMPTION", grey to teal.
-Left to right: a rounded box labelled "DISSEMINATION GATEWAY" with two stacked
-sub-labels inside: "anonymous -> proxy identity" and "signed-in -> caller token".
-An arrow leaves it heading right into the enforcement column.
-A small caption beneath the gateway, in bright cyan:
-  "chooses an identity · never chooses rows"
-
-RIGHT VERTICAL COLUMN — "POLICY ENFORCEMENT POINT".
-A tall narrow glowing panel running the full height of bands 2 to 4, bright cyan
-border, containing top to bottom:
-  heading "UNITY CATALOG"
-  "fn_rls_multi_persona_lock"
-  "  (key, batch_status, confidentiality)"
-  "fn_ddm_confidentiality_mask"
-  "  (value, confidentiality, key)"
-  a thin divider
-  then five small rows, each a coloured dot with a label and a short outcome:
-    grey dot    "PUBLIC"      "published + free only"
-    indigo dot  "RESEARCHER"  "published · values masked"
-    teal dot    "SUBMITTER"   "own jurisdiction in full"
-    red dot     "AUDITOR"     "unrestricted"
-    hollow dot  "NO GROUP"    "zero rows — fails closed"
-  The "NO GROUP" row is drawn dimmer than the others with a small X glyph.
-
-TITLE, top-left, bold:
-  "Policy as a Metastore Object"
-SUBTITLE beneath:
-  "Entitlement evaluated per caller, per row, at query time"
-
-BOTTOM-RIGHT technology strip, small plain grey typeset text on one line:
-  "Azure Databricks · Unity Catalog · Delta Lake · Microsoft Entra ID · Terraform · SDMX 3.0"
-
-FOOTER, bottom edge, small neutral grey:
-  "Independent reference architecture · Illustrative synthetic data · Not
-  affiliated with or endorsed by any central bank or international organisation"
-
-Dense but organised. Clear separation between bands. Nothing overlapping.
+FREQ . L_MEASURE . L_POSITION . L_INSTR . L_DENOM . L_CURR_TYPE
+     . L_PARENT_CTY . L_REP_BANK_TYPE . L_REP_CTY . L_CP_SECTOR . L_CP_COUNTRY
+  ▲                                          ▲
+segment 1                                segment 9
+cadence                            reporting jurisdiction
 ```
+
+| Segment | Dimension | Role |
+| --- | --- | --- |
+| 1 | `FREQ` | Reporting cadence. Partitions the catalogue |
+| 2 | `L_MEASURE` | Measure type |
+| 3 | `L_POSITION` | Claims or liabilities |
+| 4 | `L_INSTR` | Instrument |
+| 5 | `L_DENOM` | Currency denomination |
+| 6 | `L_CURR_TYPE` | Domestic / foreign / unallocated |
+| 7 | `L_PARENT_CTY` | Parent country |
+| 8 | `L_REP_BANK_TYPE` | Reporting bank type |
+| **9** | **`L_REP_CTY`** | **Reporting jurisdiction — the sovereignty anchor** |
+| 10 | `L_CP_SECTOR` | Counterparty sector |
+| 11 | `L_CP_COUNTRY` | Counterparty country |
+
+Segment 9 is read by **both** the row filter and the column mask. The filter
+decides whether a row is visible; the mask independently re-checks the same
+segment before revealing a value, so a caller who reaches a foreign confidential
+row through an additive entitlement still cannot read it.
+
+Segment lookup uses `try_element_at` wrapped in a `coalesce` to `FALSE`. A row
+filter is evaluated on every row of every query, so a malformed key that raised
+would abort *all* access to the table — a data-quality defect escalating into a
+total outage. Instead the malformed row becomes invisible.
+
+## The history table
+
+`agg_sdmx_history` holds the aggregate layer. It is named for the aggregation
+grain rather than a collection, because the engine is domain-agnostic.
+
+| Column | Purpose |
+| --- | --- |
+| `TIME_SERIES_CODE` | The 11-segment key above |
+| `DATE` | Reporting period, shaped per cadence |
+| `AGG_CODE` | Framework code (`LBSR` for the BIS LBS example) |
+| `OBS_VALUE` | The observation. Signed — negative is legitimate, not a failure. Carries the column mask |
+| `OBS_STATUS` | SDMx observation status |
+| `OBS_CONF` | `F` free to publish, `C` confidential, `N` not for publication |
+| `QUALITY_STATUS` | `PASS` / `FAIL`, assigned atomically per batch |
+| `FAILED_RULE_ID` | Sorted union of violated check codes |
+| `BATCH_STATUS` | `PUBLISHED` / `QUARANTINE` |
+| `version_hash` | Payload fingerprint driving SCD2 change detection |
+| `VALID_FROM` / `VALID_TO` / `IS_CURRENT` | SCD2 interval |
+
+Natural key for the merge: `(TIME_SERIES_CODE, DATE, AGG_CODE)`.
+
+Zero-valued observations are not stored. Under SDMx convention a position that
+nets to zero is simply not reported, and a masked value is serialised as
+**absent** rather than as zero — conflating the two would turn a confidentiality
+control into a data-quality defect.
+
+---
+
+## Multi-frequency ingestion
+
+Locational Banking Statistics is collected quarterly. **The platform is not a
+quarterly platform.** A statistical hub receives collections on several cadences
+into the same history table, and `FREQ` is segment 1 precisely so they can
+coexist without separate tables.
+
+| Cadence | `FREQ` | Period label | Periods per year |
+| --- | --- | --- | --- |
+| Annual | `A` | `2026` | 1 |
+| Semi-annual | `S` | `2026-S1` | 2 |
+| Quarterly | `Q` | `2026-Q1` | 4 |
+| Monthly | `M` | `2026-03` | 12 |
+
+Three consequences follow:
+
+* **Period labels are cadence-shaped.** A monthly series labelled `2026-Q1` would
+  sort and group correctly by accident while being wrong.
+  `generate_stress_test_data.py` builds each cadence's labels in its own form.
+* **Ingestion takes `freq` as a batch parameter.** `process_and_publish_macro_batch`
+  and `run_pipeline` accept it; nothing is hardcoded to `Q`.
+* **Quarantine is atomic per jurisdiction *and period*.** A monthly break in one
+  country does not quarantine that country's annual submission.
+
+---
+
+## Dissemination Gateway API
+
+The gateway decides *which identity* a query runs as. Unity Catalog decides *what
+that identity may see*. No persona branch exists anywhere in the serving code.
+
+### Identity resolution
+
+| Caller | Runs as | Carrier |
+| --- | --- | --- |
+| Signed-in workspace user | Their own token | `X-Forwarded-Access-Token` |
+| Container Apps visitor | Their own token | `X-MS-TOKEN-AAD-ACCESS-TOKEN` |
+| Direct API client | Their own token | `Authorization: Bearer` |
+| Anonymous visitor | `spn-sovereignshield-public` | The app's own service principal |
+
+Tokens are validated against the workspace SCIM `me` endpoint rather than by
+hand-rolled JWT verification, and only a SHA-256 digest is cached.
+
+### Endpoints
+
+| Route | Returns |
+| --- | --- |
+| `GET /api/v1/search` | Filtered observations |
+| `GET /api/v1/facets` | Distinct codes per filter, already persona-scoped |
+| `GET /api/v1/export/sdmx-ml` | SDMX-ML 3.0 structure-specific message |
+| `GET /api/v1/export/sdmx-json` | SDMX-JSON 2.0.0 |
+| `GET /api/v1/export/csv` | SDMX-CSV 2.0.0, or `?format=tidy` |
+| `GET /api/v1/whoami` | Resolved security context |
+| `GET /api/v1/health` | Catalog connectivity, backend mode, structure availability |
+
+### Filter parameters
+
+| Parameter | Dimension | Example |
+| --- | --- | --- |
+| `frequency` | `FREQ` | `A`, `S`, `Q`, `M` |
+| `parent_country` | `L_PARENT_CTY` | `CA`, `5J` |
+| `reporting_country` | `L_REP_CTY` | `CA`, `US` |
+| `counterpart_sector` | `L_CP_SECTOR` | `B`, `N`, `A` |
+| `counterpart_country` | `L_CP_COUNTRY` | `US`, `5J` |
+| `currency` | `L_DENOM` | `CAD`, `USD`, `TO1` |
+| `position` | `L_POSITION` | `C`, `L` |
+| `instrument` | `L_INSTR` | `A`, `B`, `G` |
+| `date_from` / `date_to` | `DATE` | Inclusive period bounds |
+| `include_quarantined` | `BATCH_STATUS` | Own batches only; the filter still applies |
+
+`frequency` is presented first in the portal because it partitions the
+catalogue: comparing a monthly series against a quarterly aggregate of the same
+position is a category error, and the filter is the cheapest place to prevent it.
+
+Values are bound as query parameters and additionally constrained to
+`[A-Za-z0-9_]{1,12}`. Binding already prevents injection; the pattern check keeps
+malformed input from being blamed on the metastore.
+
+**Facets are persona-scoped.** A visitor cannot discover that a code exists if the
+row filter hides every row carrying it — otherwise the facet list would leak the
+shape of data the caller cannot read.
 
 ---
 
@@ -196,18 +229,4 @@ Worth rehearsing — an architecture review will find these.
 | "A row filter that raises kills the whole table." | Yes. That is why the segment lookup is the non-throwing variant wrapped in a coalesce to false. A malformed key becomes invisible rather than causing an outage. |
 | "Ownership must exempt the pipeline principal." | It does not. Object ownership does not lift a row filter — the pipeline identity has to hold the admin persona explicitly, or its merge reads an empty target and silently duplicates history. |
 | "Account-scope vs workspace-scope groups." | Only account-scope groups resolve. Workspace-scoped groups of the same name look identical in the console and match nothing. This is the most common misconfiguration and it fails closed. |
-| "Synthetic data proves nothing about scale." | Agreed. Volumetrics, skew and cost at real volume need a production dry-run. This demonstrates correctness of the control model, not performance. |
-
----
-
-## Adaptation notes
-
-* **Security review** — enlarge the right-hand enforcement column to half the
-  canvas and drop Band 1; the promotion story is rarely what that audience is
-  probing.
-* **Platform-team onboarding** — keep all four bands and add a fifth strip naming
-  the actual repository files under each band, so the diagram doubles as a map.
-* **Substituting real function names** — the prompt uses shortened names for
-  legibility. Real names are `fn_rls_multi_persona_lock` and
-  `fn_ddm_obs_conf_mask`; image models truncate strings that long, so replace
-  them only if you intend to hand-edit the output afterwards.
+| "Synthetic data proves nothing about scale." | Volumetrics, skew and cost at real volume need a production dry-run. The scale harness demonstrates that entitlement enforcement stays vectorised and roughly linear to 100k+ rows; it does not model concurrent production load. |

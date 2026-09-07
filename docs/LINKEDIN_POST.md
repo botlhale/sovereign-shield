@@ -16,15 +16,15 @@ Attach `sovereign-shield_executive.jpg` to whichever you choose.
 
 ## Naming the stack
 
-Your instinct is right: "a cloud data platform" persuades nobody. Naming Azure
-Databricks, Unity Catalog, Entra ID, Key Vault and pysdmx is what makes the post
-checkable — and checkable is what makes it credible.
+"A cloud data platform" persuades nobody. Naming Azure Databricks, Unity Catalog,
+Entra ID, Key Vault and pysdmx is what makes the post checkable, and checkable is
+what makes it credible.
 
-It is also legally routine, provided you stay on the right side of one line.
+It is also legally routine, provided one line is respected.
 
 ### The line
 
-**Nominative use** — naming a product to describe what you actually used — is
+**Nominative use** — naming a product to describe what was actually used — is
 lawful and needs no permission. What is not lawful is implying **affiliation,
 endorsement, sponsorship or certification**.
 
@@ -82,9 +82,7 @@ deliberately: screen readers skip or spell them out.
 
 ## Primary post — The Contractor Dilemma
 
-**~2,150 characters. This is the one to post first. It leads on the paradox,
-names the four pillars so a technical reader can evaluate them, and keeps the
-limitations in the body rather than the comments.**
+**2,332 characters. Post this first. Attach `sovereign-shield_executive.jpg`.**
 
 ```text
 The people you need for specialist data work are, almost by definition, the people who shouldn't have the data.
@@ -120,8 +118,7 @@ Independent reference architecture, 100% synthetic data, not affiliated with or 
 
 ## Long-form post — The Architecture
 
-**~2,900 characters. SLT-lead, roughly 70/30. Use when you want the full case on
-the page rather than in the comments.**
+**2,900 characters. The full case on the page rather than in the comments.**
 
 ```text
 The people you need for specialist data work are, almost by definition, the people who shouldn't have the data.
@@ -163,9 +160,9 @@ Repository in the comments. I'd genuinely like to be told where this breaks.
 
 ## Follow-up post — The Bug My Test Missed
 
-**~2,900 characters. Post this *second*, days after the primary. It assumes the
-reader already knows what the project is, and it trades reach for credibility
-with the people who actually build these systems.**
+**2,886 characters. Post days after the primary. It assumes the reader already
+knows what the project is, and trades reach for credibility with the people who
+build these systems.**
 
 > **Accuracy note.** This describes a defect written and caught **during
 > development**, on synthetic data, before anything was deployed to anyone. Say
@@ -217,7 +214,7 @@ Repository in the comments. Tell me what else is wrong with it.
 
 ## Comment reply
 
-Someone will ask whether it's in production. Have this ready.
+For the "is this in production?" question.
 
 ```text
 No — and I'd be sceptical of anyone claiming otherwise on a first pass at this.
