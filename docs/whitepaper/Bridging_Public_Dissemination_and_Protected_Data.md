@@ -22,8 +22,7 @@ Modernizing legacy statistical platforms to hyperscaler lakehouses typically sta
 *Figure 1 — An external contractor zone holding only a synthetic dataset, separated by an OIDC-federated promotion path from the sovereign production plane, which in turn feeds a public dissemination gateway.*
 
 
-```
-
+```text
 ┌───────────────────────────────────────────────────────────────────────────────────────┐
 │                          THE CONTRACTOR DILEMMA & THE AIR-GAP                         │
 │                                                                                       │
@@ -57,10 +56,7 @@ International statistical organizations receive data across diverse cadences—r
 
 Rather than fragmenting data into separate physical databases for public and internal use, I implemented a **Unified Storage, Dual-Tier Consumption Model** powered by Unity Catalog and a decoupled gateway.
 
-
-```
-
-```
+```text
                               ┌─────────────────────────────────┐
                               │   Incoming Multi-Frequency Feed │
                               │   (Annual, Quarterly, Monthly)  │
@@ -80,9 +76,6 @@ Rather than fragmenting data into separate physical databases for public and int
    │  • Filtered: OBS_CONF = 'F'       │               │  • Dynamic RLS by REP_CTY         │
    │  • Public Portal Consumption      │               │  • Confidential Values -> NULL    │
    └───────────────────────────────────┘               └───────────────────────────────────┘
-
-```
-
 ```
 
 ### The Perimeter Identity Problem
@@ -102,8 +95,7 @@ At the core of the data plane sits the **Triple-Lock Governance Architecture**, 
 
 *Figure 2 — The Unity Catalog policy enforcement point: row filter and column mask signatures above the persona list, ending in "no group — zero rows, fails closed".*
 
-```
-
+```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                          TRIPLE-LOCK SECURITY ARCHITECTURE                             │
 │                                                                                        │
