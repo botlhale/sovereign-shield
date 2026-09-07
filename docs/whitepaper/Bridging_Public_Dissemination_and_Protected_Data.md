@@ -23,22 +23,23 @@ Modernizing legacy statistical platforms to hyperscaler lakehouses typically sta
 
 
 ```text
-+---------------------------------------------------------------------------------------+
-|                          THE CONTRACTOR DILEMMA & THE AIR-GAP                         |
-|                                                                                       |
-|   EXTERNAL CONTRACTOR / AGENT DEV ZONE           SOVEREIGN PRODUCTION PLATFORM        |
-|  +-------------------------------------+        +----------------------------------+  |
-|  | * Zero Access to Production         |        | * Live Confidential Microdata    |  |
-|  | * Minimal Viable Synthetic Dataset  |        | * Confidential Data Plane        |  |
-|  | * Local Tests & Synthetic Schemas   |        | * Unity Catalog Governed Storage |  |
-|  +------------------+------------------+        +------------------^---------------+  |
-|                     | Pull Request (Code Only)                     |                  |
-|                     v                                              |                  |
-|  +-----------------------------------------------------------------+---------------+  |
-|  |      OIDC WORKLOAD IDENTITY FEDERATION & SERVICE PRINCIPAL CI/CD ENGINE         |  |
-|  |      * Zero Hardcoded Secrets     * Automated Policy Enforcement                |  |
-|  +---------------------------------------------------------------------------------+  |
-+---------------------------------------------------------------------------------------+
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│                          THE CONTRACTOR DILEMMA & THE AIR-GAP                         │
+│                                                                                       │
+│   EXTERNAL CONTRACTOR / AGENT DEV ZONE           SOVEREIGN PRODUCTION PLATFORM        │
+│  ┌─────────────────────────────────────┐        ┌──────────────────────────────────┐  │
+│  │ • Zero Access to Production         │        │ • Live Confidential Microdata    │  │
+│  │ • Minimal Viable Synthetic Dataset  │        │ • Confidential Data Plane        │  │
+│  │ • Local Tests & Synthetic Schemas   │        │ • Unity Catalog Governed Storage │  │
+│  └──────────────────┬──────────────────┘        └──────────────────▲───────────────┘  │
+│                     │ Pull Request (Code Only)                     │                  │
+│                     ▼                                              │                  │
+│  ┌─────────────────────────────────────────────────────────────────┴───────────────┐  │
+│  │      OIDC WORKLOAD IDENTITY FEDERATION & SERVICE PRINCIPAL CI/CD ENGINE         │  │
+│  │      • Zero Hardcoded Secrets     • Automated Policy Enforcement                │  │
+│  └─────────────────────────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 To resolve this bottleneck, I architected **Sovereign Shield**—an independent, open-source reference implementation combining **SDMx 3.0** open statistical standards with **Azure Databricks Unity Catalog**. 
@@ -56,25 +57,25 @@ International statistical organizations receive data across diverse cadences—r
 Rather than fragmenting data into separate physical databases for public and internal use, I implemented a **Unified Storage, Dual-Tier Consumption Model** powered by Unity Catalog and a decoupled gateway.
 
 ```text
-                              +---------------------------------+
-                              |   Incoming Multi-Frequency Feed |
-                              |   (Annual, Quarterly, Monthly)  |
-                              +----------------+----------------+
-                                               |
-                                               v
-                              +---------------------------------+
-                              |   Unified Governed Lakehouse    |
-                              |   (Delta Lake / Unity Catalog)  |
-                              +----------------+----------------+
-                                               |
-                     +-------------------------+-------------------------+
-                     v                                                   v
-   +-----------------------------------+               +-----------------------------------+
-   |     ANONYMOUS PUBLIC TIER         |               |     AUTHENTICATED MEMBER TIER     |
-   |  * No Credentials Required        |               |  * Entra ID Authenticated         |
-   |  * Filtered: OBS_CONF = 'F'       |               |  * Dynamic RLS by REP_CTY         |
-   |  * Public Portal Consumption      |               |  * Confidential Values -> NULL    |
-   +-----------------------------------+               +-----------------------------------+
+                              ┌─────────────────────────────────┐
+                              │   Incoming Multi-Frequency Feed │
+                              │   (Annual, Quarterly, Monthly)  │
+                              └────────────────┬────────────────┘
+                                               │
+                                               ▼
+                              ┌─────────────────────────────────┐
+                              │   Unified Governed Lakehouse    │
+                              │   (Delta Lake / Unity Catalog)  │
+                              └────────────────┬────────────────┘
+                                               │
+                     ┌─────────────────────────┴─────────────────────────┐
+                     ▼                                                   ▼
+   ┌───────────────────────────────────┐               ┌───────────────────────────────────┐
+   │     ANONYMOUS PUBLIC TIER         │               │     AUTHENTICATED MEMBER TIER     │
+   │  • No Credentials Required        │               │  • Entra ID Authenticated         │
+   │  • Filtered: OBS_CONF = 'F'       │               │  • Dynamic RLS by REP_CTY         │
+   │  • Public Portal Consumption      │               │  • Confidential Values -> NULL    │
+   └───────────────────────────────────┘               └───────────────────────────────────┘
 ```
 
 ### The Perimeter Identity Problem
@@ -95,17 +96,18 @@ At the core of the data plane sits the **Triple-Lock Governance Architecture**, 
 *Figure 2 — The Unity Catalog policy enforcement point: row filter and column mask signatures above the persona list, ending in "no group — zero rows, fails closed".*
 
 ```text
-+----------------------------------------------------------------------------------------+
-|                          TRIPLE-LOCK SECURITY ARCHITECTURE                             |
-|                                                                                        |
-|   LOCK 1: ROW-LEVEL FILTER           LOCK 2: DYNAMIC COLUMN MASK     LOCK 3: ABAC TAGS |
-|  +-------------------------+        +-------------------------+    +-----------------+ |
-|  | Is Regional Reporter?   |        | Is Value Confidential?  |    | Sovereign Tag   | |
-|  |   YES --> Own Country   |        |   YES --> Output NULL   |    | Classification  | |
-|  |   NO  --> Group Tier    |        |   NO  --> Raw Value     |    | Cryptographic   | |
-|  | No group --> ZERO ROWS  |        | Central Auditor: RAW    |    | Lineage Trace   | |
-|  +-------------------------+        +-------------------------+    +-----------------+ |
-+----------------------------------------------------------------------------------------+
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                          TRIPLE-LOCK SECURITY ARCHITECTURE                             │
+│                                                                                        │
+│   LOCK 1: ROW-LEVEL FILTER           LOCK 2: DYNAMIC COLUMN MASK     LOCK 3: ABAC TAGS │
+│  ┌─────────────────────────┐        ┌─────────────────────────┐    ┌─────────────────┐ │
+│  │ Is Regional Reporter?   │        │ Is Value Confidential?  │    │ Sovereign Tag   │ │
+│  │   YES ──▶ Own Country   │        │   YES ──▶ Output NULL   │    │ Classification  │ │
+│  │   NO  ──▶ Group Tier    │        │   NO  ──▶ Raw Value     │    │ Cryptographic   │ │
+│  │ No group ──▶ ZERO ROWS  │        │ Central Auditor: RAW    │    │ Lineage Trace   │ │
+│  └─────────────────────────┘        └─────────────────────────┘    └─────────────────┘ │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 ### The Persona Matrix
@@ -191,18 +193,19 @@ Two details carry disproportionate weight. `try_element_at` is used instead of `
 
 To prevent declarative state drift and pipeline locks, I enforced a strict architectural separation of concerns between infrastructure provisioning and data plane modeling.
 
-```text
-+----------------------------------------------------------------------------------------+
-|                               SEPARATION OF CONCERNS                                   |
-|                                                                                        |
-|   TERRAFORM (Infrastructure Control Plane)     DATABRICKS ASSET BUNDLES (Policy Plane) |
-|  +--------------------------------------+     +-------------------------------------+  |
-|  | * Storage Accounts & Metastore       |     | * Table DDL & Schema Migrations     |  |
-|  | * Catalogs & Schemas                 |     | * Policy UDF Functions              |  |
-|  | * Service Principals & Entra Groups  |     | * ALTER TABLE SET ROW FILTER / MASK |  |
-|  | * High-Level Grants (USE_CATALOG)    |     | * PySpark Pipeline Jobs & DABs      |  |
-|  +--------------------------------------+     +-------------------------------------+  |
-+----------------------------------------------------------------------------------------+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                               SEPARATION OF CONCERNS                                   │
+│                                                                                        │
+│   TERRAFORM (Infrastructure Control Plane)     DATABRICKS ASSET BUNDLES (Policy Plane) │
+│  ┌──────────────────────────────────────┐     ┌─────────────────────────────────────┐  │
+│  │ • Storage Accounts & Metastore       │     │ • Table DDL & Schema Migrations     │  │
+│  │ • Catalogs & Schemas                 │     │ • Policy UDF Functions              │  │
+│  │ • Service Principals & Entra Groups  │     │ • ALTER TABLE SET ROW FILTER / MASK │  │
+│  │ • High-Level Grants (USE_CATALOG)    │     │ • PySpark Pipeline Jobs & DABs      │  │
+│  └──────────────────────────────────────┘     └─────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 * **Terraform owns the Infrastructure Control Plane:** Metastore bindings, catalogs, schemas, storage credentials, external locations, SQL warehouses, Azure Key Vault, and broad identity grants (`USE CATALOG`, `USE SCHEMA`). Terraform never manages table-level row filters or column masks.
@@ -217,18 +220,19 @@ To prevent declarative state drift and pipeline locks, I enforced a strict archi
 
 Statistical reporting data is non-destructive; retrospective revisions are common as member institutions re-evaluate balance sheet exposure. A robust platform must maintain a complete historical audit trail without breaking downstream analytics.
 
-```text
-+---------------------------------------------------------------------------------------+
-|                    DISTRIBUTED SCD TYPE 2 TEMPORAL MERGE ENGINE                       |
-|                                                                                       |
-|   Incoming Revision (2024-Q1, Obs: 120.5)                                             |
-|   Existing Record:   [Key: CA-BANK | Valid: 2024-01-01 -> 9999-12-31 | Current: TRUE] |
-|                                                                                       |
-|                                      MERGE                                            |
-|                                        v                                              |
-|   Historical Record: [Key: CA-BANK | Valid: 2024-01-01 -> 2024-03-31 | Current: FALSE]|
-|   Current Record:    [Key: CA-BANK | Valid: 2024-04-01 -> 9999-12-31 | Current: TRUE] |
-+---------------------------------------------------------------------------------------+
+```
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│                    DISTRIBUTED SCD TYPE 2 TEMPORAL MERGE ENGINE                       │
+│                                                                                       │
+│   Incoming Revision (2024-Q1, Obs: 120.5)                                             │
+│   Existing Record:   [Key: CA-BANK | Valid: 2024-01-01 -> 9999-12-31 | Current: TRUE] │
+│                                                                                       │
+│                                      MERGE                                            │
+│                                        ▼                                              │
+│   Historical Record: [Key: CA-BANK | Valid: 2024-01-01 -> 2024-03-31 | Current: FALSE]│
+│   Current Record:    [Key: CA-BANK | Valid: 2024-04-01 -> 9999-12-31 | Current: TRUE] │
+└───────────────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 * **Distributed Delta Merge:** The engine (`scd2_merge_engine.py`) executes high-efficiency PySpark Delta Lake `MERGE` operations, tracking temporal validity through `valid_from`, `valid_to`, and `is_current` flags without row duplication.
@@ -240,17 +244,18 @@ Statistical reporting data is non-destructive; retrospective revisions are commo
 
 ## 6. Operational Playbook & Scale Strategy
 
-```text
-+----------------------------------------------------------------------------------------+
-|                        THREE-PHASE AIR-GAPPED ONBOARDING                               |
-|                                                                                        |
-|   PHASE 1: CLIENT SETUP           PHASE 2: CONTRACTOR BUILD      PHASE 3: PROMOTION    |
-|  +------------------------+      +-------------------------+    +-------------------+  |
-|  | Client defines schema  |----->| Contractor receives     |--->| CI/CD deploys via |  |
-|  | metadata & generates   |      | MVSD fixture and builds |    | Service Principal |  |
-|  | synthetic MVSD fixture |      | security/SCD2 logic     |    | to Production     |  |
-|  +------------------------+      +-------------------------+    +-------------------+  |
-+----------------------------------------------------------------------------------------+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        THREE-PHASE AIR-GAPPED ONBOARDING                               │
+│                                                                                        │
+│   PHASE 1: CLIENT SETUP           PHASE 2: CONTRACTOR BUILD      PHASE 3: PROMOTION    │
+│  ┌────────────────────────┐      ┌─────────────────────────┐    ┌───────────────────┐  │
+│  │ Client defines schema  │─────▶│ Contractor receives     │───▶│ CI/CD deploys via │  │
+│  │ metadata & generates   │      │ MVSD fixture and builds │    │ Service Principal │  │
+│  │ synthetic MVSD fixture │      │ security/SCD2 logic     │    │ to Production     │  │
+│  └────────────────────────┘      └─────────────────────────┘    └───────────────────┘  │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 ### The Minimal Viable Synthetic Dataset (MVSD) Protocol
