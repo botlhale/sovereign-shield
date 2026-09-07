@@ -30,7 +30,7 @@ def _macro_frame(rows) -> pd.DataFrame:
             {
                 "TIME_SERIES_CODE": k,
                 "DATE": "2026-Q1",
-                "IBS_AGG": "LBSR",
+                "AGG_CODE": "LBSR",
                 "OBS_VALUE": v,
                 "OBS_STATUS": "A",
                 "OBS_CONF": "F",

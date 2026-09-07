@@ -582,7 +582,7 @@ def to_tidy_csv(df: pd.DataFrame, columns: Optional[Sequence[str]] = None) -> st
     observations = explode_series_keys(df)
     observations.insert(0, "TIME_SERIES_CODE", df["TIME_SERIES_CODE"].astype(str).to_numpy())
 
-    for passthrough in ("IBS_AGG", "BATCH_STATUS", "QUALITY_STATUS"):
+    for passthrough in ("AGG_CODE", "BATCH_STATUS", "QUALITY_STATUS"):
         if passthrough in df.columns:
             observations[passthrough] = df[passthrough].to_numpy()
 

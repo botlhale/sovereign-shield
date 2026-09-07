@@ -51,7 +51,7 @@ Using PySpark, the micro-data is grouped by the analytical dimensions and rolled
 
 ### 3. Batch Stamping
 
-All three batch columns (`ibs_agg_scope`, `date_scope`, `transaction_timestamp`) are appended to the row literals programmatically, using a **single** UTC timestamp captured once per batch. Stamping `datetime.now()` per row would make rows within one submission non-comparable and defeat idempotency checks. A width guard rejects any row literal that does not match the expected arity, converting what would otherwise surface as an opaque `AXIS_LENGTH_MISMATCH` into an error naming the offending `transaction_id`.
+All three batch columns (`agg_scope`, `date_scope`, `transaction_timestamp`) are appended to the row literals programmatically, using a **single** UTC timestamp captured once per batch. Stamping `datetime.now()` per row would make rows within one submission non-comparable and defeat idempotency checks. A width guard rejects any row literal that does not match the expected arity, converting what would otherwise surface as an opaque `AXIS_LENGTH_MISMATCH` into an error naming the offending `transaction_id`.
 
 ---
 
@@ -59,11 +59,11 @@ All three batch columns (`ibs_agg_scope`, `date_scope`, `transaction_timestamp`)
 
 Between aggregation and historization sits the validation gate. `SDMxRuleValidator` evaluates the BIS consistency checks and assigns `QUALITY_STATUS`, `BATCH_STATUS`, and `FAILED_RULE_ID` **atomically per `(reporting_country, date_scope)`**: if any record in a country-quarter fails, every record in that batch is marked `FAIL` / `QUARANTINE`. The validator is the sole author of these three columns; the merge engine never overrides them.
 
-The merge then splits the incoming DataFrame on `BATCH_STATUS` and runs four stages against `dbw_sovereignshield.sovereign_shield.lbs_sdmx_history`.
+The merge then splits the incoming DataFrame on `BATCH_STATUS` and runs four stages against `dbw_sovereignshield.sovereign_shield.agg_sdmx_history`.
 
 ### Stage 1 — Expire Changed Records (published only)
 
-Merged on the natural key (`TIME_SERIES_CODE`, `DATE`, `IBS_AGG`), matching only where `target.version_hash != source.version_hash`. The prior record is closed with `IS_CURRENT = false` and `VALID_TO = current_timestamp()`.
+Merged on the natural key (`TIME_SERIES_CODE`, `DATE`, `AGG_CODE`), matching only where `target.version_hash != source.version_hash`. The prior record is closed with `IS_CURRENT = false` and `VALID_TO = current_timestamp()`.
 
 The `version_hash` is a fingerprint over the payload columns. Each component is coalesced against a `\u0000NULL` sentinel rather than an empty string — with `""`, a genuine NULL and an empty value would hash identically and a real revision could be missed.
 
@@ -88,7 +88,7 @@ Series that existed previously but are absent from the current submission are cl
 
 ## 🛡️ SCD2 State Guarantees
 
-| Incoming `BATCH_STATUS` | Prior active record | New record written | Visible in `v_lbs_sdmx_published` |
+| Incoming `BATCH_STATUS` | Prior active record | New record written | Visible in `v_agg_sdmx_published` |
 | --- | --- | --- | --- |
 | `PUBLISHED` (changed) | Expired (`IS_CURRENT = false`) | `IS_CURRENT = true` | Yes — the new value |
 | `PUBLISHED` (unchanged) | Untouched | None | Yes — unchanged |
@@ -108,15 +108,15 @@ if __name__ == "__main__":
     run_pipeline(spark)
 
 
-def run_pipeline(spark, date_scope="2026-Q1", ibs_agg_scope="LBSR"):
+def run_pipeline(spark, date_scope="2026-Q1", agg_scope="LBSR"):
     for cycle in ("baseline", "revision"):
         process_and_publish_macro_batch(
-            spark, date_scope=date_scope, ibs_agg_scope=ibs_agg_scope, cycle=cycle
+            spark, date_scope=date_scope, agg_scope=agg_scope, cycle=cycle
         )
 
 
-def process_and_publish_macro_batch(spark, date_scope, ibs_agg_scope, cycle):
-    df_macro = generate_and_aggregate_micro_data(spark, date_scope, cycle, ibs_agg_scope)
+def process_and_publish_macro_batch(spark, date_scope, agg_scope, cycle):
+    df_macro = generate_and_aggregate_micro_data(spark, date_scope, cycle, agg_scope)
     df_validated = validate(df_macro.toPandas())      # assigns BATCH_STATUS atomically
     merge_scd2_macro(spark, spark.createDataFrame(df_validated, VALIDATED_MACRO_SCHEMA))
 

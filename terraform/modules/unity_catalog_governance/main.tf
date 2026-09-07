@@ -6,7 +6,7 @@
 # RBAC grants. It does NOT own:
 #
 #   * table DDL
-#   * the policy UDFs (fn_rls_lbs_multi_persona_lock, fn_ddm_obs_conf_mask)
+#   * the policy UDFs (fn_rls_multi_persona_lock, fn_ddm_obs_conf_mask)
 #   * the SET ROW FILTER / SET MASK bindings
 #
 # Those live in src/unity_catalog_triple_lock.sql and are applied by Databricks
@@ -27,7 +27,7 @@ locals {
   # own; the row filter decides what a query returns.
   traversal_groups = values(var.persona_group_names)
 
-  history_table = "${local.full_schema}.lbs_sdmx_history"
+  history_table = "${local.full_schema}.agg_sdmx_history"
   micro_table   = "${local.full_schema}.lbs_micro_transactions"
 
   # Institution-identifying detail. Submitters only - protecting the aggregate
@@ -97,7 +97,11 @@ resource "databricks_sql_endpoint" "dissemination" {
   cluster_size              = var.sql_warehouse_size
   auto_stop_mins            = var.sql_warehouse_auto_stop_minutes
   enable_serverless_compute = true
-  max_num_clusters          = 1
+
+  # Concurrency and scan cost are separate levers. Size handles a heavy single
+  # query; extra clusters handle many simultaneous readers. A public
+  # dissemination tier usually needs the second one first.
+  max_num_clusters = var.sql_warehouse_max_clusters
 
   tags {
     custom_tags {

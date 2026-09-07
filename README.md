@@ -67,8 +67,8 @@ flowchart TB
 
     subgraph UC["🛡️ Unity Catalog - dbw_sovereignshield.sovereign_shield"]
         MICRO["lbs_micro_transactions<br/>RLS: fn_rls_micro_country_lock"]
-        MACRO["lbs_sdmx_history<br/>RLS: fn_rls_lbs_multi_persona_lock<br/>DDM: fn_ddm_obs_conf_mask"]
-        VIEW["v_lbs_sdmx_published<br/>PUBLISHED + IS_CURRENT"]
+        MACRO["agg_sdmx_history<br/>RLS: fn_rls_multi_persona_lock<br/>DDM: fn_ddm_obs_conf_mask"]
+        VIEW["v_agg_sdmx_published<br/>PUBLISHED + IS_CURRENT"]
     end
 
     subgraph PORTAL["🌐 Databricks App - sovereignshield-portal"]
@@ -134,55 +134,66 @@ flowchart TB
 
 > **Design note — Terraform or Bicep.** Terraform is the primary declarative engine here because it spans Entra ID, Azure and Databricks in a single dependency graph. For the **Azure control plane alone**, Azure Bicep is interchangeable: resource groups, Key Vault, the Databricks workspace, the access connector and Container Apps all have direct Bicep equivalents, and an organisation standardised on Bicep loses nothing by using it for those. What Bicep cannot express is the Databricks provider layer — catalog, schema, grants and the SQL warehouse — which would remain Terraform or move to the Databricks CLI. The ownership boundary between infrastructure and the data/policy plane is unaffected by that choice.
 
+## ⚡ Five-minute local evaluation
+
+No Azure subscription, no Databricks workspace, no credentials. The security model
+is verifiable offline, which is the whole point of the delivery pattern.
+
+```powershell
+git clone https://github.com/<owner>/sovereign-shield.git
+cd sovereign-shield
+
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+
+# The persona matrix, SDMx validation, contractor isolation and secret assertions
+.venv\Scripts\python.exe -m pytest tests/ --no-header
+```
+
+Expect **59 passed, 12 skipped**. The skips are the `--live` tests that need a real
+workspace and the `--stress` benchmarks that take minutes.
+
+```powershell
+# Generate a 100k-row multi-jurisdiction, multi-cadence corpus
+.venv\Scripts\python.exe src/generate_stress_test_data.py --rows 100000 --frequencies "A,S,Q,M"
+
+# Run the scale benchmarks against it
+.venv\Scripts\python.exe -m pytest tests/test_scale_and_stress.py --stress
+```
+
+**The exercise worth doing.** Open [src/uc_query.py](src/uc_query.py), find
+`_apply_persona`, and delete the segment-9 re-check from the masking logic. Re-run
+the suite. Exactly one test should fail. If none does, you have reproduced the
+defect this repository exists to prevent — see
+[docs/technical_guide.md § Pass 8](docs/technical_guide.md).
+
+---
+
 ## 📂 Project Structure
 
 ```text
 .
 ├── databricks.yml                          # Asset Bundle configuration and deployment rules
-├── requirements.txt                        # Task-scoped Python dependencies (pysdmx, xlrd, ...)
-├── pytest.ini                              # Offline-by-default test configuration
-├── Dockerfile                              # Portal image for the Azure Container Apps deployment
 ├── steps.md                                # Operational rebuild runbook
 ├── .github/
 │   ├── workflows/promote.yml               # OIDC promotion: verify -> plan -> apply -> bundle
 │   └── skills/                             # Single source of truth for agents and reviewers
-│       ├── SKILLS.md                       # Capability matrix and skill index
-│       ├── mvsd_specification.md           # Authoritative BIS LBS DSD + synthetic data contract
-│       ├── persona_security_matrix.md      # Four-tier entitlement model
-│       ├── contractor_zero_trust_workflow.md
-│       ├── triple_lock_security.md
-│       ├── sdmx_lbs_validation.md
-│       └── scd2_engine.md
-├── docs/
-│   ├── ENTERPRISE_ONBOARDING_PLAYBOOK.md   # Three-phase client onboarding framework
-│   ├── ARCHITECTURE_DIAGRAMS.md
-│   └── reference_standards/
-│       └── checks_lbs.xls                  # BIS LBS consistency checks (parsed at runtime)
+├── docs/                                   # Guides, reference, whitepaper, diagrams
+│   └── reference_standards/checks_lbs.xls  # BIS LBS consistency checks (parsed at runtime)
 ├── terraform/                              # Infrastructure & access-control plane
-│   ├── main.tf / variables.tf / outputs.tf / providers.tf / versions.tf
 │   └── modules/
 │       ├── identity/                       # Entra groups, SPNs, OIDC federation, Key Vault
-│       ├── databricks_workspace/           # Workspace, access connector, storage credential, secret scope
+│       ├── databricks_workspace/           # Workspace, storage credential, secret scope, cluster policy
 │       ├── unity_catalog_governance/       # Catalog, schema, additive grants, SQL warehouse
 │       └── dissemination_gateway/          # Container Apps host for the anonymous tier
-├── tests/                                  # Offline persona, SDMx, isolation and secret assertions
+├── tests/                                  # Offline persona, SDMx, isolation, secret and scale assertions
 ├── sh/                                     # Idempotent quickstart provisioning (alternative to Terraform)
-│   ├── pre_auth.ps1                        # Dot-sourced Key Vault -> session credential loader
-│   ├── kv_spn_create.sh                    # Idempotent Key Vault + CI/CD and public-proxy SPNs
-│   ├── kv_spn_remediation.sh               # Rotates the SPN and refreshes stored secrets
-│   ├── databricks_create.sh                # Workspace bootstrap; publishes the URL to Key Vault
-│   ├── grp_users_create.sh                 # Entra ID security groups and persona assignment
-│   ├── databricks_account_setup.ps1        # Account-level identities, groups and workspace assignment
-│   ├── github_environment_setup.ps1        # GitHub environment protection rules and OIDC variables
-│   ├── container_apps_deploy.ps1           # Anonymous public deployment to Azure Container Apps
-│   └── container_apps_deploy.sh            # Bash equivalent of the above
 └── src/
-    ├── app.yaml                            # Databricks App runtime and entrypoint
-    ├── requirements.txt                    # Portal-only dependencies (no PySpark)
-    ├── apply_security.py                   # Idempotent Spark SQL executor for the DDL
     ├── unity_catalog_triple_lock.sql       # Data & policy plane: DDL, RLS, DDM, quarantine view
     ├── unity_catalog_grants.sql            # Access-control plane (Terraform owns this in IaC mode)
+    ├── apply_security.py                   # Idempotent Spark SQL executor for the DDL
     ├── generate_sovereign_submissions.py   # Sovereign-isolated SDMx 3.0 XML submission generator
+    ├── generate_stress_test_data.py        # High-volume, multi-cadence corpus for scale testing
     ├── sdmx_rule_validator.py              # Dynamic BIS rule engine + atomic batch quarantine
     ├── scd2_merge_engine.py                # Micro-to-macro aggregation and Delta SCD2 state machine
     ├── local_pandas_scd2.py                # Local pandas/delta-rs SCD2 fixture (no Spark required)
@@ -190,10 +201,10 @@ flowchart TB
     ├── uc_query.py                         # Persona-agnostic query layer over the governed history
     ├── api_gateway.py                      # Public Dissemination Gateway; dual-mode identity resolution
     ├── portal_ui.py                        # BIS-style portal router
-    └── templates/
-        └── portal.html                     # Tailwind filter dashboard and export centre
-
+    └── templates/portal.html               # Tailwind filter dashboard and export centre
 ```
+
+Full file-by-file commentary: [docs/technical_guide.md](docs/technical_guide.md).
 
 ## 🔐 Infrastructure-as-Code & Decoupled Secret Injection
 
@@ -333,333 +344,96 @@ az resource list --resource-group rg-sovereignshield --output table
 
 An empty result means the teardown is complete. If the resource group itself lingers, `az group delete -n rg-sovereignshield` — but prefer `terraform destroy` first so state stays consistent with reality.
 
-## 🛡️ Core Technical Implementations & Zero-Trust Design Patterns
+## 🛡️ How the guarantees are enforced
 
-### 1. Compute Isolation & Cost Optimization
+Four pillars carry the architecture. Each is a link into the detail rather than a
+summary of it — the full implementation narrative is in
+**[docs/technical_reference.md](docs/technical_reference.md)**.
 
-Unity Catalog will not evaluate RLS or DDM on `SINGLE_USER` compute — that mode permits direct memory access that could bypass the policy engine. The execution cluster is therefore pinned to `data_security_mode: USER_ISOLATION`, and the cost profile is tuned underneath that constraint rather than around it.
+### 1. Zero-Access Contractor Pattern
 
-| Setting | Value | Rationale |
-| --- | --- | --- |
-| `spark_version` | `18.x-scala2.13` | Latest LTS — required for single-node `USER_ISOLATION` support |
-| `num_workers` | `0` | Single Node: driver-only, no worker fleet to provision or pay for |
-| `custom_tags.ResourceClass` | `SingleNode` | Signals the single-node profile to the Databricks control plane |
-| `spark.master` | `local[*, 4]` | Executes in-driver with 4 retry attempts |
-| `node_type_id` | `Standard_DS3_v2` | Stays clear of restrictive `DSv5` family core quotas |
-| `availability` | `SPOT_WITH_FALLBACK_AZURE` | Spot pricing with automatic on-demand fallback if evicted |
-| `data_security_mode` | `USER_ISOLATION` | Non-negotiable prerequisite for RLS/DDM enforcement |
+The specialist you need for confidential data work is, by definition, someone who
+should not have the data. So the build happens against a **Minimal Viable Synthetic
+Dataset** specified by the client, promotion runs through OIDC federation with no
+stored secret, and revocation is three actions that touch no code.
 
-The workload is governance-bound rather than compute-bound — volumes are modest and the expensive work is policy evaluation — so a scale-out cluster would add cost and startup latency without reducing runtime. Spot eviction is safe here because the pipeline is fully idempotent: a re-run reproduces the same end state.
+→ [Onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) ·
+[Contractor workflow](.github/skills/contractor_zero_trust_workflow.md)
 
-* **Immutable Execution:** Scripts are executed via `spark_python_task`, which targets the synchronized `src/` workspace directory, stripping away the overhead and vulnerability of intermediate Python `.whl` compilation.
+### 2. Triple-Lock Security
 
-### 2. Dynamic Asset Execution in PySpark
+Entitlement is a property of the table, not of the application. A row filter, a
+column mask and a curated view are attached to catalog objects and evaluated per
+caller, per row, at query time.
 
-A `spark_python_task` entry script is executed by Databricks via `exec(compile(source, filename, 'exec'))`. This creates two distinct hazards that must both be handled:
-
-* `__file__` is **never bound**, so anchoring paths to it raises `NameError`.
-* The working directory is **not** the bundle root, so `os.getcwd()` alone is equally unreliable.
-
-Note that only the *entry script* is affected. Imported modules (such as `sdmx_rule_validator`) are loaded through the normal import machinery and do have `__file__`.
-
-`apply_security.resolve_sql_path()` therefore walks an ordered list of candidates, exploiting the fact that the path handed to `compile()` survives inside the code object:
-
-```python
-module_file = globals().get("__file__")          # local runs and imports
-frame = inspect.currentframe()                   # frame.f_code.co_filename == the real workspace path
-sys.argv[0]                                      # some task launchers
-os.path.join(os.getcwd(), "src"), os.getcwd()    # last-resort fallbacks
-```
-
-Resolution is deliberately **lazy** (inside a function, not at module import). Evaluated at import time, the failure would fire before `main()` could ever apply a fallback.
-
-### 3. SDMx Observation Semantics
-
-The pipeline honours two SDMx conventions that are easy to get wrong and that materially change validation behaviour:
-
-* **Values are signed.** LBS positions are legitimately negative as well as positive. A negative observation is never, by itself, a validation failure.
-* **Zeros are not reported.** A position that nets to exactly zero is dropped after aggregation rather than published as a `0` observation.
-
-Because values are signed, the disclosure-control dominance rule is computed on **absolute** contributions (`|bank| / Σ|bank|`). A signed share would divide by zero on offsetting positions and could exceed `1`.
-
-### 4. The Zero-Trust Triple-Lock Security Matrix
-
-Security is centralised at the Unity Catalog **metastore** level rather than in the pipeline code — the same obligations application layers enforce today, relocated one layer down. Because the policy is attached to the object rather than the query, it applies identically whether the caller arrives via PySpark, a SQL warehouse, Power BI, or an ad-hoc JDBC connection. There is no code path that can "forget" to apply it.
-
-| | **Lock 1 — RLS** | **Lock 2 — DDM** | **Lock 3 — Quarantine View** |
+| | Lock 1 — RLS | Lock 2 — DDM | Lock 3 — Quarantine view |
 | --- | --- | --- | --- |
-| **Object** | `fn_rls_lbs_multi_persona_lock`<br/>`fn_rls_micro_country_lock` | `fn_ddm_obs_conf_mask` | `v_lbs_sdmx_published` |
-| **Binding** | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)`<br/>`ON (reporting_country)` | `OBS_VALUE DOUBLE MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | `CREATE OR REPLACE VIEW` |
+| **Object** | `fn_rls_multi_persona_lock` | `fn_ddm_obs_conf_mask` | `v_agg_sdmx_published` |
 | **Granularity** | Row | Cell | Result set |
-| **Threat addressed** | Cross-border leakage, unpublished-state leakage | Confidential value disclosure | Unvalidated data reaching publication |
-| **Effect** | Non-matching rows disappear | `OBS_VALUE` → `NULL` | `QUARANTINE` / superseded rows invisible |
+| **Threat** | Cross-border leakage | Confidential value disclosure | Unvalidated data published |
 
-#### Lock 1 — Multi-Column Row-Level Security (Sovereignty)
+Five personas resolve against Entra ID. The fifth matters most: **a principal in no
+group sees zero rows.** Public is an explicit group, not a fall-through default,
+which is why off-boarding a contractor and enforcing sovereignty between two
+nations are the same mechanism.
 
-`fn_rls_lbs_multi_persona_lock` evaluates **three columns simultaneously** — the SDMx key, the batch lifecycle state, and the confidentiality flag. Filtering on the key alone would be insufficient the moment the data became publicly reachable: a public visitor asking for Canadian series would receive Canada's quarantined and confidential rows as readily as its published ones.
+→ [Triple-Lock detail](docs/technical_reference.md) ·
+[Persona matrix](.github/skills/persona_security_matrix.md)
 
-Segment 9 of the 11-dimension composite key is the reporting jurisdiction:
+### 3. Public Dissemination Gateway
+
+One service decides *which identity* a query runs as. Unity Catalog decides *what
+that identity may see*. There is no persona branch anywhere in the serving code, so
+a fully compromised gateway still cannot return a confidential observation.
+
+→ [Gateway and SDMx serialization](docs/technical_reference.md)
+
+### 4. SDMx 3.0 Conformance
+
+Real SDMX-ML 3.0, SDMX-JSON 2.0.0 and SDMX-CSV 2.0.0 messages, serialised with
+`pysdmx` against the published BIS LBS structure. The consistency rulebook is parsed
+from the published workbook at runtime, so a standards revision needs no deployment.
+
+→ [Validation engine](.github/skills/sdmx_lbs_validation.md)
+
+---
+
+## 📚 Documentation
+
+Routed by what you are trying to establish.
+
+| If you are… | Start here | Then |
+| --- | --- | --- |
+| **Reading the code** | [Technical guide](docs/technical_guide.md) — an eight-pass reading order | [Technical reference](docs/technical_reference.md) |
+| **Assessing the security model** (CISO / risk) | [Persona security matrix](.github/skills/persona_security_matrix.md) | [Triple-Lock detail](docs/technical_reference.md) · [Test suite](tests/test_persona_access_matrix.py) |
+| **Evaluating the business case** (SLT) | [Executive vision](docs/executive_vision.md) | [Whitepaper](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) |
+| **Deploying it** (platform / DevOps) | [steps.md](steps.md) — runbook, Stage 0 to teardown | [Terraform](terraform/main.tf) · [CI workflow](.github/workflows/promote.yml) |
+| **Sizing it for production** | [Scaling blueprint](docs/technical_guide.md) | [Cluster policy](terraform/modules/databricks_workspace/compute.tf) |
+| **Engaging a contractor** | [Onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) | [Contractor workflow](.github/skills/contractor_zero_trust_workflow.md) |
+| **Checking SDMx conformance** (statistical audit) | [SDMx LBS validation](.github/skills/sdmx_lbs_validation.md) | [MVSD specification](.github/skills/mvsd_specification.md) |
+| **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Technical vision](docs/technical_vision.md) |
+| **Presenting it** | [Executive vision](docs/executive_vision.md) | [Public write-up](docs/LINKEDIN_POST.md) |
+
+---
+
+
+## 📝 Bundle Configuration
+
+[`databricks.yml`](databricks.yml) is the orchestration matrix. **Task order is a
+security property, not a convenience:** the Triple-Lock DDL runs first, so no table
+ever exists unprotected.
 
 ```text
-FREQ . L_MEASURE . L_POSITION . L_INSTR . L_DENOM . L_CURR_TYPE
-     . L_PARENT_CTY . L_REP_BANK_TYPE . L_REP_CTY . L_CP_SECTOR . L_CP_COUNTRY
-                                            ▲
-                                       segment 9  →  e.g.  Q.S.C.B.CAD.D.CA.A.CA.B.5J
+setup_triple_lock_schema  →  generate_synthetic_data  →  run_scd2_merge
+(apply_security.py)          (generate_sovereign_       (scd2_merge_engine.py)
+                              submissions.py)
 ```
 
-The persona matrix the filter implements:
-
-| Entra ID group | Visible rows |
-| --- | --- |
-| `sg-sovereignshield-admin` | `1 = 1` — every jurisdiction, every lifecycle state |
-| `sg-sovereignshield-submitter-ca` / `-us` | **Own** segment-9 rows in full, including `QUARANTINE` and `C`/`N`; **other** jurisdictions only where `BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'` |
-| `sg-sovereignshield-researchers` | `BATCH_STATUS = 'PUBLISHED'`, all jurisdictions — confidential values arrive masked |
-| `sg-sovereignshield-public` | `BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'` |
-| *no recognised membership* | `FALSE` — zero rows |
-
-Four implementation details are load-bearing:
-
-* **`try_element_at`, never `element_at`.** Under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`. Because a row filter is evaluated on *every row of every query*, one malformed key would abort **all** access to the table — converting a data-quality defect into a total outage. `try_element_at` returns `NULL`, and a `coalesce` turns that into `FALSE`, so the predicate fails **closed**.
-* **Tiers compose with `OR`, not `CASE`.** A `CASE` expression stops at its first matching branch, so a Bank of Canada analyst who is also a researcher would be silently downgraded to whichever branch happened to be written first. Composing the tiers as a disjunction makes entitlement additive — a principal receives the union of their memberships.
-* **The public tier is a group, not an absence.** The fail-closed default returns zero rows, so "unauthenticated" cannot be a fall-through case. The portal's proxy service principal is an explicit member of `sg-sovereignshield-public`, which means the anonymous entitlement is auditable in Entra ID like any other.
-* **Defense in depth on the raw ledger.** `fn_rls_micro_country_lock` applies sovereign isolation to `lbs_micro_transactions.reporting_country`, and grants neither researchers nor the public tier any access at all. Protecting only the aggregate would leave the institution-level source fully exposed.
-
-#### Lock 2 — Dynamic Data Masking (Confidentiality)
-
-`fn_ddm_obs_conf_mask(obs_val DOUBLE, obs_conf STRING, time_series_code STRING)` is bound via `USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`, letting the mask branch on *different* columns than the one it redacts. Observations flagged Confidential (`C`) or Non-publishable (`N`) resolve to `NULL` for unprivileged readers.
-
-* **Why the key is an input.** Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells — a Bank of Canada analyst reading Federal Reserve confidential positions. The mask therefore repeats the segment-9 test rather than trusting the group name alone.
-* **Why `NULL` and not `'xxx'`:** a masking function must return the column's own type, and `OBS_VALUE` is a `DOUBLE`. A string sentinel is not representable.
-* **Privilege ordering:** administrators and the owning submitter are evaluated *before* the confidentiality branch, so an entitled reader always sees the true value.
-* **Structural density preserved:** the row still exists with all its dimensions intact, so researcher joins and dimensional counts remain correct — only the metric is withheld. The portal surfaces this explicitly, reporting how many values a query had withheld rather than silently returning blanks.
-
-#### Lock 3 — Quarantine View Isolation (Integrity)
-
-Researchers hold **no grant on the base tables**. Their sole entry point is `v_lbs_sdmx_published`, which gates on both publication state and temporal currency:
-
-```sql
-CREATE OR REPLACE VIEW v_lbs_sdmx_published AS
-SELECT * FROM lbs_sdmx_history
-WHERE BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true;
-```
-
-Both predicates are required. `BATCH_STATUS` alone would expose superseded historical versions; `IS_CURRENT` alone would expose active-but-rejected data.
-
-#### Supporting Guarantees
-
-* **Target Catalog:** Uses the pre-provisioned workspace catalog (`dbw_sovereignshield`), avoiding the need to grant Metastore Admin rights to the Service Principal.
-* **Non-Destructive, Idempotent DDL:** `unity_catalog_triple_lock.sql` runs as the *first* task of *every* execution, so it must never drop the historical tables — doing so silently erases the entire SCD2 lineage. The script uses `CREATE TABLE IF NOT EXISTS` and a detach → replace → re-attach sequence, because Unity Catalog refuses to replace a function bound to a live row filter or column mask. Statements that legitimately fail on one lifecycle path (fresh create vs. re-apply) are annotated `-- @tolerate-failure` and skipped; every other failure aborts the deployment so the platform is never left partially secured.
-* **Absolute SPN Ownership:** The deployment pipeline executes via CI/CD, so the Service Principal assumes ownership of all created tables, views, and functions, stripping direct governance from individual developers.
-
-> **Deployment prerequisite:** the pipeline Service Principal **must** be a member of `sg-sovereignshield-admin`. Ownership does not exempt a principal from a row filter. The SCD2 engine reads the target table to locate records to expire; if RLS hid those rows, the merge would treat every row as new — silently duplicating history and never closing prior versions. This fails without raising an error.
-
-### 5. The Atomic Batch Quarantine Engine
-
-BIS statistical submissions are accepted or rejected **as an indivisible unit**. Partial publication is not merely undesirable — it is incoherent: the aggregates that reconcile depend on the components that did not, so publishing the passing subset would emit an internally contradictory dataset.
-
-`SDMxRuleValidator` parses the official consistency checks from `docs/reference_standards/checks_lbs.xls` at runtime — rules are **metadata, not code** — then evaluates them and applies the verdict atomically per `(reporting_country, date_scope)`:
-
-| Batch outcome | `QUALITY_STATUS` | `BATCH_STATUS` | `FAILED_RULE_ID` |
-| --- | --- | --- | --- |
-| **Any** record in the country-quarter fails | `FAIL` on **every** row | `QUARANTINE` | Sorted union of all violated check codes |
-| All records pass | `PASS` | `PUBLISHED` | `NULL` |
-
-The validator is the single source of truth for these three columns; no downstream stage overrides them. There is no manual approval step and no intermediate `UNDER_REVIEW` state.
-
-**Failure isolation is per-jurisdiction.** Grouping on `(reporting_country, date_scope)` means a Canadian reconciliation break quarantines Canada's quarter and nothing else — the US and UK submissions in the same run publish normally. Sovereign failure domains do not cascade.
-
-#### Prior-State Preservation
-
-The critical property: **a rejected revision never degrades what consumers can already see.** The merge engine splits the incoming batch on `BATCH_STATUS` before touching the target.
-
-| Incoming | Prior active record | Row written | Visible in `v_lbs_sdmx_published` |
-| --- | --- | --- | --- |
-| `PUBLISHED` (changed) | Expired → `IS_CURRENT = false` | `IS_CURRENT = true` | The new value |
-| `PUBLISHED` (unchanged) | Untouched | None | Unchanged |
-| `QUARANTINE` | **Untouched — remains `IS_CURRENT = true`** | Audit row, `IS_CURRENT = false`, `VALID_TO = VALID_FROM` | **The last valid value** |
-
-Quarantined rows are excluded from both the expire-merge *and* the scoped logical delete. A failed resubmission therefore degrades to **stale data, never to missing data** — the rejection is fully recorded for audit and diagnosis, while the published series continues uninterrupted.
-
-Replay is safe: a `left_anti` join on natural key + `version_hash` prevents a re-run from stacking duplicate audit rows.
-
-#### Demonstrable Behaviour
-
-`run_pipeline()` executes two cycles in sequence so the guarantee is directly observable rather than asserted:
-
-| Cycle | CA | US | GB |
-| --- | --- | --- | --- |
-| `baseline` | 9 rows `PUBLISHED` | 3 `PUBLISHED` | 3 `PUBLISHED` |
-| `revision` | 9 rows `QUARANTINE` (`LBS_CC01`, `LBS_CC:04`) | 3 `PUBLISHED` | 3 `PUBLISHED` |
-
-After both cycles, Canada's baseline observation remains active and unmodified, and `v_lbs_sdmx_published` continues to serve 15 rows.
-
-### 6. SCD2 Historization Mechanics
-
-The merge against `lbs_sdmx_history` runs in four stages, keyed on `(TIME_SERIES_CODE, DATE, IBS_AGG)`:
-
-1. **Expire changed records** *(published only)* — matches where `target.version_hash != source.version_hash`, setting `IS_CURRENT = false` and `VALID_TO = current_timestamp()`.
-2. **Insert new active records** *(published only)* — written with `IS_CURRENT = true` and `VALID_TO = 9999-12-31T00:00:00`, an explicit end-of-time sentinel rather than `NULL` so range predicates need no special-casing.
-3. **Append quarantine audit rows** — recorded with `IS_CURRENT = false` and `VALID_TO = VALID_FROM`, deliberately bypassing stage 1.
-4. **Scoped logical delete** — closes series that existed previously but are absent from the current submission.
-
-Three details prevent subtle corruption:
-
-* **`version_hash` sentinel.** The payload fingerprint coalesces each component against `\u0000NULL`, not `""`. With an empty-string default, a genuine `NULL` and an empty value would hash identically and a real revision could be missed entirely.
-* **Post-insert re-read.** Stage 4 re-reads the target rather than reusing the pre-insert snapshot, which would otherwise immediately expire the rows just written in stage 2.
-* **Scope restriction.** Stage 4 is confined to the `(reporting_country, DATE)` pairs present in the *published* portion of the batch. Without it, submitting Canada's quarter would logically delete every other jurisdiction's series.
-
-### 7. The Public Data Portal & SDMx REST Gateway
-
-The locks above are only interesting if something actually exercises them from outside the workspace. `src/api_gateway.py` is a single FastAPI process that serves both the REST API under `/api/v1` and a BIS-style filter dashboard at `/`, deployed as a Databricks App.
-
-**The gateway chooses an identity. It never chooses rows.** There is no persona branch anywhere in the serving code: the SQL it builds is deliberately naive about confidentiality and lifecycle state, and Unity Catalog narrows the result. If the gateway were compromised outright, the metastore would still refuse to hand a quarantined or confidential observation to an unentitled caller.
-
-| Caller | Identity used | How it arrives |
-| --- | --- | --- |
-| Signed-in workspace user | Their own OAuth token | `X-Forwarded-Access-Token`, injected by the Databricks Apps runtime |
-| Direct API client | Their own OAuth token | `Authorization: Bearer` |
-| Anonymous visitor | `spn-sovereignshield-public` | The app's own service principal credentials |
-
-Token validation is delegated rather than reimplemented: the gateway resolves the token against the workspace SCIM `me` endpoint, so an expired, revoked, or forged token fails there. No JWT signature verification is hand-rolled, and the token itself is never cached — only a SHA-256 digest of it, keyed to a short-lived identity lookup.
-
-#### Endpoints
-
-| Route | Purpose |
-| --- | --- |
-| `GET /api/v1/search` | Filter by `parent_country`, `reporting_country`, `counterpart_sector`, `counterpart_country`, `currency`, `position`, `instrument`, `date_from`, `date_to` |
-| `GET /api/v1/facets` | Distinct code values for the filter cards — already persona-scoped, so a visitor cannot discover that a code exists if the filter hides every row carrying it |
-| `GET /api/v1/export/sdmx-ml` | SDMX-ML 3.0 structure-specific message |
-| `GET /api/v1/export/sdmx-json` | SDMX-JSON 2.0.0 data message |
-| `GET /api/v1/export/csv` | SDMX-CSV 2.0.0, or `?format=tidy` for a plain analyst CSV |
-| `GET /api/v1/whoami` | The security context the portal banner renders |
-| `GET /api/v1/health` | Catalog connectivity, backend mode, and structure availability |
-
-Every caller-supplied value is bound as a query parameter, and code values are additionally constrained to `[A-Za-z0-9_]{1,12}` before they reach the warehouse — parameter binding already prevents injection, the pattern check keeps malformed input from being blamed on the metastore.
-
-#### SDMx 3.0 Serialization
-
-`src/sdmx_ml_exporter.py` replaces the flat CSV export with the formats a statistical portal is expected to speak, all reported against the BIS Data Portal dataflow `BIS:WS_LBS_D_PUB(1.0)`.
-
-* **SDMX-ML 3.0.** SDMX 3.0.0 **removed** the Generic Data format, so `StructureSpecificData` is the only XML data message the standard still defines; the `output_type` argument exists for forward compatibility and rejects anything else rather than silently emitting a 2.1-era payload. Serialization runs through `pysdmx`, which writes against the published schemas, and the emitted document is round-tripped through the reader before it is returned — an invalid message is caught here, not by the receiving institution.
-* **Degraded mode.** The BIS structure endpoint is a live third-party HTTP dependency. It is fetched once and cached for the life of the process, and a dependency-free ElementTree writer stands behind it so an export never fails because BIS is having a bad morning. Messages produced that way are flagged `Test` so a consumer can tell they were written without structure validation.
-* **SDMX-JSON 2.0.0** for browsers and **SDMX-CSV 2.0.0** for tabular consumers — the latter carrying the standard's `STRUCTURE,STRUCTURE_ID,ACTION` prefix so a file is self-describing rather than depending on an out-of-band agreement about column order.
-
-A masked observation is serialized as an **absent** value, never as zero. Under SDMx semantics those mean entirely different things, and conflating them would turn a confidentiality control into a data-quality defect.
-
-#### Deploying the portal
-
-```bash
-databricks bundle deploy -t dev --var="warehouse_id=<sql-warehouse-id>"
-databricks bundle run sovereignshield_portal -t dev
-```
-
-The bundle uploads `./src` as the app source, so `src/app.yaml` and `src/requirements.txt` travel with the modules they launch. The app's dependency set is deliberately separate from the repository root manifest: the portal has no use for PySpark, Delta or the Excel rulebook parsers, and installing them would add hundreds of megabytes to every deployment.
-
-The app's own service principal must be a member of `sg-sovereignshield-public`. Without it the fail-closed default returns zero rows and the portal renders empty for every anonymous visitor.
-
-### 8. Genuinely Anonymous Access via Azure Container Apps
-
-A Databricks App always sits behind workspace SSO. Its "public" tier is therefore an *authenticated visitor holding no sovereign entitlement* — which proves the persona matrix, but not the anonymous case that a real dissemination portal has to survive.
-
-`terraform/modules/dissemination_gateway` closes that gap by running the **same image** on Azure Container Apps with external ingress and no login:
-
-```powershell
-cd terraform
-terraform apply -var="deploy_dissemination_gateway=true" -var="gateway_image=<acr>/sovereignshield-portal:latest"
-terraform output -raw dissemination_gateway_url
-```
-
-The module uses a **user-assigned** managed identity rather than system-assigned. That is not a preference: a system-assigned identity only exists after the container app is created, but the app cannot start until it can resolve its `keyvaultref` secrets, which needs the role assignment, which needs the identity. First apply deadlocks.
-
-`sh/container_apps_deploy.ps1` performs the same deployment imperatively for the quickstart path, and additionally builds the image with `az acr build`:
-
-```powershell
-./sh/container_apps_deploy.ps1 -KeyVaultName <vault-name> `
-    -DatabricksHost adb-<workspace-id>.8.azuredatabricks.net `
-    -WarehouseId <sql-warehouse-id>
-```
-
-Nothing about the security model changes — only who can knock. The row filter remains the sole arbiter of what is returned, and the container holds no entitlement of its own.
-
-| Concern | How the deployment handles it |
-| --- | --- |
-| Credentials | Key Vault references (`keyvaultref:...,identityref:system`) resolved by the platform at start-up. No secret value is passed on a command line, written to a file, or echoed. |
-| Image build | `az acr build` — built in Azure, so no local Docker daemon and no image pushed from a workstation |
-| Container privileges | Runs as an unprivileged UID with only the four serving modules and the template directory copied in. The ingestion job, the synthetic data, and the BIS rulebook workbook are not in the serving path and are not in the image. |
-| Elevated personas | `-EnableEntraSignIn` adds Container Apps built-in authentication with `--unauthenticated-client-action AllowAnonymous`, so anonymous visitors are served the public tier and `/.auth/login/aad` elevates on demand. The forwarded `X-MS-TOKEN-AAD-ACCESS-TOKEN` is a carrier the gateway already understands. |
-
-> **The one manual step.** The Entra token forwarded by built-in authentication must be issued for the **AzureDatabricks** resource (`2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`), which means adding `scope=openid profile 2ff814a6-.../user_impersonation` to the login parameters. Miss it and every signed-in visitor silently stays on the public tier — the failure is invisible, because falling back to the public persona is exactly what the gateway is supposed to do when it has no usable token. The script prints the instruction rather than pretending the CLI covers it.
-
-The deployment finishes by printing the check worth running first:
-
-```bash
-curl -s "https://<fqdn>/api/v1/search?limit=5" | jq '.observations[] | {BATCH_STATUS, OBS_CONF}'
-```
-
-Every observation returned to an anonymous caller must carry `BATCH_STATUS=PUBLISHED` and `OBS_CONF=F`. Anything else means the proxy principal picked up a group membership it should not have.
-
-## 📝 Bundle Configuration (`databricks.yml`)
-
-The orchestration matrix that binds the Zero-Trust architecture. Task order matters: the security layer is provisioned **before** any data is written, so no table ever exists unprotected.
-
-```yaml
-bundle:
-  name: sovereignshield_bundle
-
-targets:
-  dev:
-    default: true
-    mode: development
-    workspace:
-      host: https://adb-<workspace-id>.xx.azuredatabricks.net
-
-    resources:
-      jobs:
-        sovereignshield_sdmx_pipeline:
-          name: "[DEV] SovereignShield SDMx Ingestion & Validation"
-          tasks:
-            # Step 1: Provision / refresh the Triple-Lock infrastructure
-            - task_key: setup_triple_lock_schema
-              job_cluster_key: sovereign_cluster
-              spark_python_task:
-                python_file: "src/apply_security.py"
-
-            # Step 2: Generate the sovereign SDMx 3.0 submissions
-            - task_key: generate_synthetic_data
-              depends_on:
-                - task_key: setup_triple_lock_schema
-              job_cluster_key: sovereign_cluster
-              spark_python_task:
-                python_file: "src/generate_sovereign_submissions.py"
-              libraries:
-                - requirements: requirements.txt
-
-            # Step 3: Micro-to-macro ingestion, validation, and SCD2 merge
-            - task_key: run_scd2_merge
-              depends_on:
-                - task_key: generate_synthetic_data
-              job_cluster_key: sovereign_cluster
-              spark_python_task:
-                python_file: "src/scd2_merge_engine.py"
-              libraries:
-                - requirements: requirements.txt
-
-          job_clusters:
-            - job_cluster_key: sovereign_cluster
-              new_cluster:
-                spark_version: "18.x-scala2.13"
-                node_type_id: "Standard_DS3_v2"
-                num_workers: 0 # STRICTLY NO WORKERS
-                data_security_mode: USER_ISOLATION
-                custom_tags:
-                  ResourceClass: SingleNode
-                spark_conf:
-                  spark.databricks.cluster.profile: singleNode
-                  spark.master: local[*, 4]
-                azure_attributes:
-                  availability: SPOT_WITH_FALLBACK_AZURE
-
-```
+The job cluster is pinned to `data_security_mode: USER_ISOLATION` and defaults to
+`num_workers: 0`. Both are bounded by the Terraform cluster policy in
+[compute.tf](terraform/modules/databricks_workspace/compute.tf), which fixes the
+security mode and defines the sizing envelope — see
+[the scaling blueprint](docs/technical_guide.md) for how to widen it.
 
 ---
 
@@ -671,53 +445,45 @@ targets:
 4. **Credential hygiene** — no credential exists in the repository, and `tests/test_secret_decoupling.py` enforces that on every commit. Terraform rotates the dissemination proxy credential automatically every 90 days via `time_rotating`; `sh/kv_spn_remediation.sh` performs a deliberate, immediate rotation of the CI/CD principal when you need one.
 5. **Entra ID groups** — `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-<cc>`, `sg-sovereignshield-researchers`, and `sg-sovereignshield-public` must exist before the Triple-Lock DDL runs; the security functions resolve membership at query time via `is_account_group_member`. `terraform/modules/identity` provisions them, and `sh/databricks_account_setup.ps1` mirrors them into the Databricks **account** — account scope is what `is_account_group_member` reads, and workspace-scoped groups of the same name will never match.
 6. **Public portal principal** — `terraform/modules/identity` provisions `spn-sovereignshield-public` and adds it to `sg-sovereignshield-public`. It is created with **no Azure RBAC role assignment at all**: its entire entitlement is the row filter. It must also be added to the Databricks account — otherwise the fail-closed default leaves the public portal showing nothing, which looks like an outage rather than a policy decision.
-7. **Two-pass apply** — leave `grant_tables = false` on the first apply. Tables are created by the Asset Bundle, and a grant against a securable that does not yet exist fails the apply.
-8. **GitHub repository controls** — run `sh/github_environment_setup.ps1` before relying on the promotion workflow. GitHub creates an environment implicitly on first reference **with no protection rules**, so `environment: production` is decorative until required reviewers, self-review prevention and a protected-branch policy are configured. Protect `main` as well: restricting deployments to protected branches is vacuous if no branch is protected.
-9. **Action pinning** — every action in `.github/workflows/promote.yml` is pinned to an immutable commit SHA with the release recorded in a trailing comment. A tag is a movable pointer and `@main` re-resolves on every run; either would let an upstream compromise reach a job holding a token that can apply infrastructure. Verify before bumping one: `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`.
-6. **Public portal principal** — `sh/kv_spn_create.sh` provisions `spn-sovereignshield-public` and adds it to `sg-sovereignshield-public`. It is created with **no Azure RBAC role assignment at all**: its entire entitlement is the row filter. Add it to the Databricks account as a service principal, and confirm the group membership synchronised — otherwise the fail-closed default leaves the public portal showing nothing, which looks like an outage rather than a policy decision.
 7. **SQL warehouse** — the portal reads through a warehouse passed as `--var="warehouse_id=..."` at deploy time. The warehouse grants no entitlement of its own; it is the engine the row filter is evaluated in.
+8. **Two-pass apply** — leave `grant_tables = false` on the first apply. Tables are created by the Asset Bundle, and a grant against a securable that does not yet exist fails the apply.
+9. **GitHub repository controls** — run `sh/github_environment_setup.ps1` before relying on the promotion workflow. GitHub creates an environment implicitly on first reference **with no protection rules**, so `environment: production` is decorative until required reviewers, self-review prevention and a protected-branch policy are configured. Protect `main` as well: restricting deployments to protected branches is vacuous if no branch is protected.
+10. **Action pinning** — every action in `.github/workflows/promote.yml` is pinned to an immutable commit SHA with the release recorded in a trailing comment. A tag is a movable pointer and `@main` re-resolves on every run; either would let an upstream compromise reach a job holding a token that can apply infrastructure. Verify before bumping one: `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`.
 
 ---
 
 ## 🤝 Safe Engagement & Clean Handover
 
-Specialist platform work is frequently delivered by people who should not hold the data they are governing — external architects, contractors, or a vendor team. Institutions manage this well today, with NDAs, supervised environments, and access reviews. SovereignShield explores how much of that burden the platform itself can absorb: **the specialist never needs access to real data at any point**, and **removing them afterwards is a small set of administrative actions rather than an audit exercise**.
+Specialist platform work is frequently delivered by people who should not hold the
+data they are governing. Institutions manage this well today with NDAs, supervised
+environments and access reviews. SovereignShield explores how much of that burden
+the platform itself can absorb: **the specialist never needs access to real data at
+any point**, and **removing them afterwards is a small set of administrative actions
+rather than an audit exercise**.
 
-This is a deliberate architectural property, not a process wrapper.
+**Why the build never needs real data.** Submissions are generated, not sourced. The
+rulebook is a published standards artefact. The security deliverable is declarative
+DDL, reviewable without executing against a real row. Credentials are hydrated from
+Key Vault into session scope, never stored. The only tuned constant in the system is
+the disclosure-dominance threshold (`0.60`) — a policy decision, not a value learned
+from data.
 
-### Why the build never requires real data
+**The cut-off is three actions, none of which touch the delivered code:** rotate the
+service principal, remove the Key Vault access policy, remove the builder from every
+Entra ID group. The third is the interesting one — `fn_rls_multi_persona_lock` grants
+rows only on positive membership, so a former builder resolves to zero groups and
+therefore zero rows.
 
-| Property | Consequence for the engagement |
-| --- | --- |
-| Submissions are **generated**, not sourced | `generate_sovereign_submissions.py` produces realistic SDMx 3.0 messages with the correct 11-dimension key structure, confidentiality flags, and deliberate rule breaks. The engineer develops and demonstrates against these. |
-| Rules are **published metadata** | BIS consistency checks come from `checks_lbs.xls`, a public standards artifact. No proprietary rule logic has to be disclosed to the builder. |
-| Security is **declarative DDL** | The deliverable is `unity_catalog_triple_lock.sql` — policy expressed as catalogue objects. It is written and reviewed without ever executing against a real row. |
-| Deployment is **a manifest** | `databricks.yml` reproduces the entire pipeline in the enterprise's own workspace. Nothing is configured by hand, so nothing depends on the builder's environment. |
-| Credentials are **hydrated, never stored** | `pre_auth.ps1` reads secrets from Key Vault into session scope at run time. The repository — the thing actually handed over — contains no credential material of any kind. |
+> Off-boarding a person and enforcing sovereignty between two nations are **the same
+> code path**. There is no separate revocation feature that could rot, be forgotten,
+> or be tested less rigorously than the primary one.
 
-The only tuned constant in the system is the disclosure-dominance threshold (`0.60`), and that is a **policy decision, not a value learned from data**. Nothing in the build is calibrated against real submissions, which is precisely what makes the synthetic-only engagement honest rather than a technicality.
+**Where this model stops** — the part reviewers should press on — is documented
+honestly in the playbook, along with the full three-phase framework and acceptance
+checklist.
 
-### The handover
-
-The enterprise receives a Git repository and deploys it with its own service principal, into its own workspace, against its own catalogue. Because every security control is attached to Unity Catalog objects rather than embedded in application logic, the controls activate identically on real data on the first run — there is no "productionisation" phase in which the security model is re-implemented, and therefore no phase in which it can be re-implemented incorrectly.
-
-### The cut-off
-
-Revocation is three actions, none of which touch the delivered code:
-
-1. **Rotate the service principal** — `sh/kv_spn_remediation.sh` deletes the existing app registration and writes fresh credentials to Key Vault under the same secret names, or `terraform apply -replace="module.identity.azuread_service_principal_password.public_proxy"` for the proxy identity. Any copy the builder retained is dead immediately. The pipeline continues working with **no code change**, because every consumer resolves secrets by *name*, never by value.
-2. **Remove the Key Vault access policy** for the builder's identity. Without it, `pre_auth.ps1` fails at the first `az keyvault secret show` — they cannot hydrate a session at all.
-3. **Remove the builder from every Entra ID group.** This is the elegant part: **no bespoke off-boarding logic exists or is needed.** `fn_rls_lbs_multi_persona_lock` grants rows only on positive group membership and fails closed on no match. A former builder who somehow retained a valid login resolves to zero groups, and therefore to **zero rows** — the exact mechanism that stops Canada seeing UK data stops them seeing any data.
-
-> The security property worth internalising: off-boarding a person and enforcing sovereignty between two nations are **the same code path**. There is no separate revocation feature that could rot, be forgotten, or be tested less rigorously than the primary one.
-
-### What this model does not cover
-
-Honest boundaries, since this is the part reviewers should press on:
-
-* The builder necessarily knows the **design**. That is intentional — the security depends on group membership and catalogue policy, not on the architecture being secret.
-* Someone must hold admin rights to run the rotation. This model shrinks the trusted set to the enterprise's own administrators; it does not eliminate it.
-* If a future requirement genuinely needs calibration against real distributions, that work sits **after** handover and inside the enterprise boundary. It is not a task that can be contracted out under this model.
+→ **[Enterprise onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md)** ·
+[Contractor workflow](.github/skills/contractor_zero_trust_workflow.md)
 
 ---
 

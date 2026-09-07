@@ -17,7 +17,7 @@ workspace_name      = "dbw-sovereignshield"
 catalog_name = "dbw_sovereignshield"
 schema_name  = "sovereign_shield"
 
-# Changing this requires fn_rls_lbs_multi_persona_lock and fn_ddm_obs_conf_mask
+# Changing this requires fn_rls_multi_persona_lock and fn_ddm_obs_conf_mask
 # to change in lockstep. A mismatch does not error - it fails closed.
 group_prefix = "sg-sovereignshield"
 
@@ -30,6 +30,29 @@ github_environment = "production"
 
 sql_warehouse_size              = "2X-Small"
 sql_warehouse_auto_stop_minutes = 10
+
+# Concurrency lever for the public dissemination tier. Raise before raising
+# size when the complaint is queueing rather than slow individual queries.
+sql_warehouse_max_clusters = 1
+
+# ---------------------------------------------------------------------------
+# Ingestion compute envelope
+#
+# Defaults are the evaluation sandbox: driver-only, no worker fleet, no Photon.
+# This is a cost choice, not an architectural limit - the row filter and column
+# mask are evaluated by the engine and behave identically at any size.
+#
+# An international hub ingesting every member jurisdiction typically runs:
+#   worker_count_min = 2
+#   worker_count_max = 16
+#   node_type_id     = "Standard_E8ds_v5"
+#   enable_photon    = true
+# ---------------------------------------------------------------------------
+worker_count_min        = 0
+worker_count_max        = 0
+node_type_id            = "Standard_DS3_v2"
+enable_photon           = false
+autotermination_minutes = 20
 
 # The only deployment that can demonstrate genuinely anonymous access.
 deploy_dissemination_gateway = true

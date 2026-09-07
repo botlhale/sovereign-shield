@@ -17,10 +17,10 @@ During the macro-aggregation phase, the pipeline must strictly conform to the un
 The incoming DataFrame must be validated against the following structure before initiating the Delta `MERGE INTO` operation:
 
 ```sql
-CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
+CREATE TABLE IF NOT EXISTS agg_sdmx_history (
     TIME_SERIES_CODE STRING,      -- 11-dimension SDMx composite key
     DATE STRING,                  -- Standardized observation period (e.g. '2026-Q1')
-    IBS_AGG STRING,               -- Aggregation scope (e.g. 'LBSR')
+    AGG_CODE STRING,              -- Aggregation scope (e.g. 'LBSR')
     OBS_VALUE DOUBLE,             -- Aggregated numeric metric (signed; never zero)
     OBS_STATUS STRING,            -- Observation status flag
     OBS_CONF STRING,              -- Confidentiality flag ('F', 'N', 'C')

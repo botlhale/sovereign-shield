@@ -47,7 +47,7 @@ GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshiel
 -- 2. ADMINISTRATORS / CENTRAL AUDITORS
 -- =====================================================================
 GRANT ALL PRIVILEGES ON TABLE lbs_micro_transactions TO `sg-sovereignshield-admin`;
-GRANT ALL PRIVILEGES ON TABLE lbs_sdmx_history TO `sg-sovereignshield-admin`;
+GRANT ALL PRIVILEGES ON TABLE agg_sdmx_history TO `sg-sovereignshield-admin`;
 
 -- =====================================================================
 -- 3. MACRO HISTORY
@@ -56,10 +56,10 @@ GRANT ALL PRIVILEGES ON TABLE lbs_sdmx_history TO `sg-sovereignshield-admin`;
 -- sovereignty through grants instead would require one securable per
 -- jurisdiction and would still not mask a cell.
 -- =====================================================================
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-submitter-ca`;
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-submitter-us`;
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-researchers`;
-GRANT SELECT ON TABLE lbs_sdmx_history TO `sg-sovereignshield-public`;
+GRANT SELECT ON TABLE agg_sdmx_history TO `sg-sovereignshield-submitter-ca`;
+GRANT SELECT ON TABLE agg_sdmx_history TO `sg-sovereignshield-submitter-us`;
+GRANT SELECT ON TABLE agg_sdmx_history TO `sg-sovereignshield-researchers`;
+GRANT SELECT ON TABLE agg_sdmx_history TO `sg-sovereignshield-public`;
 
 -- =====================================================================
 -- 4. MICRO LEDGER
@@ -76,5 +76,5 @@ GRANT SELECT ON TABLE lbs_micro_transactions TO `sg-sovereignshield-submitter-us
 -- view resolves group membership against the VIEW OWNER, not the caller, which
 -- is why the portal queries the base table instead.
 -- =====================================================================
-GRANT SELECT ON VIEW v_lbs_sdmx_published TO `sg-sovereignshield-researchers`;
-GRANT SELECT ON VIEW v_lbs_sdmx_published TO `sg-sovereignshield-public`;
+GRANT SELECT ON VIEW v_agg_sdmx_published TO `sg-sovereignshield-researchers`;
+GRANT SELECT ON VIEW v_agg_sdmx_published TO `sg-sovereignshield-public`;

@@ -68,10 +68,10 @@ Partial publication is rejected by design: aggregates that reconcile depend on c
 
 | Lock | Object | Binding | Granularity |
 | --- | --- | --- | --- |
-| **RLS (macro)** | `fn_rls_lbs_multi_persona_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)` | Row |
+| **RLS (macro)** | `fn_rls_multi_persona_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)` | Row |
 | **RLS (micro)** | `fn_rls_micro_country_lock` | `WITH ROW FILTER ... ON (reporting_country)` | Row |
 | **DDM** | `fn_ddm_obs_conf_mask` | `OBS_VALUE DOUBLE MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | Cell |
-| **Quarantine View** | `v_lbs_sdmx_published` | `BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true` | Result set |
+| **Quarantine View** | `v_agg_sdmx_published` | `BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true` | Result set |
 
 **Persona resolution** — evaluated at query time via `is_account_group_member`:
 

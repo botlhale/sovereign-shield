@@ -26,7 +26,12 @@ templates = Jinja2Templates(directory=TEMPLATE_DIR)
 router = APIRouter()
 
 #: Filter cards, in the order the BIS Data Portal presents them.
+#
+#: Frequency leads because it partitions the catalogue: an analyst comparing a
+#: monthly series against a quarterly aggregate of the same position is making a
+#: category error, and the filter is the cheapest place to prevent it.
 FILTER_CARDS = [
+    ("frequency", "Frequency", "FREQ"),
     ("parent_country", "Parent country", "L_PARENT_CTY"),
     ("reporting_country", "Reporting country", "L_REP_CTY"),
     ("counterpart_sector", "Counterparty sector", "L_CP_SECTOR"),

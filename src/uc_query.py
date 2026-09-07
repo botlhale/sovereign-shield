@@ -1,6 +1,6 @@
 """Query layer between the portal and the governed Delta history.
 
-Every read goes to ``lbs_sdmx_history`` **as the caller**, never through a
+Every read goes to ``agg_sdmx_history`` **as the caller**, never through a
 pre-filtered view, because the Unity Catalog row filter and column mask are the
 only things deciding what a persona may see. A Unity Catalog view resolves
 group membership against the view owner, so filtering in a view would hand
@@ -35,7 +35,7 @@ LOGGER = logging.getLogger(__name__)
 CATALOG = os.getenv("SOVEREIGNSHIELD_CATALOG", "dbw_sovereignshield")
 SCHEMA = os.getenv("SOVEREIGNSHIELD_SCHEMA", "sovereign_shield")
 HISTORY_TABLE = os.getenv(
-    "SOVEREIGNSHIELD_HISTORY_TABLE", f"{CATALOG}.{SCHEMA}.lbs_sdmx_history"
+    "SOVEREIGNSHIELD_HISTORY_TABLE", f"{CATALOG}.{SCHEMA}.agg_sdmx_history"
 )
 LOCAL_DELTA_ROOT = os.getenv("SOVEREIGNSHIELD_LOCAL_DELTA", "data/local_delta_catalog")
 
@@ -55,7 +55,13 @@ DIMENSION_SEGMENTS: Dict[str, int] = {
 }
 
 #: Portal filter name -> SDMx dimension.
+#
+#: FREQ is a filter, not a constant. Locational Banking Statistics is collected
+#: quarterly, but a statistical hub's history table holds annual, semi-annual,
+#: quarterly and monthly collections side by side, and a consumer asking for a
+#: monthly series must not be served a quarterly one.
 FILTER_DIMENSIONS: Dict[str, str] = {
+    "frequency": "FREQ",
     "parent_country": "L_PARENT_CTY",
     "reporting_country": "L_REP_CTY",
     "counterpart_sector": "L_CP_SECTOR",
@@ -68,7 +74,7 @@ FILTER_DIMENSIONS: Dict[str, str] = {
 RESULT_COLUMNS: List[str] = [
     "TIME_SERIES_CODE",
     "DATE",
-    "IBS_AGG",
+    "AGG_CODE",
     "OBS_VALUE",
     "OBS_STATUS",
     "OBS_CONF",
@@ -110,6 +116,7 @@ class SeriesFilter:
     def build(
         cls,
         *,
+        frequency: Optional[Sequence[str]] = None,
         parent_country: Optional[Sequence[str]] = None,
         reporting_country: Optional[Sequence[str]] = None,
         counterpart_sector: Optional[Sequence[str]] = None,
@@ -123,6 +130,7 @@ class SeriesFilter:
         limit: int = DEFAULT_ROWS,
     ) -> "SeriesFilter":
         raw = {
+            "frequency": frequency,
             "parent_country": parent_country,
             "reporting_country": reporting_country,
             "counterpart_sector": counterpart_sector,
@@ -450,7 +458,7 @@ class LocalDeltaBackend:
 
     @staticmethod
     def _apply_persona(frame: pd.DataFrame, principal: Principal) -> pd.DataFrame:
-        """Mirrors fn_rls_lbs_multi_persona_lock and fn_ddm_obs_conf_mask."""
+        """Mirrors fn_rls_multi_persona_lock and fn_ddm_obs_conf_mask."""
         frame = frame.copy()
         reporting = frame["TIME_SERIES_CODE"].astype(str).str.split(".").str[8]
         published = frame["BATCH_STATUS"].astype(str).str.upper() == "PUBLISHED"

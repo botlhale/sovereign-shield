@@ -208,6 +208,6 @@ Worth rehearsing — an architecture review will find these.
 * **Platform-team onboarding** — keep all four bands and add a fifth strip naming
   the actual repository files under each band, so the diagram doubles as a map.
 * **Substituting real function names** — the prompt uses shortened names for
-  legibility. Real names are `fn_rls_lbs_multi_persona_lock` and
+  legibility. Real names are `fn_rls_multi_persona_lock` and
   `fn_ddm_obs_conf_mask`; image models truncate strings that long, so replace
   them only if you intend to hand-edit the output afterwards.

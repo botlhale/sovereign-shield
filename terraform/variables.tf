@@ -53,7 +53,7 @@ variable "group_prefix" {
 variable "reporting_jurisdictions" {
   description = <<-EOT
     ISO alpha-2 codes with a national submitter group. Adding one here is not
-    sufficient on its own: fn_rls_lbs_multi_persona_lock needs a matching branch
+    sufficient on its own: fn_rls_multi_persona_lock needs a matching branch
     and the MVSD needs rows for it, or the new group resolves to zero rows.
   EOT
   type        = list(string)
@@ -83,7 +83,11 @@ variable "github_environment" {
 }
 
 variable "sql_warehouse_size" {
-  description = "Serverless SQL warehouse size backing the dissemination gateway."
+  description = <<-EOT
+    Serverless SQL warehouse size backing the dissemination gateway. 2X-Small
+    serves the evaluation sandbox; Medium through 2X-Large is the range an
+    international hub uses for concurrent public researchers.
+  EOT
   type        = string
   default     = "2X-Small"
 }
@@ -92,6 +96,52 @@ variable "sql_warehouse_auto_stop_minutes" {
   description = "Idle minutes before the warehouse stops. The gateway tolerates a cold start."
   type        = number
   default     = 10
+}
+
+variable "sql_warehouse_max_clusters" {
+  description = <<-EOT
+    Upper bound for warehouse multi-cluster load balancing. Raising this adds
+    query throughput for concurrent readers without changing warehouse size,
+    which is the correct lever when the bottleneck is concurrency rather than
+    the cost of any single scan.
+  EOT
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.sql_warehouse_max_clusters >= 1 && var.sql_warehouse_max_clusters <= 30
+    error_message = "sql_warehouse_max_clusters must be between 1 and 30."
+  }
+}
+
+variable "worker_count_min" {
+  description = "Lower bound of the ingestion autoscaling fleet. 0 with worker_count_max = 0 keeps the sandbox single-node."
+  type        = number
+  default     = 0
+}
+
+variable "worker_count_max" {
+  description = "Upper bound of the ingestion autoscaling fleet. 0 selects single-node compute."
+  type        = number
+  default     = 0
+}
+
+variable "node_type_id" {
+  description = "Azure VM family for ingestion driver and workers."
+  type        = string
+  default     = "Standard_DS3_v2"
+}
+
+variable "enable_photon" {
+  description = "Run the vectorised Photon engine on the ingestion cluster policy."
+  type        = bool
+  default     = false
+}
+
+variable "autotermination_minutes" {
+  description = "Idle minutes before an interactive cluster on the ingestion policy self-terminates."
+  type        = number
+  default     = 20
 }
 
 variable "deploy_dissemination_gateway" {

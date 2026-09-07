@@ -19,7 +19,7 @@ from sdmx_rule_validator import SDMxRuleValidator
 VALIDATED_MACRO_SCHEMA = StructType([
     StructField("TIME_SERIES_CODE", StringType(), False),
     StructField("DATE", StringType(), False),
-    StructField("IBS_AGG", StringType(), False),
+    StructField("AGG_CODE", StringType(), False),
     StructField("OBS_VALUE", DoubleType(), True),
     StructField("OBS_STATUS", StringType(), True),
     StructField("OBS_CONF", StringType(), True),
@@ -39,7 +39,7 @@ VALID_SECTOR_CODES = {"B", "M", "F", "C", "G", "H", "A", "N", "U"}
 UPPERCASE_MICRO_COLUMNS = [
     "reporting_country", "position_type", "instrument", "currency", "currency_type",
     "parent_country", "bank_type", "counterpart_country", "sector_code",
-    "obs_conf", "ibs_agg_scope",
+    "obs_conf", "agg_scope",
 ]
 
 
@@ -49,16 +49,16 @@ MICRO_SCHEMA = [
     "transaction_id", "reporting_country", "reporting_institution",
     "position_type", "instrument", "currency", "currency_type",
     "parent_country", "bank_type", "counterpart_country", "sector_code",
-    "transaction_amount", "obs_conf", "ibs_agg_scope", "date_scope", "transaction_timestamp"
+    "transaction_amount", "obs_conf", "agg_scope", "date_scope", "transaction_timestamp"
 ]
 
 #: Batch-scoped columns appended to every row literal, in MICRO_SCHEMA order.
-_BATCH_COLUMNS = ("ibs_agg_scope", "date_scope", "transaction_timestamp")
+_BATCH_COLUMNS = ("agg_scope", "date_scope", "transaction_timestamp")
 
 
 def _build_micro_rows(
     rows,
-    ibs_agg_scope: str,
+    agg_scope: str,
     date_scope: str,
     batch_timestamp: datetime.datetime,
 ):
@@ -74,14 +74,15 @@ def _build_micro_rows(
                 f"Micro row {row[0]!r} has {len(row)} values; expected "
                 f"{expected_literal_width} before the batch columns {_BATCH_COLUMNS}."
             )
-    return [row + (ibs_agg_scope, date_scope, batch_timestamp) for row in rows]
+    return [row + (agg_scope, date_scope, batch_timestamp) for row in rows]
 
 
 def generate_and_aggregate_micro_data(
     spark: SparkSession,
     date_scope: str = "2026-Q1",
     cycle: str = "baseline",
-    ibs_agg_scope: str = "LBSR",
+    agg_scope: str = "LBSR",
+    freq: str = "Q",
 ):
     """
     Simulates bank-level micro-transactions submitted by multiple country jurisdictions,
@@ -159,7 +160,7 @@ def generate_and_aggregate_micro_data(
             ("TX_CA_009", "CA", "TD_BANK_CA", "L", "A", "CHF", "D", "CA", "A", "5J", "N", 150000000.00, "F"),
         ]
 
-    raw_micro_data = _build_micro_rows(common_rows + cycle_rows, ibs_agg_scope, date_scope, batch_timestamp)
+    raw_micro_data = _build_micro_rows(common_rows + cycle_rows, agg_scope, date_scope, batch_timestamp)
 
     df_micro = spark.createDataFrame(raw_micro_data, MICRO_SCHEMA)
 
@@ -181,7 +182,7 @@ def generate_and_aggregate_micro_data(
     df_aggregated = df_micro.groupBy(
             "position_type", "instrument", "currency", "currency_type",
             "parent_country", "bank_type", "reporting_country", "sector_code",
-            "counterpart_country", "date_scope", "ibs_agg_scope"
+            "counterpart_country", "date_scope", "agg_scope"
         ) \
         .agg(
             F.sum("transaction_amount").alias("OBS_VALUE"),
@@ -194,7 +195,7 @@ def generate_and_aggregate_micro_data(
             "TIME_SERIES_CODE",
             F.concat_ws(
                 ".",
-                F.lit("Q"),                      # FREQ (Quarterly)
+                F.lit(freq),                     # FREQ - A, S, Q or M, per collection
                 F.lit("S"),                      # L_MEASURE (Amounts outstanding)
                 F.col("position_type"),          # L_POSITION
                 F.col("instrument"),             # L_INSTR
@@ -208,8 +209,8 @@ def generate_and_aggregate_micro_data(
             )
         ) \
         .withColumnRenamed("date_scope", "DATE") \
-        .withColumnRenamed("ibs_agg_scope", "IBS_AGG") \
-        .select("TIME_SERIES_CODE", "DATE", "IBS_AGG", "OBS_VALUE", "OBS_CONF")
+        .withColumnRenamed("agg_scope", "AGG_CODE") \
+        .select("TIME_SERIES_CODE", "DATE", "AGG_CODE", "OBS_VALUE", "OBS_CONF")
 
     # SDMx convention: a zero position is simply not reported, so it must not be published
     # as an observation. Nulls are dropped for the same reason.
@@ -245,19 +246,19 @@ def add_version_hash(df: DataFrame, payload_cols: List[str]) -> DataFrame:
 def merge_scd2_macro(
     spark: SparkSession,
     df_incoming: DataFrame,
-    target_table_name: str = "dbw_sovereignshield.sovereign_shield.lbs_sdmx_history",
+    target_table_name: str = "dbw_sovereignshield.sovereign_shield.agg_sdmx_history",
     date_scope: str = "2026-Q1",
-    ibs_agg_scope: str = "LBSR"
+    agg_scope: str = "LBSR"
 ) -> None:
     """
     Executes SCD2 Upsert and Scoped Logical Delete for Centralized Macro Data.
-    Composite Key: TIME_SERIES_CODE, DATE, IBS_AGG
+    Composite Key: TIME_SERIES_CODE, DATE, AGG_CODE
 
     Quarantined revisions never mutate active state. Rows arriving with
     BATCH_STATUS = 'QUARANTINE' are appended as IS_CURRENT = false audit records
     only: they do not expire, supersede, or logically delete the previously
-    published version, so `v_lbs_sdmx_published` keeps serving the last valid
-    state for that country-quarter. Only PUBLISHED rows drive the standard SCD2
+    published version, so `v_agg_sdmx_published` keeps serving the last valid
+    state for that reporting period. Only PUBLISHED rows drive the standard SCD2
     close-and-insert lifecycle.
     """
     payload_cols = ["OBS_VALUE", "OBS_STATUS", "OBS_CONF", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_STATUS"]
@@ -267,7 +268,7 @@ def merge_scd2_macro(
     df_quarantined = df_source.filter(F.col("BATCH_STATUS") != "PUBLISHED")
 
     # 1. Initialize or load Delta Table
-    # Column names must match the lbs_sdmx_history DDL (unity_catalog_triple_lock.sql): VALID_FROM/VALID_TO/IS_CURRENT.
+    # Column names must match the agg_sdmx_history DDL (unity_catalog_triple_lock.sql): VALID_FROM/VALID_TO/IS_CURRENT.
     if not spark.catalog.tableExists(target_table_name):
         df_init = df_source \
             .withColumn("VALID_FROM", F.current_timestamp()) \
@@ -287,7 +288,7 @@ def merge_scd2_macro(
     join_key_cond = """
         target.TIME_SERIES_CODE = source.TIME_SERIES_CODE AND
         target.DATE = source.DATE AND
-        target.IBS_AGG = source.IBS_AGG AND
+        target.AGG_CODE = source.AGG_CODE AND
         target.IS_CURRENT = true
     """
 
@@ -307,7 +308,7 @@ def merge_scd2_macro(
 
     df_to_insert = df_published.alias("src").join(
         active_target.alias("tgt"),
-        on=["TIME_SERIES_CODE", "DATE", "IBS_AGG"],
+        on=["TIME_SERIES_CODE", "DATE", "AGG_CODE"],
         how="left"
     ).filter(
         "tgt.TIME_SERIES_CODE IS NULL OR tgt.version_hash != src.version_hash"
@@ -329,11 +330,11 @@ def merge_scd2_macro(
     # VALID_TO equals VALID_FROM so the row is never visible as an active version.
     # The anti-join keeps re-runs idempotent: replaying the same rejected submission must
     # not stack duplicate audit records.
-    already_logged = delta_target.toDF().select("TIME_SERIES_CODE", "DATE", "IBS_AGG", "version_hash")
+    already_logged = delta_target.toDF().select("TIME_SERIES_CODE", "DATE", "AGG_CODE", "version_hash")
 
     df_quarantine_audit = df_quarantined.join(
         already_logged,
-        on=["TIME_SERIES_CODE", "DATE", "IBS_AGG", "version_hash"],
+        on=["TIME_SERIES_CODE", "DATE", "AGG_CODE", "version_hash"],
         how="left_anti"
     ) \
         .withColumn("VALID_FROM", F.current_timestamp()) \
@@ -351,8 +352,8 @@ def merge_scd2_macro(
     df_quarantine_audit.unpersist()
 
     # 5. Stage 3: Scoped Logical Delete
-    # Expire active records within (DATE, IBS_AGG) scope missing from the incoming batch.
-    # Restricted to country-quarter batches that actually published: a quarantined batch must
+    # Expire active records within (DATE, AGG_CODE) scope missing from the incoming batch.
+    # Restricted to reporting-period batches that actually published: a quarantined batch must
     # not retire its own previously published series just because the revision was rejected.
     published_batches = df_published.select(
         F.element_at(F.split(F.col("TIME_SERIES_CODE"), "\\."), 9).alias("REP_CTY"),
@@ -364,7 +365,7 @@ def merge_scd2_macro(
     # Re-read rather than reusing the pre-insert snapshot, otherwise rows written in Stage 2
     # would be treated as missing from the batch and immediately expired.
     deleted_keys = delta_target.toDF().filter(
-        (F.col("IS_CURRENT") == True) & (F.col("DATE") == date_scope) & (F.col("IBS_AGG") == ibs_agg_scope)
+        (F.col("IS_CURRENT") == True) & (F.col("DATE") == date_scope) & (F.col("AGG_CODE") == agg_scope)
     ).withColumn(
         "REP_CTY", F.element_at(F.split(F.col("TIME_SERIES_CODE"), "\\."), 9)
     ).join(
@@ -373,7 +374,7 @@ def merge_scd2_macro(
         df_incoming_keys,
         on="TIME_SERIES_CODE",
         how="left_anti"
-    ).select("TIME_SERIES_CODE", "DATE", "IBS_AGG")
+    ).select("TIME_SERIES_CODE", "DATE", "AGG_CODE")
 
     deleted_keys = deleted_keys.cache()
     deleted_count = deleted_keys.count()
@@ -383,7 +384,7 @@ def merge_scd2_macro(
             condition="""
                 target.TIME_SERIES_CODE = deleted.TIME_SERIES_CODE AND
                 target.DATE = deleted.DATE AND
-                target.IBS_AGG = deleted.IBS_AGG AND
+                target.AGG_CODE = deleted.AGG_CODE AND
                 target.IS_CURRENT = true
             """
         ).whenMatchedUpdate(
@@ -392,7 +393,7 @@ def merge_scd2_macro(
                 "VALID_TO": "current_timestamp()"
             }
         ).execute()
-        print(f"Logically deleted {deleted_count} missing records in scope ({date_scope}, {ibs_agg_scope}).")
+        print(f"Logically deleted {deleted_count} missing records in scope ({date_scope}, {agg_scope}).")
     deleted_keys.unpersist()
 
 
@@ -402,12 +403,12 @@ def merge_scd2_micro(
     country_code: str,
     target_catalog_schema: str = "dbw_sovereignshield.sovereign_shield",
     date_scope: str = "2026-Q1",
-    ibs_agg_scope: str = "LBSR"
+    agg_scope: str = "LBSR"
 ) -> None:
     """
     Executes SCD2 Upsert and Scoped Logical Delete for Sovereign Micro Transactions.
     Target Table: {target_catalog_schema}.lbs_micro_transactions_{country_code}
-    Composite Key: TIME_SERIES_CODE, BANK_CODE, DATE, IBS_AGG
+    Composite Key: TIME_SERIES_CODE, BANK_CODE, DATE, AGG_CODE
     """
     table_name = f"{target_catalog_schema}.lbs_micro_transactions_{country_code.lower()}"
     payload_cols = ["OBS_VALUE"]
@@ -428,7 +429,7 @@ def merge_scd2_micro(
         target.TIME_SERIES_CODE = source.TIME_SERIES_CODE AND
         target.BANK_CODE = source.BANK_CODE AND
         target.DATE = source.DATE AND
-        target.IBS_AGG = source.IBS_AGG AND
+        target.AGG_CODE = source.AGG_CODE AND
         target.is_current = true
     """
 
@@ -449,7 +450,7 @@ def merge_scd2_micro(
     
     df_to_insert = df_source.alias("src").join(
         active_target.alias("tgt"),
-        on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "IBS_AGG"],
+        on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE"],
         how="left"
     ).filter(
         "tgt.TIME_SERIES_CODE IS NULL OR tgt.version_hash != src.version_hash"
@@ -465,12 +466,12 @@ def merge_scd2_micro(
     df_incoming_keys = df_source.select("TIME_SERIES_CODE", "BANK_CODE").distinct()
     
     deleted_keys = active_target.filter(
-        (F.col("DATE") == date_scope) & (F.col("IBS_AGG") == ibs_agg_scope)
+        (F.col("DATE") == date_scope) & (F.col("AGG_CODE") == agg_scope)
     ).join(
         df_incoming_keys,
         on=["TIME_SERIES_CODE", "BANK_CODE"],
         how="left_anti"
-    ).select("TIME_SERIES_CODE", "BANK_CODE", "DATE", "IBS_AGG")
+    ).select("TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE")
 
     if deleted_keys.count() > 0:
         delta_target.alias("target").merge(
@@ -479,7 +480,7 @@ def merge_scd2_micro(
                 target.TIME_SERIES_CODE = deleted.TIME_SERIES_CODE AND
                 target.BANK_CODE = deleted.BANK_CODE AND
                 target.DATE = deleted.DATE AND
-                target.IBS_AGG = deleted.IBS_AGG AND
+                target.AGG_CODE = deleted.AGG_CODE AND
                 target.is_current = true
             """
         ).whenMatchedUpdate(
@@ -493,17 +494,22 @@ def merge_scd2_micro(
 def process_and_publish_macro_batch(
     spark: SparkSession,
     date_scope: str = "2026-Q1",
-    ibs_agg_scope: str = "LBSR",
-    cycle: str = "baseline"
+    agg_scope: str = "LBSR",
+    cycle: str = "baseline",
+    freq: str = "Q"
 ) -> None:
     """Ingests synthetic micro-data, validates the aggregated macro batch, routes
     QUARANTINE/PUBLISHED records, and executes the SCD2 merge on the macro-history table.
+
+    `freq` is the collection cadence for this batch. LBS is quarterly, but the
+    history table holds every cadence a reporting body submits, so the value is a
+    parameter rather than a constant.
     """
     # 1. Micro-data was already persisted to the append-only ledger inside this call.
-    # DATE/IBS_AGG now come straight from the real aggregation grain; only OBS_STATUS
+    # DATE/AGG_CODE now come straight from the real aggregation grain; only OBS_STATUS
     # (an SDMx attribute, not a dimension) still needs a default.
     df_aggregated = generate_and_aggregate_micro_data(
-        spark, date_scope=date_scope, cycle=cycle, ibs_agg_scope=ibs_agg_scope
+        spark, date_scope=date_scope, cycle=cycle, agg_scope=agg_scope, freq=freq
     )
     df_aggregated = df_aggregated.withColumn("OBS_STATUS", F.lit("A"))
 
@@ -523,25 +529,26 @@ def process_and_publish_macro_batch(
     batch_summary.show(truncate=False)
 
     # 4. SCD2 merge runs exclusively on the macro-history table.
-    merge_scd2_macro(spark, df_macro_final, date_scope=date_scope, ibs_agg_scope=ibs_agg_scope)
+    merge_scd2_macro(spark, df_macro_final, date_scope=date_scope, agg_scope=agg_scope)
 
 
 def run_pipeline(
     spark: SparkSession,
     date_scope: str = "2026-Q1",
-    ibs_agg_scope: str = "LBSR"
+    agg_scope: str = "LBSR",
+    freq: str = "Q"
 ) -> None:
     """Runs the baseline submission followed by the revised submission.
 
     The two cycles exist so the SCD2 state machine is exercised end to end: the baseline
     publishes for every country, then Canada re-reports figures that fail the BIS
     cross-checks. The revision must be quarantined without disturbing the published
-    baseline, which stays IS_CURRENT = true and continues to feed v_lbs_sdmx_published.
+    baseline, which stays IS_CURRENT = true and continues to feed v_agg_sdmx_published.
     """
     for cycle in ("baseline", "revision"):
         print(f"\n{'=' * 70}\nSubmission cycle: {cycle}\n{'=' * 70}")
         process_and_publish_macro_batch(
-            spark, date_scope=date_scope, ibs_agg_scope=ibs_agg_scope, cycle=cycle
+            spark, date_scope=date_scope, agg_scope=agg_scope, cycle=cycle, freq=freq
         )
 
 

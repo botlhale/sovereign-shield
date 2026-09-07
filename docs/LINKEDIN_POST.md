@@ -1,12 +1,12 @@
 # SovereignShield — Public Write-Up
 
-Three copy-paste-ready LinkedIn posts, plus the reasoning behind naming the
-actual technology stack.
+Two copy-paste-ready LinkedIn posts and one follow-up, plus the reasoning behind
+naming the actual technology stack.
 
 * [Naming the stack — what is safe and what is not](#naming-the-stack)
-* [Version 1 — The Contractor Dilemma](#version-1--the-contractor-dilemma) (SLT-lead, flagship)
-* [Version 2 — The Bug My Test Missed](#version-2--the-bug-my-test-missed) (hook-lead, more technical)
-* [Version 3 — Short](#version-3--short) (feed-friendly)
+* [Primary post — The Contractor Dilemma](#primary-post--the-contractor-dilemma) (featured, feed-friendly)
+* [Long-form post — The Architecture](#long-form-post--the-architecture) (SLT-lead, for a considered read)
+* [Follow-up post — The Bug My Test Missed](#follow-up-post--the-bug-my-test-missed) (post second, not first)
 * [Comment reply for the inevitable question](#comment-reply)
 * [Before you post](#before-you-post)
 
@@ -80,9 +80,48 @@ deliberately: screen readers skip or spell them out.
 
 ---
 
-## Version 1 — The Contractor Dilemma
+## Primary post — The Contractor Dilemma
 
-**~2,750 characters. SLT-lead, roughly 70/30. This is the flagship.**
+**~2,150 characters. This is the one to post first. It leads on the paradox,
+names the four pillars so a technical reader can evaluate them, and keeps the
+limitations in the body rather than the comments.**
+
+```text
+The people you need for specialist data work are, almost by definition, the people who shouldn't have the data.
+
+I spent a few weeks treating that as an architecture problem rather than a hiring one.
+
+The setup: confidential national banking statistics, submitted to an international body. Sovereignty, confidentiality and arithmetic integrity all apply at once, and they pull against each other.
+
+The approach: put the rules in the catalogue instead of the application.
+
+→ Triple-lock enforcement. Azure Databricks and Unity Catalog hold a row filter and a column mask, attached to the table and resolved against Microsoft Entra ID per caller, per row, at query time.
+
+→ Dissemination gateway. One service decides which identity a query runs as. It carries no entitlement logic at all — the metastore decides what that identity may see. If the gateway were fully compromised, the answer would not change.
+
+→ Temporal integrity. A Delta Lake SCD2 engine keeps every revision. A rejected submission degrades to stale data, never missing data — get that backwards and you silently delete a published series instead of throwing an error.
+
+→ Air-gapped delivery. Built against a synthetic dataset specified by the client. Terraform provisions it and OpenID Connect promotes it, so no credential is stored anywhere.
+
+Four audiences query the same table and get four different answers. Public is one of those four — a group you're granted, not a default you fall into. Which is why the fifth case matters most: someone in none of them sees zero rows. Not an error — nothing.
+
+So off-boarding a contractor and enforcing sovereignty between two nations run through the same mechanism. No separate revocation feature to forget.
+
+The submissions are real SDMX 3.0, serialised with pysdmx — the BIS's own open-source library — against the published Locational Banking Statistics structure. The portal is modelled on the BIS Data Explorer.
+
+Every test runs on a laptop with no cloud credentials. A leaked copy of the repository isn't a data incident.
+
+Whitepaper, architecture diagrams and the Terraform codebase are all in the repo.
+
+Independent reference architecture, 100% synthetic data, not affiliated with or endorsed by any organisation named. Link in the comments — I'd genuinely like to be told where this breaks.
+```
+
+---
+
+## Long-form post — The Architecture
+
+**~2,900 characters. SLT-lead, roughly 70/30. Use when you want the full case on
+the page rather than in the comments.**
 
 ```text
 The people you need for specialist data work are, almost by definition, the people who shouldn't have the data.
@@ -122,10 +161,11 @@ Repository in the comments. I'd genuinely like to be told where this breaks.
 
 ---
 
-## Version 2 — The Bug My Test Missed
+## Follow-up post — The Bug My Test Missed
 
-**~2,850 characters. Hook-lead, closer to 50/50. Use this if your audience skews
-technical, or as a follow-up to Version 1.**
+**~2,900 characters. Post this *second*, days after the primary. It assumes the
+reader already knows what the project is, and it trades reach for credibility
+with the people who actually build these systems.**
 
 > **Accuracy note.** This describes a defect written and caught **during
 > development**, on synthetic data, before anything was deployed to anyone. Say
@@ -175,31 +215,6 @@ Repository in the comments. Tell me what else is wrong with it.
 
 ---
 
-## Version 3 — Short
-
-**~1,250 characters. For a busy feed, or as a comment under someone else's post
-about data sovereignty.**
-
-```text
-The people you need for specialist data work are, almost by definition, the people who shouldn't have the data.
-
-I spent a few weeks treating that as an architecture problem rather than a hiring one.
-
-The setup: confidential national banking statistics, submitted quarterly to an international body. Sovereignty, confidentiality and arithmetic integrity all apply at once, and they pull against each other.
-
-The approach: put the rules in the catalogue instead of the application. Azure Databricks and Unity Catalog hold a row filter and a column mask, resolved against Microsoft Entra ID per caller, per row, at query time. Real SDMX 3.0 messages via pysdmx, the BIS's own open-source library. Portal modelled on the BIS Data Explorer.
-
-Four audiences query the same table and get four different answers. Public is one of those four — a group you're granted, not a default you fall into. Which is why the fifth case matters most: someone in none of them sees zero rows. Not an error — nothing.
-
-So off-boarding a contractor and enforcing sovereignty between two nations run through the same mechanism. No separate revocation feature to forget.
-
-And it was built without the data. Every test runs on a laptop with no cloud credentials. A leaked copy of the repo isn't a data incident.
-
-Independent reference architecture, 100% synthetic data, not affiliated with any organisation named. Repository below.
-```
-
----
-
 ## Comment reply
 
 Someone will ask whether it's in production. Have this ready.
@@ -229,10 +244,15 @@ What it does not demonstrate is behaviour at real volume. That needs a productio
 - [ ] Ready for "is this production?" within the first hour
 
 **On the first two lines.** LinkedIn truncates at roughly 140–210 characters on
-mobile. Versions 1 and 3 open on the contractor paradox and Version 2 on the
-defect caught in testing, because both are complete thoughts that survive
-truncation. An
-opening like "Excited to share…" spends that budget on nothing.
+mobile. The primary and long-form posts both open on the contractor paradox, and
+the follow-up opens on the defect caught in testing, because each is a complete
+thought that survives truncation. An opening like "Excited to share…" spends that
+budget on nothing.
+
+**On sequencing.** Post the primary first and let it run. The follow-up is worth
+more once people know what the project is — a bug story about a system nobody has
+heard of reads as noise, and the same story about a system they have just
+evaluated reads as rigour.
 
 **On tone.** The credibility of this rests on the limitations, not the
 achievements. People who have worked in statistical exchange have decades on

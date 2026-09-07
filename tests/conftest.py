@@ -50,19 +50,28 @@ def pytest_addoption(parser):
         default=False,
         help="Run persona assertions against real Unity Catalog instead of the local mirror.",
     )
+    parser.addoption(
+        "--stress",
+        action="store_true",
+        default=False,
+        help="Run the high-volume scale benchmarks. Minutes, not seconds.",
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "live: requires a reachable Databricks workspace")
+    config.addinivalue_line("markers", "stress: high-volume benchmark, opt in with --stress")
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--live"):
-        return
-    skip = pytest.mark.skip(reason="needs --live and a reachable workspace")
+    skip_live = pytest.mark.skip(reason="needs --live and a reachable workspace")
+    skip_stress = pytest.mark.skip(reason="needs --stress; the benchmark takes minutes")
+
     for item in items:
-        if "live" in item.keywords:
-            item.add_marker(skip)
+        if "live" in item.keywords and not config.getoption("--live"):
+            item.add_marker(skip_live)
+        if "stress" in item.keywords and not config.getoption("--stress"):
+            item.add_marker(skip_stress)
 
 
 @pytest.fixture(scope="session")
@@ -108,7 +117,7 @@ def corpus() -> pd.DataFrame:
             {
                 "TIME_SERIES_CODE": k,
                 "DATE": d,
-                "IBS_AGG": "LBSR",
+                "AGG_CODE": "LBSR",
                 "OBS_VALUE": v,
                 "OBS_STATUS": "A",
                 "OBS_CONF": c,

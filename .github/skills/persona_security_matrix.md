@@ -35,7 +35,7 @@ No human developer holds DDL rights in production. All structural change passes 
 ### 1. Anonymous public consumer
 
 * **Entra ID group:** `sg-sovereignshield-public`
-* **Reaches:** `lbs_sdmx_history` (filtered), `v_lbs_sdmx_published`
+* **Reaches:** `agg_sdmx_history` (filtered), `v_agg_sdmx_published`
 * **Entitlement:** `BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'` across all jurisdictions — strictly clean, free-to-publish data.
 
 The public tier is an **explicit group, not the absence of one**. The row filter fails closed, so "unauthenticated" cannot be a fall-through case; it would return zero rows. The dissemination gateway's proxy principal is a member of this group, which makes the anonymous entitlement auditable in Entra ID like any other.
@@ -45,7 +45,7 @@ The public tier is an **explicit group, not the absence of one**. The row filter
 ### 2. Authenticated researcher
 
 * **Entra ID group:** `sg-sovereignshield-researchers`
-* **Reaches:** `lbs_sdmx_history` (filtered), `v_lbs_sdmx_published`
+* **Reaches:** `agg_sdmx_history` (filtered), `v_agg_sdmx_published`
 * **Entitlement:** `BATCH_STATUS = 'PUBLISHED'` across all jurisdictions — including confidential series, whose `OBS_VALUE` arrives masked to `NULL`.
 
 Researchers see the confidential *rows*, not the confidential *values*. This preserves structural dimensional density: joins still resolve and dimensional counts stay correct, while the protected metric is withheld. `NULL` is the international convention for a redacted observation, and it is also the only option available — a mask must return the masked column's own type, and `OBS_VALUE` is a `DOUBLE`, so a `'xxx'` sentinel is not representable.
@@ -55,7 +55,7 @@ Quarantined batches remain invisible: an unvalidated figure must never reach a r
 ### 3. Regional reporting submitter
 
 * **Entra ID group:** `sg-sovereignshield-submitter-<cc>` (`-ca`, `-us`)
-* **Reaches:** `lbs_sdmx_history` **and** the raw `lbs_micro_transactions` ledger
+* **Reaches:** `agg_sdmx_history` **and** the raw `lbs_micro_transactions` ledger
 * **Entitlement, own jurisdiction:** every record where segment 9 of `TIME_SERIES_CODE` equals their ISO code — including `QUARANTINE` batches and `C`/`N` confidential values, unmasked.
 * **Entitlement, foreign jurisdictions:** only `BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'`. Foreign confidential records stay restricted; foreign quarantined records are invisible.
 
@@ -87,17 +87,17 @@ safe to grant.*
 
 | Lock | Object | Binding | Granularity |
 | --- | --- | --- | --- |
-| RLS (macro) | `fn_rls_lbs_multi_persona_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)` | Row |
+| RLS (macro) | `fn_rls_multi_persona_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)` | Row |
 | RLS (micro) | `fn_rls_micro_country_lock` | `WITH ROW FILTER ... ON (reporting_country)` | Row |
 | DDM | `fn_ddm_obs_conf_mask` | `OBS_VALUE DOUBLE MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | Cell |
-| Quarantine view | `v_lbs_sdmx_published` | `BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true` | Result set |
+| Quarantine view | `v_agg_sdmx_published` | `BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true` | Result set |
 
 ### Why the row filter reads three columns
 
 Filtering on the SDMx key alone was sufficient while the platform was internal. It stops being sufficient the moment the data is publicly reachable: a public visitor asking for Canadian series would receive Canada's quarantined and confidential rows as readily as its published ones. Sovereignty, lifecycle state and confidentiality have to be evaluated in the same predicate.
 
 ```sql
-CREATE OR REPLACE FUNCTION fn_rls_lbs_multi_persona_lock(
+CREATE OR REPLACE FUNCTION fn_rls_multi_persona_lock(
   time_series_code STRING, batch_status STRING, obs_conf STRING
 )
 RETURNS BOOLEAN
@@ -153,7 +153,7 @@ Without `TIME_SERIES_CODE` the function knows a value is confidential but not *w
 
 ### A note on views
 
-A Unity Catalog view resolves group membership against the **view owner**, not the caller. Per-caller entitlement must therefore be evaluated against the base table, which is why the gateway queries `lbs_sdmx_history` directly rather than serving from a pre-filtered view. `v_lbs_sdmx_published` remains a convenience for BI tools with a uniform audience.
+A Unity Catalog view resolves group membership against the **view owner**, not the caller. Per-caller entitlement must therefore be evaluated against the base table, which is why the gateway queries `agg_sdmx_history` directly rather than serving from a pre-filtered view. `v_agg_sdmx_published` remains a convenience for BI tools with a uniform audience.
 
 ---
 

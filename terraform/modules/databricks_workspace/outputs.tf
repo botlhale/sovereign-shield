@@ -23,6 +23,11 @@ output "external_location_url" {
   value       = databricks_external_location.main.url
 }
 
+output "ingestion_cluster_policy_id" {
+  description = "Cluster policy the bundle's job cluster inherits from. Pins USER_ISOLATION and the sizing envelope."
+  value       = databricks_cluster_policy.ingestion.id
+}
+
 output "storage_credential_name" {
   description = "Managed-identity storage credential name."
   value       = databricks_storage_credential.main.name

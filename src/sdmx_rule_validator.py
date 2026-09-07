@@ -48,7 +48,9 @@ DATA_DIR: str = os.path.join(_REPO_ROOT, "data")
 
 #: Aggregation framework code. Not modeled as a DSD dimension/attribute, so it
 #: is reattached as a constant when ingesting SDMx-ML submissions.
-IBS_AGG_CODE: str = "LBSR"
+#: Aggregation framework code. 'LBSR' is the BIS Locational Banking Statistics
+#: restated basis, the concrete example this reference architecture validates against.
+AGG_CODE_DEFAULT: str = "LBSR"
 
 #: Fallback 11 BIS_LBS dimensions, used only if the live DSD cannot be fetched.
 FALLBACK_DSD_DIMENSIONS: List[str] = [
@@ -295,7 +297,7 @@ class SDMxRuleValidator:
                 `data/ca_submission_2026_Q1.xml`).
 
         Returns:
-            A DataFrame with columns `TIME_SERIES_CODE`, `DATE`, `IBS_AGG`,
+            A DataFrame with columns `TIME_SERIES_CODE`, `DATE`, `AGG_CODE`,
             `OBS_VALUE`, `OBS_STATUS`, and `OBS_CONF`.
 
         Raises:
@@ -311,12 +313,12 @@ class SDMxRuleValidator:
         data["TIME_SERIES_CODE"] = data[dim_cols].astype(str).agg(".".join, axis=1)
         data = data.rename(columns={"TIME_PERIOD": "DATE"})
         data["OBS_VALUE"] = pd.to_numeric(data["OBS_VALUE"])
-        data["IBS_AGG"] = IBS_AGG_CODE
+        data["AGG_CODE"] = AGG_CODE_DEFAULT
         for col in ("OBS_STATUS", "OBS_CONF"):
             if col not in data.columns:
                 data[col] = pd.NA
 
-        return data[["TIME_SERIES_CODE", "DATE", "IBS_AGG", "OBS_VALUE", "OBS_STATUS", "OBS_CONF"]].reset_index(drop=True)
+        return data[["TIME_SERIES_CODE", "DATE", "AGG_CODE", "OBS_VALUE", "OBS_STATUS", "OBS_CONF"]].reset_index(drop=True)
 
     def load_submissions(self, directory: str = DATA_DIR, pattern: str = "*_submission_*.xml") -> Dict[str, pd.DataFrame]:
         """Discovers and ingests every sovereign SDMx 3.0 XML file in `directory`.
@@ -362,17 +364,17 @@ class SDMxRuleValidator:
 
         Args:
             df_macro: A macro DataFrame with `TIME_SERIES_CODE`, `DATE`,
-                `IBS_AGG`, and `OBS_VALUE` columns (as produced by `load_submission`).
+                `AGG_CODE`, and `OBS_VALUE` columns (as produced by `load_submission`).
 
         Returns:
-            A DataFrame with columns `TIME_SERIES_CODE`, `DATE`, `IBS_AGG`,
+            A DataFrame with columns `TIME_SERIES_CODE`, `DATE`, `AGG_CODE`,
             `OBS_VALUE`, `OBS_STATUS`, `OBS_CONF`, `QUALITY_STATUS`,
             `FAILED_RULE_ID`, and `BATCH_STATUS`.
         """
         df = df_macro.copy().reset_index(drop=True)
 
         result_columns = [
-            "TIME_SERIES_CODE", "DATE", "IBS_AGG", "OBS_VALUE", "OBS_STATUS",
+            "TIME_SERIES_CODE", "DATE", "AGG_CODE", "OBS_VALUE", "OBS_STATUS",
             "OBS_CONF", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_STATUS",
         ]
         if df.empty:
@@ -404,7 +406,7 @@ class SDMxRuleValidator:
 
         for rule in self.rules:
             context_dims = [dim for dim in self.dimension_order if dim not in rule.dim_names]
-            group_cols = context_dims + ["DATE", "IBS_AGG"]
+            group_cols = context_dims + ["DATE", "AGG_CODE"]
             for _, group in df.groupby(group_cols, sort=False, dropna=False):
                 agg_rows = self._filter_rows(group, rule.aggregate)
                 if agg_rows.empty:

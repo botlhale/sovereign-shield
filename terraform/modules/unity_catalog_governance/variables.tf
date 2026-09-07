@@ -40,6 +40,12 @@ variable "sql_warehouse_auto_stop_minutes" {
   default     = 10
 }
 
+variable "sql_warehouse_max_clusters" {
+  description = "Upper bound for warehouse multi-cluster load balancing."
+  type        = number
+  default     = 1
+}
+
 variable "grant_tables" {
   description = <<-EOT
     Apply table-level grants. Leave false until the Asset Bundle has created the

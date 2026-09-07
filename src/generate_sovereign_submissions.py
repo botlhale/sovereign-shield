@@ -72,14 +72,15 @@ DSD_DIMENSIONS: List[str] = [
 #: SDMx reporting quarter used for all synthetic submissions.
 REPORTING_DATE: str = "2026-Q1"
 
-#: Aggregation framework code (Locational Banking Statistics, restated basis).
-IBS_AGG_CODE: str = "LBSR"
+#: Aggregation framework code. 'LBSR' is the BIS Locational Banking Statistics
+#: restated basis, the concrete example this reference architecture validates against.
+AGG_CODE_DEFAULT: str = "LBSR"
 
 #: Default share of a single bank's contribution that triggers OBS_CONF = 'N'.
 DOMINANCE_THRESHOLD: float = 0.60
 
 #: Strict, required schema for each sovereign micro-data table.
-MICRO_COLUMNS: List[str] = ["TIME_SERIES_CODE", "BANK_CODE", "DATE", "IBS_AGG", "OBS_VALUE"]
+MICRO_COLUMNS: List[str] = ["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE", "OBS_VALUE"]
 
 #: Live BIS REST endpoint exposing the BIS_LBS Data Structure Definition (DSD).
 BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all"
@@ -146,7 +147,7 @@ def _make_micro_rows(
                 "TIME_SERIES_CODE": _build_time_series_code(dims),
                 "BANK_CODE": bank_code,
                 "DATE": REPORTING_DATE,
-                "IBS_AGG": IBS_AGG_CODE,
+                "AGG_CODE": AGG_CODE_DEFAULT,
                 "OBS_VALUE": float(obs_value),
             }
         )
@@ -283,7 +284,7 @@ def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
 def aggregate_micro_to_macro(df_micro: pd.DataFrame, threshold: float = 0.60) -> pd.DataFrame:
     """Aggregates a single sovereign's bank-level micro-data into SDMx 3.0 macro time series.
 
-    Groups by `['TIME_SERIES_CODE', 'DATE', 'IBS_AGG']`, sums `OBS_VALUE`, and
+    Groups by `['TIME_SERIES_CODE', 'DATE', 'AGG_CODE']`, sums `OBS_VALUE`, and
     applies the Configurable Dominance Rule: if any single bank's contribution
     to a `TIME_SERIES_CODE` total is >= `threshold`, the observation is marked
     restricted (`OBS_CONF = 'N'`); otherwise it is free for publication
@@ -303,10 +304,10 @@ def aggregate_micro_to_macro(df_micro: pd.DataFrame, threshold: float = 0.60) ->
             triggers restricted confidentiality. Defaults to 0.60.
 
     Returns:
-        A macro DataFrame with columns `TIME_SERIES_CODE`, `DATE`, `IBS_AGG`,
+        A macro DataFrame with columns `TIME_SERIES_CODE`, `DATE`, `AGG_CODE`,
         `OBS_VALUE`, `MAX_BANK_SHARE`, `OBS_CONF`, and `OBS_STATUS`.
     """
-    group_keys = ["TIME_SERIES_CODE", "DATE", "IBS_AGG"]
+    group_keys = ["TIME_SERIES_CODE", "DATE", "AGG_CODE"]
 
     # 1. Total macro OBS_VALUE per SDMx time series.
     df_macro = df_micro.groupby(group_keys, as_index=False)["OBS_VALUE"].sum()
@@ -423,7 +424,7 @@ def generate_sdmx_ml(
     dataset = PandasDataset(structure=schema, data=df_obs, action=dataset_action)
 
     sender = SOVEREIGN_SENDERS.get(country_code, Organisation(id="ZZZ"))
-    dataset_id = f"{country_code.upper()}_{IBS_AGG_CODE}_{REPORTING_DATE.replace('-', '')}"
+    dataset_id = f"{country_code.upper()}_{AGG_CODE_DEFAULT}_{REPORTING_DATE.replace('-', '')}"
     header = Header(
         id=str(uuid.uuid4()),
         test=False,

@@ -24,17 +24,27 @@ USE SCHEMA sovereign_shield;
 -- column mask. Fails harmlessly on the very first deployment.
 -- =====================================================================
 -- @tolerate-failure
-ALTER TABLE lbs_sdmx_history DROP ROW FILTER;
+ALTER TABLE agg_sdmx_history DROP ROW FILTER;
 -- @tolerate-failure
-ALTER TABLE lbs_sdmx_history ALTER COLUMN OBS_VALUE DROP MASK;
+ALTER TABLE agg_sdmx_history ALTER COLUMN OBS_VALUE DROP MASK;
 -- @tolerate-failure
 ALTER TABLE lbs_micro_transactions DROP ROW FILTER;
 
--- The single-column filter is superseded by fn_rls_lbs_multi_persona_lock.
+-- The single-column filter is superseded by fn_rls_multi_persona_lock.
 -- Dropping it keeps the metastore free of an unbound policy that still
 -- compiles and could be re-attached by mistake.
 -- @tolerate-failure
 DROP FUNCTION IF EXISTS fn_rls_lbs_country_lock;
+
+-- Pre-generalization object names. A workspace provisioned before the macro
+-- layer was renamed still holds these; detaching lets the operator drop them
+-- without the metastore refusing on a live policy binding.
+-- @tolerate-failure
+ALTER TABLE lbs_sdmx_history DROP ROW FILTER;
+-- @tolerate-failure
+ALTER TABLE lbs_sdmx_history ALTER COLUMN OBS_VALUE DROP MASK;
+-- @tolerate-failure
+DROP FUNCTION IF EXISTS fn_rls_lbs_multi_persona_lock;
 
 -- =====================================================================
 -- 2. DYNAMIC DATA MASKING (DDM) FUNCTION
@@ -95,7 +105,7 @@ END;
 -- expire; if the filter hid those rows the merge would treat every row as new,
 -- silently duplicating history and never closing prior versions.
 -- =====================================================================
-CREATE OR REPLACE FUNCTION fn_rls_lbs_multi_persona_lock(
+CREATE OR REPLACE FUNCTION fn_rls_multi_persona_lock(
   time_series_code STRING,
   batch_status STRING,
   obs_conf STRING
@@ -160,7 +170,7 @@ CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
   sector_code STRING,
   transaction_amount DOUBLE,
   obs_conf STRING,
-  ibs_agg_scope STRING,
+  agg_scope STRING,
   date_scope STRING,
   transaction_timestamp TIMESTAMP
 )
@@ -168,14 +178,20 @@ WITH ROW FILTER fn_rls_micro_country_lock ON (reporting_country);
 
 -- =====================================================================
 -- 6. MACRO SDMX HISTORY TABLE (SCD2, WITH RLS & DDM APPLIED)
+--
+-- Named for the aggregation grain rather than a collection: the engine is
+-- domain-agnostic and this table holds whatever statistical aggregate a
+-- reporting body submits. AGG_CODE carries the framework code ('LBSR' for the
+-- BIS Locational Banking Statistics example used to validate the model).
+--
 -- OBS_VALUE may legitimately be negative: LBS positions record both asset and
 -- liability directions. Zero-valued observations are not reported at all under
 -- SDMx convention and are filtered upstream.
 -- =====================================================================
-CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
+CREATE TABLE IF NOT EXISTS agg_sdmx_history (
   TIME_SERIES_CODE STRING,
   DATE STRING,
-  IBS_AGG STRING,
+  AGG_CODE STRING,
   OBS_VALUE DOUBLE MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE),
   OBS_STATUS STRING,
   OBS_CONF STRING,
@@ -187,7 +203,7 @@ CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
   VALID_TO TIMESTAMP,
   IS_CURRENT BOOLEAN
 )
-WITH ROW FILTER fn_rls_lbs_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
+WITH ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
 
 -- =====================================================================
 -- 7. RE-ATTACH POLICIES ON PRE-EXISTING TABLES
@@ -195,31 +211,31 @@ WITH ROW FILTER fn_rls_lbs_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS
 -- just built the tables with their policies already inline.
 -- =====================================================================
 -- @tolerate-failure
-ALTER TABLE lbs_sdmx_history ALTER COLUMN OBS_VALUE SET MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE);
+ALTER TABLE agg_sdmx_history ALTER COLUMN OBS_VALUE SET MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE);
 -- @tolerate-failure
-ALTER TABLE lbs_sdmx_history SET ROW FILTER fn_rls_lbs_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
+ALTER TABLE agg_sdmx_history SET ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
 -- @tolerate-failure
 ALTER TABLE lbs_micro_transactions SET ROW FILTER fn_rls_micro_country_lock ON (reporting_country);
 
 -- =====================================================================
 -- 8. QUARANTINE VIEW ISOLATION
 -- Serves only the last valid published state. A quarantined revision is
--- written to lbs_sdmx_history with IS_CURRENT = false, so it can never surface
+-- written to agg_sdmx_history with IS_CURRENT = false, so it can never surface
 -- here and never interrupts consumers of the prior published value.
 --
 -- The portal and API deliberately query the base table instead of this view: a
 -- Unity Catalog view resolves group membership against the view owner, so the
 -- per-caller persona filter only means something when the table is read directly.
 -- =====================================================================
-CREATE OR REPLACE VIEW v_lbs_sdmx_published AS
+CREATE OR REPLACE VIEW v_agg_sdmx_published AS
 SELECT 
   TIME_SERIES_CODE,
   DATE,
-  IBS_AGG,
+  AGG_CODE,
   OBS_VALUE,
   OBS_STATUS,
   OBS_CONF
-FROM lbs_sdmx_history
+FROM agg_sdmx_history
 WHERE BATCH_STATUS = 'PUBLISHED' 
   AND IS_CURRENT = true;
 

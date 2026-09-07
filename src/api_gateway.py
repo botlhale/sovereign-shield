@@ -188,6 +188,7 @@ def current_principal(request: Request) -> Principal:
 
 def search_filter(
     principal: Principal = Depends(current_principal),
+    frequency: Optional[List[str]] = Query(None, description="FREQ code(s): A annual, S semi-annual, Q quarterly, M monthly"),
     parent_country: Optional[List[str]] = Query(None, description="L_PARENT_CTY code(s), e.g. CA, 5J"),
     reporting_country: Optional[List[str]] = Query(None, description="L_REP_CTY code(s) - the reporting sovereign"),
     counterpart_sector: Optional[List[str]] = Query(None, description="L_CP_SECTOR code(s), e.g. B, N, A"),
@@ -206,6 +207,7 @@ def search_filter(
     """
     try:
         return SeriesFilter.build(
+            frequency=frequency,
             parent_country=parent_country,
             reporting_country=reporting_country,
             counterpart_sector=counterpart_sector,

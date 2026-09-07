@@ -49,7 +49,7 @@ def merge_scd2_micro_pandas(
     country_code: str, 
     table_path: str = "data/local_delta_catalog/lbs_micro", 
     date_scope: str = "2026-Q1", 
-    ibs_agg_scope: str = "LBSR"
+    agg_scope: str = "LBSR"
 ):
     """Local pandas/delta-rs SCD2 merge mirroring the Spark macro engine's state protection.
 
@@ -98,7 +98,7 @@ def merge_scd2_micro_pandas(
     merged = pd.merge(
         active_target, 
         df_published, 
-        on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "IBS_AGG"], 
+        on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE"], 
         suffixes=('_tgt', '_src')
     )
     changed_records = merged[merged['version_hash_tgt'] != merged['version_hash_src']]
@@ -106,7 +106,7 @@ def merge_scd2_micro_pandas(
     if not changed_records.empty:
         # Use delta-rs native merge to update the old records
         dt.merge(
-            source=changed_records[['TIME_SERIES_CODE', 'BANK_CODE', 'DATE', 'IBS_AGG']],
+            source=changed_records[['TIME_SERIES_CODE', 'BANK_CODE', 'DATE', 'AGG_CODE']],
             predicate="s.TIME_SERIES_CODE = t.TIME_SERIES_CODE AND s.BANK_CODE = t.BANK_CODE AND t.is_current = true",
             source_alias="s",
             target_alias="t"
@@ -122,7 +122,7 @@ def merge_scd2_micro_pandas(
     merged_all = pd.merge(
         df_published, 
         active_target, 
-        on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "IBS_AGG"], 
+        on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE"], 
         how="left", 
         suffixes=('', '_tgt')
     )

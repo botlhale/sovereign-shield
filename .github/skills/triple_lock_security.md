@@ -65,14 +65,14 @@ The security architecture operates in three distinct layers, bound together by s
 
 `unity_catalog_triple_lock.sql` executes as the **first task of every pipeline run**, so its correctness constraints are unusually strict.
 
-* **Never drop state.** The script contains no `DROP TABLE` or `DROP VIEW` statements. An earlier revision dropped `lbs_sdmx_history` on each run, which erased the entire SCD2 lineage every execution and presented as "all records show `IS_CURRENT = false`". Only `CREATE TABLE IF NOT EXISTS` and `CREATE OR REPLACE VIEW` are permitted.
+* **Never drop state.** The script contains no `DROP TABLE` or `DROP VIEW` statements. An earlier revision dropped `agg_sdmx_history` on each run, which erased the entire SCD2 lineage every execution and presented as "all records show `IS_CURRENT = false`". Only `CREATE TABLE IF NOT EXISTS` and `CREATE OR REPLACE VIEW` are permitted.
 * **Create before binding.** Unity Catalog requires target tables to physically exist before security policies bind to them; `ALTER TABLE ... SET ROW FILTER` on a missing table raises `TABLE_OR_VIEW_NOT_FOUND`.
 * **Detach → replace → re-attach.** `CREATE OR REPLACE FUNCTION` fails while the function is bound to a live row filter or column mask. The script therefore drops the filters and masks first (§1), redefines the functions, recreates the tables, then re-attaches (§7).
 * **Selective failure tolerance.** Statements that legitimately fail on one lifecycle path but not the other — detaching a filter on a table that does not yet exist, re-attaching one that is already bound — carry the marker below. The marker must be the *entire* comment on the preceding line; any other failure aborts the deployment rather than leaving the platform half-secured.
 
 ```sql
 -- @tolerate-failure
-ALTER TABLE lbs_sdmx_history DROP ROW FILTER;
+ALTER TABLE agg_sdmx_history DROP ROW FILTER;
 ```
 
 The script currently parses to **29 statements, 6 of which are tolerated**.
@@ -81,7 +81,7 @@ The script currently parses to **29 statements, 6 of which are tolerated**.
 
 Ensures strict national data sovereignty across **both** the macro history and the raw micro ledger.
 
-* **Macro (`fn_rls_lbs_multi_persona_lock`):** Evaluates three columns at once — segment 9 of the 11-dimension SDMx `TIME_SERIES_CODE`, the `BATCH_STATUS` lifecycle state, and the `OBS_CONF` confidentiality flag — against the executing user's Entra ID group membership (e.g. `sg-sovereignshield-submitter-ca`). Filtering on the key alone stops being sufficient once the data is publicly reachable: a public visitor asking for Canadian series would receive Canada's quarantined and confidential rows as readily as its published ones.
+* **Macro (`fn_rls_multi_persona_lock`):** Evaluates three columns at once — segment 9 of the 11-dimension SDMx `TIME_SERIES_CODE`, the `BATCH_STATUS` lifecycle state, and the `OBS_CONF` confidentiality flag — against the executing user's Entra ID group membership (e.g. `sg-sovereignshield-submitter-ca`). Filtering on the key alone stops being sufficient once the data is publicly reachable: a public visitor asking for Canadian series would receive Canada's quarantined and confidential rows as readily as its published ones.
 * **Micro (`fn_rls_micro_country_lock`):** Applies the same sovereign isolation directly to the `reporting_country` column of `lbs_micro_transactions`. Without this, the raw ledger would expose every jurisdiction's unaggregated transactions — the aggregate was protected while the source was not.
 * **ANSI safety:** The macro filter uses `try_element_at(split(...), 9)`, **not** `element_at`. Under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`; because the filter runs on every row of every query, a single malformed key would abort *all* access to the table. `try_element_at` returns `NULL` instead, and the predicate fails closed.
 * **Normalization:** Comparisons are performed on `upper(trim(...))` on both sides, so a lowercase country code cannot evade the filter.
@@ -100,7 +100,7 @@ Protects market dominance and strictly confidential reporting metrics while main
 
 Secures the "Quarterly Quarantine" by abstracting raw historical tables away from public researchers.
 
-* **Mechanism:** Researchers are only granted `SELECT` access to a hardened view (`v_lbs_sdmx_published`).
+* **Mechanism:** Researchers are only granted `SELECT` access to a hardened view (`v_agg_sdmx_published`).
 * **Integrity Gate:** `WHERE BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true`. Rejected batches are written as audit-only rows with `IS_CURRENT = false`, so they fail both predicates and remain invisible.
 
 ---
@@ -119,10 +119,10 @@ Previous iterations of this pipeline utilized explicit `ALTER OWNER TO spn-sover
 Policies are attached inline at creation time so the table is never momentarily readable without governance. Note that `OBS_VALUE` may legitimately be negative — LBS positions record both asset and liability directions — while zero-valued observations are not reported at all under SDMx convention and are filtered upstream.
 
 ```sql
-CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
+CREATE TABLE IF NOT EXISTS agg_sdmx_history (
     TIME_SERIES_CODE STRING,      -- 11-dimension SDMx composite key
     DATE STRING,                  -- Observation period (e.g. '2026-Q1')
-    IBS_AGG STRING,               -- Aggregation scope (e.g. 'LBSR')
+    AGG_CODE STRING,              -- Aggregation scope (e.g. 'LBSR')
     OBS_VALUE DOUBLE MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE),
     OBS_STATUS STRING,
     OBS_CONF STRING,              -- 'F' | 'N' | 'C'
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS lbs_sdmx_history (
     VALID_TO TIMESTAMP,
     IS_CURRENT BOOLEAN
 )
-WITH ROW FILTER fn_rls_lbs_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
+WITH ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
 
 CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
     transaction_id STRING,
@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
     sector_code STRING,
     transaction_amount DOUBLE,
     obs_conf STRING,
-    ibs_agg_scope STRING,
+    agg_scope STRING,
     date_scope STRING,
     transaction_timestamp TIMESTAMP
 )

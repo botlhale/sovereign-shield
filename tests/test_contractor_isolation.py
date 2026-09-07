@@ -120,7 +120,7 @@ def test_serialization_works_without_network(no_credentials, monkeypatch):
             {
                 "TIME_SERIES_CODE": "Q.S.C.A.USD.F.5J.A.CA.A.5J",
                 "DATE": "2026-Q1",
-                "IBS_AGG": "LBSR",
+                "AGG_CODE": "LBSR",
                 "OBS_VALUE": 100.0,
                 "OBS_STATUS": "A",
                 "OBS_CONF": "F",
@@ -209,4 +209,4 @@ def test_no_destructive_ddl_in_the_idempotent_path(repo_root):
 
     assert not [s for s in statements if s.startswith("DROP TABLE")]
     assert not [s for s in statements if s.startswith("TRUNCATE")]
-    assert "CREATE TABLE IF NOT EXISTS lbs_sdmx_history" in ddl
+    assert "CREATE TABLE IF NOT EXISTS agg_sdmx_history" in ddl

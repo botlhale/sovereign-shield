@@ -200,7 +200,7 @@ Three tasks: security DDL → synthetic submissions → validation and SCD2 merg
 
 ```sql
 SELECT BATCH_STATUS, IS_CURRENT, COUNT(*)
-FROM dbw_sovereignshield.sovereign_shield.lbs_sdmx_history
+FROM dbw_sovereignshield.sovereign_shield.agg_sdmx_history
 GROUP BY 1, 2;
 ```
 

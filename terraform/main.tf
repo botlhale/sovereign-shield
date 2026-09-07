@@ -36,6 +36,12 @@ module "databricks_workspace" {
   key_vault_id  = module.identity.key_vault_id
   key_vault_uri = module.identity.key_vault_uri
 
+  worker_count_min        = var.worker_count_min
+  worker_count_max        = var.worker_count_max
+  node_type_id            = var.node_type_id
+  enable_photon           = var.enable_photon
+  autotermination_minutes = var.autotermination_minutes
+
   tags = var.tags
 }
 
@@ -52,6 +58,7 @@ module "unity_catalog_governance" {
 
   sql_warehouse_size              = var.sql_warehouse_size
   sql_warehouse_auto_stop_minutes = var.sql_warehouse_auto_stop_minutes
+  sql_warehouse_max_clusters      = var.sql_warehouse_max_clusters
 
   depends_on = [module.databricks_workspace]
 }

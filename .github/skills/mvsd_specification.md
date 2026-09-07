@@ -150,7 +150,7 @@ distinguishable and a filter that accidentally returns everything is detectable.
 > An earlier draft named `CH` (Switzerland) as the third jurisdiction. The corpus
 > uses `GB`; `CHF` appears only as a currency denomination. Adding a fourth
 > jurisdiction requires a new Entra group, a new branch in
-> `fn_rls_lbs_multi_persona_lock` and new grants — it is not a data-only change.
+> `fn_rls_multi_persona_lock` and new grants — it is not a data-only change.
 
 ### 5.2 Confidentiality masking
 
@@ -166,7 +166,7 @@ confidential values, and a single-country corpus cannot detect it.
 ### 5.3 Temporal revision (SCD Type 2)
 
 The corpus must contain a **revision of an already-published series** — the same
-`(TIME_SERIES_CODE, DATE, IBS_AGG)` re-reported with a different `OBS_VALUE`.
+`(TIME_SERIES_CODE, DATE, AGG_CODE)` re-reported with a different `OBS_VALUE`.
 
 `run_pipeline()` produces this as two ordered cycles rather than two calendar
 quarters, because re-reporting the *same* period is the case that actually

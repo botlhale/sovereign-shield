@@ -55,8 +55,8 @@ graph TD
 
     subgraph UC["🛡️ Unity Catalog — dbw_sovereignshield.sovereign_shield"]
         MICRO["<b>lbs_micro_transactions</b><br/>🔒 RLS fn_rls_micro_country_lock<br/><i>ON reporting_country</i>"]
-        MACRO["<b>lbs_sdmx_history</b><br/>🔒 RLS fn_rls_lbs_multi_persona_lock<br/><i>ON TIME_SERIES_CODE · BATCH_STATUS · OBS_CONF</i><br/>🎭 DDM fn_ddm_obs_conf_mask<br/><i>USING COLUMNS OBS_CONF, TIME_SERIES_CODE</i>"]
-        VIEW["<b>v_lbs_sdmx_published</b><br/><i>BATCH_STATUS = PUBLISHED<br/>AND IS_CURRENT = true</i>"]
+        MACRO["<b>agg_sdmx_history</b><br/>🔒 RLS fn_rls_multi_persona_lock<br/><i>ON TIME_SERIES_CODE · BATCH_STATUS · OBS_CONF</i><br/>🎭 DDM fn_ddm_obs_conf_mask<br/><i>USING COLUMNS OBS_CONF, TIME_SERIES_CODE</i>"]
+        VIEW["<b>v_agg_sdmx_published</b><br/><i>BATCH_STATUS = PUBLISHED<br/>AND IS_CURRENT = true</i>"]
     end
 
     subgraph GATEWAY["🌐 Public Dissemination Gateway"]
@@ -163,9 +163,9 @@ flowchart LR
     subgraph DABS["📦 Asset Bundles — data & policy"]
         direction TB
         DB1["Table DDL"]
-        DB2["Policy UDFs<br/>fn_rls_lbs_multi_persona_lock<br/>fn_ddm_obs_conf_mask"]
+        DB2["Policy UDFs<br/>fn_rls_multi_persona_lock<br/>fn_ddm_obs_conf_mask"]
         DB3["SET ROW FILTER · SET MASK<br/><i>detach → replace → re-attach</i>"]
-        DB4["v_lbs_sdmx_published"]
+        DB4["v_agg_sdmx_published"]
     end
 
     TF3 -->|"namespace exists before tables"| DB1
@@ -196,8 +196,8 @@ sequenceDiagram
     participant ENG as scd2_merge_engine.py
     participant VAL as sdmx_rule_validator.py
     participant XLS as checks_lbs.xls
-    participant HIST as lbs_sdmx_history
-    participant VIEW as v_lbs_sdmx_published
+    participant HIST as agg_sdmx_history
+    participant VIEW as v_agg_sdmx_published
     participant RES as 🔬 Researcher
 
     Note over SUB,VIEW: CYCLE 1 — BASELINE (clean submission)
@@ -267,9 +267,9 @@ graph LR
     Q["📥 Incoming Query"] --> L1
 
     subgraph LOCKS["🛡️ Triple Lock"]
-        L1["<b>Lock 1 — RLS</b><br/>fn_rls_lbs_multi_persona_lock<br/><i>row granularity</i>"]
+        L1["<b>Lock 1 — RLS</b><br/>fn_rls_multi_persona_lock<br/><i>row granularity</i>"]
         L2["<b>Lock 2 — DDM</b><br/>fn_ddm_obs_conf_mask<br/><i>cell granularity</i>"]
-        L3["<b>Lock 3 — Quarantine View</b><br/>v_lbs_sdmx_published<br/><i>result-set granularity</i>"]
+        L3["<b>Lock 3 — Quarantine View</b><br/>v_agg_sdmx_published<br/><i>result-set granularity</i>"]
     end
 
     L1 -->|"segment 9 matches<br/>Entra ID group"| L2

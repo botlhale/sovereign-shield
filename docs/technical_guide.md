@@ -39,7 +39,8 @@ flowchart TD
     P3 --> P4["Pass 4 · The pipeline<br/><i>validate, quarantine, historise</i>"]
     P4 --> P5["Pass 5 · Consumption<br/><i>serialise and serve</i>"]
     P5 --> P6["Pass 6 · Infrastructure<br/><i>who creates which object</i>"]
-    P6 --> P7["Pass 7 · The delivery pattern<br/><i>build without the data</i>"]
+    P6 --> P6a["Pass 6a/6b · Scale<br/><i>sizing and stress testing</i>"]
+    P6a --> P7["Pass 7 · The delivery pattern<br/><i>build without the data</i>"]
     P7 --> P8["Pass 8 · Break it yourself<br/><i>the only pass that proves anything</i>"]
 
     P3 -.->|"if short on time,<br/>read only this"| P8
@@ -86,6 +87,16 @@ you know what segment 9 is.
 reporting country. Segment 9 is the entire basis of sovereign isolation, so it is
 worth being certain you can locate it in a real key.
 
+**Segment 1 is `FREQ`, and it is not always `Q`.** Locational Banking Statistics is
+collected quarterly, but the platform is not a quarterly platform. A statistical
+hub receives annual (`A`), semi-annual (`S`), quarterly (`Q`) and monthly (`M`)
+collections into the same history table. Frequency is therefore a filter dimension
+in [uc_query.py](../src/uc_query.py) and a batch parameter on the ingestion path in
+[scd2_merge_engine.py](../src/scd2_merge_engine.py), not a constant. Reporting-period
+labels differ by cadence too — `2026`, `2026-S1`, `2026-Q1`, `2026-03` — which is why
+[generate_stress_test_data.py](../src/generate_stress_test_data.py) builds each
+cadence's labels in its own shape rather than assuming quarters.
+
 **Question to leave with:** why does §5.2 of the MVSD require confidential rows in
 *more than one* jurisdiction?
 
@@ -102,7 +113,7 @@ and the most important file here. The comment block at
 [L85](../src/unity_catalog_triple_lock.sql#L85) states the persona matrix; the
 function below it implements it.
 
-Read `fn_rls_lbs_multi_persona_lock` closely and notice three things:
+Read `fn_rls_multi_persona_lock` closely and notice three things:
 
 1. **Every branch is an `is_account_group_member` call.** There is no `ELSE`. No
    membership means no branch matches, the predicate is `FALSE`, and the caller gets
@@ -229,14 +240,15 @@ anonymous access needs Azure Container Apps in front —
 | [docs/ARCHITECTURE_DIAGRAMS.md § 1.1a Ownership boundary](ARCHITECTURE_DIAGRAMS.md) | The same boundary, drawn |
 | [terraform/main.tf](../terraform/main.tf) | Module composition — start here, only 59 lines |
 | [terraform/modules/identity/main.tf](../terraform/modules/identity/main.tf) | Entra groups, service principals, Key Vault |
-| [terraform/modules/unity_catalog_governance/](../terraform/modules/unity_catalog_governance/main.tf) | Catalog, schema, and the broad grants |
+| [terraform/modules/databricks_workspace/compute.tf](../terraform/modules/databricks_workspace/compute.tf) | The compute sizing envelope, as a cluster policy |
+| [terraform/modules/unity_catalog_governance/](../terraform/modules/unity_catalog_governance/main.tf) | Catalog, schema, warehouse, and the broad grants |
 | [src/apply_security.py](../src/apply_security.py) | Docstring explains the two-script, two-plane split |
 
 **The boundary, stated once:**
 
 - **Terraform owns the infrastructure and access-control plane** — catalogs, schemas,
-  storage credentials, external locations, SQL warehouses, Entra ID groups, service
-  principals, and broad RBAC (`USE CATALOG`, `USE SCHEMA`, `SELECT`).
+  storage credentials, external locations, SQL warehouses, cluster policies, Entra ID
+  groups, service principals, and broad RBAC (`USE CATALOG`, `USE SCHEMA`, `SELECT`).
 - **The bundle and `unity_catalog_triple_lock.sql` own the data and policy plane** —
   table DDL, the policy UDFs, and attaching or detaching row filters and column masks.
 
@@ -247,6 +259,150 @@ filter blocks the catalog destroy.
 ⚠️ **A trap.** The `sh/` scripts are a quickstart, not the deployment path. See
 [README.md § The `sh/` scripts are a quickstart](../README.md). If you read them as
 the source of truth you will build a mental model the Terraform contradicts.
+
+---
+
+## Pass 6a — Compute sizing: intent versus constraint
+
+The single most common misreading of this repository is that it only works small.
+It does not. **Single-node is a cost decision, not an architectural one.**
+
+Row filters and column masks are evaluated *inside the query engine*, against the
+caller's identity, at query time. That evaluation is a property of Unity Catalog,
+not of the cluster it runs on. A one-node sandbox and a sixteen-node Photon fleet
+enforce identical entitlement — the second one just finishes sooner.
+
+### Why the default is a single node
+
+| Setting | Default | Reason |
+| --- | --- | --- |
+| `worker_count_max` | `0` | Driver-only. No worker fleet to provision or pay for |
+| `node_type_id` | `Standard_DS3_v2` | Stays inside default Azure `DSv5` core quotas, so a new subscription can run it without a quota request |
+| `enable_photon` | `false` | On a single node the DBU premium buys little; the workload is not scan-bound at sandbox volume |
+| `sql_warehouse_size` | `2X-Small` | Serverless, auto-stopping. The gateway tolerates a cold start |
+| `data_security_mode` | `USER_ISOLATION` | **Fixed, not defaulted.** Row filters and masks are *not evaluated* on `SINGLE_USER` compute |
+
+That last row is the one that matters. It is pinned in
+[compute.tf](../terraform/modules/databricks_workspace/compute.tf) rather than left
+to the bundle, because a cluster that drifted onto `SINGLE_USER` would return
+*unfiltered rows while appearing to work*. Silent failure is the worst failure mode
+a security control can have, so the guarantee lives in infrastructure where a
+workload author cannot accidentally override it.
+
+### Scaling for an international hub
+
+A body receiving submissions from every member jurisdiction changes four variables
+and nothing else. No pipeline code changes.
+
+```hcl
+# terraform.tfvars
+worker_count_min           = 2
+worker_count_max           = 16
+node_type_id               = "Standard_E8ds_v5"   # memory-optimised
+enable_photon              = true
+sql_warehouse_size         = "Medium"             # through 2X-Large
+sql_warehouse_max_clusters = 8                    # multi-cluster load balancing
+```
+
+Each layer scales on a different axis, and confusing them wastes money:
+
+**Ingestion and SCD2 merge.** Autoscaling worker fleet, Photon on. This layer is
+bound by the width of the multi-country MERGE, so it benefits from memory-optimised
+instances and from parallelising country partitions. `worker_count_max` is
+effectively "how many jurisdictions do I want merged concurrently".
+
+**Governance.** Does not scale with the cluster at all. Row filters and table ACLs
+are evaluated natively by the engine. Adding workers does not weaken, strengthen or
+complicate the entitlement model — a property worth stating explicitly, because it
+is the reason the sandbox evaluation is meaningful.
+
+**Dissemination.** Serverless SQL warehouses, sized independently of ingestion.
+Two distinct levers here, and picking the wrong one is the usual mistake:
+
+- `sql_warehouse_size` handles *one heavy query* — a large scan or wide aggregation.
+- `sql_warehouse_max_clusters` handles *many simultaneous readers*.
+
+A public dissemination tier almost always needs the second one first. If researchers
+report queueing rather than slow individual results, raising the size is expensive
+and ineffective; adding clusters is the fix.
+
+**Cost evolution path.** Evaluate the entire security architecture on one node, prove
+the persona matrix, then scale the two compute layers independently as volume and
+concurrency demand. Nothing in the security model is revisited on the way.
+
+---
+
+## Pass 6b — Executing scale and stress testing
+
+The claims above are testable. [src/generate_stress_test_data.py](../src/generate_stress_test_data.py)
+builds a reproducible high-volume corpus and
+[tests/test_scale_and_stress.py](../tests/test_scale_and_stress.py) asserts against it.
+
+### Generate a corpus
+
+```powershell
+# 100,000 macro observations, all four cadences, summary to stdout
+.venv\Scripts\python.exe src/generate_stress_test_data.py --rows 100000 --frequencies "A,S,Q,M" --periods 4
+
+# Write it to CSV instead
+.venv\Scripts\python.exe src/generate_stress_test_data.py --rows 250000 --out data/stress/macro.csv
+
+# The bank-level ledger that aggregates to it (3 banks per series)
+.venv\Scripts\python.exe src/generate_stress_test_data.py --rows 100000 --micro --out data/stress/micro.csv
+```
+
+Expected shape at 100k rows: roughly 23,750 distinct series across 7 jurisdictions
+and 4 cadences, with about 30,000 confidential rows and 1,500 quarantined revisions.
+
+Generation is seeded, so a given `--seed` reproduces a byte-identical corpus. This
+is not cosmetic: **a benchmark whose input changes between runs measures nothing.**
+
+### Run the benchmarks
+
+```powershell
+# Skipped by default. Opt in explicitly.
+.venv\Scripts\python.exe -m pytest tests/test_scale_and_stress.py --stress
+
+# One benchmark, with the throughput print visible
+.venv\Scripts\python.exe -m pytest tests/test_scale_and_stress.py --stress -k throughput -s
+```
+
+### What each tier proves
+
+**Pandas tier — always runs.** Exercises the row filter and column mask mirror
+against the full corpus:
+
+| Assertion | Guards against |
+| --- | --- |
+| Entitlement pass stays sub-second per persona | A regression into per-row evaluation |
+| 4× rows costs well under 20× time | An accidental quadratic in the predicate |
+| No foreign confidential value survives masking | The cross-sovereign leak, at volume |
+| Unaffiliated principal sees zero rows | The fail-closed default |
+| One open interval per key | SCD2 duplicating history |
+
+**PySpark tier — conditional.** Benchmarks the real
+[scd2_merge_engine.py](../src/scd2_merge_engine.py) MERGE against Delta and re-asserts
+interval integrity afterwards.
+
+It skips when a Spark session cannot be constructed. Note the distinction the test
+makes deliberately: **session construction failing is an environment verdict and
+skips; an assertion failing after the merge is a defect verdict and fails.** If those
+were collapsed into one `try`, a genuinely broken merge could hide behind a missing
+JVM.
+
+If you see `JAVA_GATEWAY_EXITED`, that is the environment tier, not a code failure —
+Spark needs a compatible JVM, and an importable `delta` package is not sufficient
+evidence that one is present.
+
+### Inspecting execution plans
+
+```powershell
+# Physical plan for the persona-filtered read
+.venv\Scripts\python.exe -c "import sys; sys.path.insert(0,'src'); from uc_query import build_search_sql, SeriesFilter; print(build_search_sql(SeriesFilter.build(reporting_country=['CA'], frequency=['Q']))[0])"
+```
+
+Against a live warehouse, prefix any generated query with `EXPLAIN FORMATTED` to
+confirm the row filter is pushed into the scan rather than applied after it.
 
 ---
 
@@ -333,6 +489,9 @@ Collected so you do not have to rediscover them.
 | `*_secret_id` Terraform variables | Pointers, not secrets. Excluded from the secret scanner by design |
 | The `sh/` scripts | Quickstart only. Terraform is the deployment path |
 | `local_pandas_scd2.py` column names | Intentionally different from the macro path. Documented in its docstring |
+| "Single-node means it doesn't scale" | Single-node is the *default*, set by `worker_count_max = 0`. Entitlement is evaluated by the engine and is identical at any size |
+| "Raise the warehouse size when it's slow" | Size fixes heavy single queries; `sql_warehouse_max_clusters` fixes concurrency. Queueing is usually the second problem |
+| `JAVA_GATEWAY_EXITED` in the stress suite | Environment, not code. Spark needs a compatible JVM; an importable `delta` package does not prove one exists |
 | The pipeline SPN in the admin group | Required. The SCD2 engine reads the table to find rows to expire; if the filter hid them, every row would look new and history would silently duplicate |
 
 ---
