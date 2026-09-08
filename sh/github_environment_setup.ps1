@@ -73,7 +73,21 @@ if ($LASTEXITCODE -ne 0) { throw "GitHub CLI is not authenticated. Run 'gh auth 
 
 function Invoke-Gh {
     param([string[]]$Arguments, [switch]$AllowFailure)
-    $out = & gh @Arguments 2>&1
+
+    # 2>&1 turns a native command's stderr into ErrorRecords, and the script-level
+    # $ErrorActionPreference = 'Stop' makes the first one terminate before
+    # -AllowFailure can be honoured. Probing calls - "does this variable exist
+    # yet?" - legitimately write to stderr, so relax the preference around the
+    # invocation and decide on the exit code instead.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = & gh @Arguments 2>&1
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+
     if ($LASTEXITCODE -ne 0 -and -not $AllowFailure) {
         throw "gh $($Arguments -join ' ') failed:`n$out"
     }
