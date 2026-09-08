@@ -4,7 +4,12 @@ Handles Slowly Changing Dimension Type 2 (SCD2) MERGE logic and Scoped Logical D
 for both sovereign micro-transaction tables and central macro history tables in Delta Lake / Unity Catalog.
 """
 
-from typing import List
+from typing import Dict, List
+
+import glob
+import os
+
+import pandas as pd
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType, StringType, StructField, StructType
@@ -12,7 +17,7 @@ from delta.tables import DeltaTable
 from delta import configure_spark_with_delta_pip
 import datetime
 
-from sdmx_rule_validator import SDMxRuleValidator
+from sdmx_rule_validator import DATA_DIR, SDMxRuleValidator
 
 # Explicit schema for the validated macro batch: FAILED_RULE_ID is null for every row of a
 # fully clean run, which Spark cannot type-infer from pandas on its own.
@@ -43,8 +48,8 @@ UPPERCASE_MICRO_COLUMNS = [
 ]
 
 
-#: Full column order of the micro ledger. The synthetic row literals carry only the
-#: leading business columns; the trailing batch columns are stamped by _build_micro_rows.
+#: Full column order of the micro ledger, matching the DDL in
+#: unity_catalog_triple_lock.sql.
 MICRO_SCHEMA = [
     "transaction_id", "reporting_country", "reporting_institution",
     "position_type", "instrument", "currency", "currency_type",
@@ -52,117 +57,81 @@ MICRO_SCHEMA = [
     "transaction_amount", "obs_conf", "agg_scope", "date_scope", "transaction_timestamp"
 ]
 
-#: Batch-scoped columns appended to every row literal, in MICRO_SCHEMA order.
-_BATCH_COLUMNS = ("agg_scope", "date_scope", "transaction_timestamp")
+#: The 11 BIS_LBS dimensions in TIME_SERIES_CODE order. The submitted key is the only
+#: place the institutional attributes survive, so the ledger is rebuilt by splitting it.
+DSD_SEGMENTS = [
+    "FREQ", "L_MEASURE", "L_POSITION", "L_INSTR", "L_DENOM", "L_CURR_TYPE",
+    "L_PARENT_CTY", "L_REP_BANK_TYPE", "L_REP_CTY", "L_CP_SECTOR", "L_CP_COUNTRY"
+]
 
 
-def _build_micro_rows(
-    rows,
-    agg_scope: str,
-    date_scope: str,
-    batch_timestamp: datetime.datetime,
-):
-    """Stamps every row of a submission batch with its shared batch-scoped columns.
-
-    Calling datetime.now() per row produced a different VALID_FROM per record, so a
-    single logical submission could not be reconstructed from the ledger.
-    """
-    expected_literal_width = len(MICRO_SCHEMA) - len(_BATCH_COLUMNS)
-    for row in rows:
-        if len(row) != expected_literal_width:
-            raise ValueError(
-                f"Micro row {row[0]!r} has {len(row)} values; expected "
-                f"{expected_literal_width} before the batch columns {_BATCH_COLUMNS}."
-            )
-    return [row + (agg_scope, date_scope, batch_timestamp) for row in rows]
-
-
-def generate_and_aggregate_micro_data(
+def ingest_submitted_micro(
     spark: SparkSession,
-    date_scope: str = "2026-Q1",
+    submission_dir: str,
+    obs_conf_by_series: Dict[str, str],
     cycle: str = "baseline",
-    agg_scope: str = "LBSR",
-    freq: str = "Q",
-):
-    """
-    Simulates bank-level micro-transactions submitted by multiple country jurisdictions,
-    carrying the full institutional attributes needed to build authentic BIS LBS
-    SDMx dimension codes, and aggregates them into standardized SDMX observation series.
+) -> None:
+    """Appends the bank-level micro-data filed alongside a submission to the ledger.
 
-    Args:
-        cycle: ``"baseline"`` emits a fully reconciling submission for every country.
-            ``"revision"`` re-reports the same Canadian series keys with figures that
-            break two BIS cross-checks, exercising the quarantine path against an
-            already-published state.
-    """
-    if cycle not in ("baseline", "revision"):
-        raise ValueError(f"cycle must be 'baseline' or 'revision', got {cycle!r}")
+    The ledger is evidence, not input. It shows how each reporting body arrived at
+    its confidentiality decision - which institution contributed what to a series
+    that ended up restricted - and it is the table the micro row filter isolates
+    by ``reporting_country``. Nothing downstream re-derives the macro figures from
+    it: the receiving organisation rules on the series the country actually
+    submitted, not on a recomputation of them.
 
+    Read through pandas rather than ``spark.read.csv`` because the files are local
+    to the driver; a Spark reader would ask executors for a path only the driver
+    can see.
+    """
     batch_timestamp = datetime.datetime.now(datetime.timezone.utc)
 
-    # Columns: transaction_id, reporting_country, reporting_institution, position_type,
-    # instrument, currency, currency_type, parent_country, bank_type, counterpart_country,
-    # sector_code, transaction_amount, obs_conf
-    # Country codes are uppercase ISO 3166-1 alpha-2 so segment 9 of TIME_SERIES_CODE
-    # matches the Unity Catalog RLS policy.
-    #
-    # Reconciliation groups use the real BIS aggregate codes (TO1 all currencies, 5J all
-    # countries, A all sectors) so the dynamic checks have an aggregate to compare against.
-    # They are isolated from the institutional rows, and from each other, by
-    # position_type/instrument so no unintended cross-check context is shared.
-    #
-    # Observation values are signed: BIS LBS positions are legitimately negative as well as
-    # positive. Zero-valued observations are not reported under SDMx convention and are
-    # dropped after aggregation rather than being treated as an error.
-    common_rows = [
-        # Canada (CA) institutional positions
-        ("TX_CA_001", "CA", "RBC_ROYAL_BANK", "C", "A", "CAD", "D", "CA", "A", "US", "B", 125000000.00, "F"),
-        ("TX_CA_002", "CA", "TD_BANK_CA", "L", "D", "USD", "F", "CA", "D", "GB", "F", 45000000.00, "C"),
-        ("TX_CA_003", "CA", "RBC_ROYAL_BANK", "C", "G", "EUR", "F", "CA", "A", "DE", "C", 89000000.00, "N"),
+    frames = []
+    for path in sorted(glob.glob(os.path.join(submission_dir, "micro_transactions_*.csv"))):
+        frames.append(pd.read_csv(path))
+    if not frames:
+        raise FileNotFoundError(
+            f"No micro-data accompanying the submissions in {submission_dir!r}."
+        )
 
-        # United States (US) institutional positions
-        ("TX_US_001", "US", "JPMORGAN_US", "C", "A", "USD", "D", "US", "A", "CA", "B", 310000000.00, "F"),
-        ("TX_US_002", "US", "CITI_US", "L", "D", "EUR", "F", "US", "D", "DE", "F", 89000000.00, "N"),
-        ("TX_US_003", "US", "JPMORGAN_US", "C", "G", "GBP", "F", "US", "A", "GB", "C", 156000000.00, "F"),
+    raw = pd.concat(frames, ignore_index=True)
+    segments = raw["TIME_SERIES_CODE"].str.split(".", expand=True)
+    if segments.shape[1] != len(DSD_SEGMENTS):
+        raise ValueError(
+            f"Micro-data keys have {segments.shape[1]} segments; expected "
+            f"{len(DSD_SEGMENTS)} ({', '.join(DSD_SEGMENTS)})."
+        )
+    segments.columns = DSD_SEGMENTS
 
-        # United Kingdom (GB) institutional positions. TX_GB_002 is deliberately negative:
-        # a net liability position is valid SDMx data and must publish cleanly.
-        ("TX_GB_001", "GB", "BARCLAYS_UK", "C", "A", "GBP", "D", "GB", "A", "CA", "M", 210000000.00, "F"),
-        ("TX_GB_002", "GB", "HSBC_UK", "L", "D", "CHF", "F", "GB", "B", "FR", "H", -67000000.00, "F"),
-        ("TX_GB_003", "GB", "BARCLAYS_UK", "C", "G", "JPY", "F", "GB", "A", "JP", "G", 340000000.00, "C"),
-    ]
+    ledger = pd.DataFrame(
+        {
+            # Deterministic from the filing rather than a UUID, so re-running a cycle
+            # replays the same identities instead of inventing a new set each time.
+            "transaction_id": [
+                f"{cycle.upper()}_{row.L_REP_CTY}_{index:04d}"
+                for index, row in enumerate(segments.itertuples(), start=1)
+            ],
+            "reporting_country": segments["L_REP_CTY"],
+            "reporting_institution": raw["BANK_CODE"],
+            "position_type": segments["L_POSITION"],
+            "instrument": segments["L_INSTR"],
+            "currency": segments["L_DENOM"],
+            "currency_type": segments["L_CURR_TYPE"],
+            "parent_country": segments["L_PARENT_CTY"],
+            "bank_type": segments["L_REP_BANK_TYPE"],
+            "counterpart_country": segments["L_CP_COUNTRY"],
+            "sector_code": segments["L_CP_SECTOR"],
+            "transaction_amount": raw["OBS_VALUE"].astype(float),
+            # Carried down from the series the transaction fed, so the ledger records
+            # which contributions ended up inside a restricted aggregate.
+            "obs_conf": raw["TIME_SERIES_CODE"].map(obs_conf_by_series).fillna("F"),
+            "agg_scope": raw["AGG_CODE"],
+            "date_scope": raw["DATE"],
+            "transaction_timestamp": batch_timestamp,
+        }
+    )
 
-    if cycle == "baseline":
-        # Both Canadian reconciliation groups balance exactly, so the whole CA batch publishes.
-        cycle_rows = [
-            # LBS_CC01 group: TO1:A (139M) == CAD:D (50M) + TO1:F (89M).
-            ("TX_CA_004", "CA", "RBC_ROYAL_BANK", "C", "B", "CAD", "D", "CA", "A", "5J", "B", 50000000.00, "F"),
-            ("TX_CA_005", "CA", "RBC_ROYAL_BANK", "C", "B", "TO1", "F", "CA", "A", "5J", "B", 89000000.00, "F"),
-            ("TX_CA_006", "CA", "RBC_ROYAL_BANK", "C", "B", "TO1", "A", "CA", "A", "5J", "B", 139000000.00, "F"),
-            # LBS_CC:04 group: all sectors (500M) == banks (300M) + non-bank (200M).
-            ("TX_CA_007", "CA", "TD_BANK_CA", "L", "A", "CHF", "D", "CA", "A", "5J", "A", 500000000.00, "F"),
-            ("TX_CA_008", "CA", "TD_BANK_CA", "L", "A", "CHF", "D", "CA", "A", "5J", "B", 300000000.00, "F"),
-            ("TX_CA_009", "CA", "TD_BANK_CA", "L", "A", "CHF", "D", "CA", "A", "5J", "N", 200000000.00, "F"),
-        ]
-    else:
-        # Revised Canadian figures on the same series keys. The revision is arithmetically
-        # inconsistent, so the atomic rule quarantines the entire CA country-quarter while the
-        # baseline above stays IS_CURRENT = true.
-        cycle_rows = [
-            # LBS_CC01 breaks: -5M + 89M = 84M != the unchanged 139M aggregate. The negative
-            # figure is valid SDMx data; the failure is the broken cross-check, not the sign.
-            ("TX_CA_004", "CA", "RBC_ROYAL_BANK", "C", "B", "CAD", "D", "CA", "A", "5J", "B", -5000000.00, "F"),
-            ("TX_CA_005", "CA", "RBC_ROYAL_BANK", "C", "B", "TO1", "F", "CA", "A", "5J", "B", 89000000.00, "F"),
-            ("TX_CA_006", "CA", "RBC_ROYAL_BANK", "C", "B", "TO1", "A", "CA", "A", "5J", "B", 139000000.00, "F"),
-            # LBS_CC:04 breaks: 300M + 150M = 450M != the unchanged 500M all-sectors total.
-            ("TX_CA_007", "CA", "TD_BANK_CA", "L", "A", "CHF", "D", "CA", "A", "5J", "A", 500000000.00, "F"),
-            ("TX_CA_008", "CA", "TD_BANK_CA", "L", "A", "CHF", "D", "CA", "A", "5J", "B", 300000000.00, "F"),
-            ("TX_CA_009", "CA", "TD_BANK_CA", "L", "A", "CHF", "D", "CA", "A", "5J", "N", 150000000.00, "F"),
-        ]
-
-    raw_micro_data = _build_micro_rows(common_rows + cycle_rows, agg_scope, date_scope, batch_timestamp)
-
-    df_micro = spark.createDataFrame(raw_micro_data, MICRO_SCHEMA)
+    df_micro = spark.createDataFrame(ledger[MICRO_SCHEMA])
 
     # Normalize casing before the key is built: a lowercase 'ca' would silently fall outside
     # the RLS predicate and make the row invisible to its own submitter.
@@ -176,47 +145,6 @@ def generate_and_aggregate_micro_data(
     df_micro.write.format("delta").mode("append").option("mergeSchema", "true") \
         .saveAsTable("dbw_sovereignshield.sovereign_shield.lbs_micro_transactions")
     print(f"Multi-country micro transactions ingested successfully (cycle={cycle}).")
-
-    # 2. Roll Up / Aggregate Micro Data into the full 11-dimension SDMX series key.
-    # No wildcard placeholders: every BIS LBS dimension is sourced from real micro-data columns.
-    df_aggregated = df_micro.groupBy(
-            "position_type", "instrument", "currency", "currency_type",
-            "parent_country", "bank_type", "reporting_country", "sector_code",
-            "counterpart_country", "date_scope", "agg_scope"
-        ) \
-        .agg(
-            F.sum("transaction_amount").alias("OBS_VALUE"),
-            # If any transaction in the rollup is Confidential ('C'), elevate aggregate to 'C'
-            F.when(F.array_contains(F.collect_set("obs_conf"), "C"), "C")
-             .when(F.array_contains(F.collect_set("obs_conf"), "N"), "N")
-             .otherwise("F").alias("OBS_CONF")
-        ) \
-        .withColumn(
-            "TIME_SERIES_CODE",
-            F.concat_ws(
-                ".",
-                F.lit(freq),                     # FREQ - A, S, Q or M, per collection
-                F.lit("S"),                      # L_MEASURE (Amounts outstanding)
-                F.col("position_type"),          # L_POSITION
-                F.col("instrument"),             # L_INSTR
-                F.col("currency"),               # L_DENOM
-                F.col("currency_type"),          # L_CURR_TYPE
-                F.col("parent_country"),         # L_PARENT_CTY
-                F.col("bank_type"),              # L_REP_BANK_TYPE
-                F.col("reporting_country"),      # L_REP_CTY (segment 9 - RLS anchor)
-                F.col("sector_code"),            # L_CP_SECTOR
-                F.col("counterpart_country")     # L_CP_COUNTRY
-            )
-        ) \
-        .withColumnRenamed("date_scope", "DATE") \
-        .withColumnRenamed("agg_scope", "AGG_CODE") \
-        .select("TIME_SERIES_CODE", "DATE", "AGG_CODE", "OBS_VALUE", "OBS_CONF")
-
-    # SDMx convention: a zero position is simply not reported, so it must not be published
-    # as an observation. Nulls are dropped for the same reason.
-    df_aggregated = df_aggregated.filter(F.col("OBS_VALUE").isNotNull() & (F.col("OBS_VALUE") != 0))
-
-    return df_aggregated
 
 
 def _assert_valid_sector_codes(df_micro: DataFrame) -> None:
@@ -493,62 +421,108 @@ def merge_scd2_micro(
 
 def process_and_publish_macro_batch(
     spark: SparkSession,
+    submission_dir: str,
     date_scope: str = "2026-Q1",
     agg_scope: str = "LBSR",
     cycle: str = "baseline",
-    freq: str = "Q"
 ) -> None:
-    """Ingests synthetic micro-data, validates the aggregated macro batch, routes
-    QUARANTINE/PUBLISHED records, and executes the SCD2 merge on the macro-history table.
+    """Receives one cycle of sovereign submissions, rules on them, and versions the result.
 
-    `freq` is the collection cadence for this batch. LBS is quarterly, but the
-    history table holds every cadence a reporting body submits, so the value is a
-    parameter rather than a constant.
+    This is the receiving organisation's side of the exchange. It reads the SDMx-ML
+    files the reporting bodies filed, re-runs the BIS consistency checks over them,
+    and decides publication independently. The submitting country will have run the
+    same workbook before filing; agreeing with it is not assumed.
+
+    The submitted observations are validated as filed. They are deliberately not
+    re-derived from the accompanying micro-data: a hub that recomputes the figures
+    is checking its own arithmetic, not the submission.
     """
-    # 1. Micro-data was already persisted to the append-only ledger inside this call.
-    # DATE/AGG_CODE now come straight from the real aggregation grain; only OBS_STATUS
-    # (an SDMx attribute, not a dimension) still needs a default.
-    df_aggregated = generate_and_aggregate_micro_data(
-        spark, date_scope=date_scope, cycle=cycle, agg_scope=agg_scope, freq=freq
-    )
-    df_aggregated = df_aggregated.withColumn("OBS_STATUS", F.lit("A"))
-
-    # 2. Run the aggregated macro batch through the SDMx rule validation engine, which
-    # assigns QUALITY_STATUS / FAILED_RULE_ID / BATCH_STATUS atomically per
-    # (reporting country, reporting quarter) batch.
     validator = SDMxRuleValidator()
-    df_macro_final = spark.createDataFrame(
-        validator.validate(df_aggregated.toPandas()), schema=VALIDATED_MACRO_SCHEMA
+    submissions = validator.load_submissions(submission_dir)
+    if not submissions:
+        raise FileNotFoundError(
+            f"No SDMx submissions found in {submission_dir!r}. The reporting task "
+            f"writes them there; check SOVEREIGNSHIELD_SUBMISSION_DIR is the same "
+            f"for both tasks."
+        )
+    print(
+        f"Received {len(submissions)} sovereign submission(s) from "
+        f"{', '.join(sorted(code.upper() for code in submissions))}."
     )
 
-    # 3. Log PUBLISHED vs QUARANTINE volume before committing the merge.
+    df_submitted = pd.concat(submissions.values(), ignore_index=True)
+
+    # The ledger records how each country reached its confidentiality decision, keyed
+    # by the series that decision applies to.
+    ingest_submitted_micro(
+        spark,
+        submission_dir,
+        obs_conf_by_series=dict(
+            zip(df_submitted["TIME_SERIES_CODE"], df_submitted["OBS_CONF"])
+        ),
+        cycle=cycle,
+    )
+
+    # OBS_STATUS is an SDMx attribute rather than a dimension; absent means normal.
+    df_submitted["OBS_STATUS"] = df_submitted["OBS_STATUS"].fillna("A")
+
+    df_macro_final = spark.createDataFrame(
+        validator.validate(df_submitted), schema=VALIDATED_MACRO_SCHEMA
+    )
+
+    # Log the verdict before committing. FAILED_RULE_ID names only the observations that
+    # actually broke a check, so a quarantined batch shows its cause rather than a blanket.
     batch_summary = df_macro_final.withColumn(
         "REP_CTY", F.element_at(F.split(F.col("TIME_SERIES_CODE"), "\\."), 9)
-    ).groupBy("REP_CTY", "DATE", "BATCH_STATUS", "FAILED_RULE_ID").count()
+    ).groupBy("REP_CTY", "DATE", "BATCH_STATUS").count()
     print(f"Macro batch routing for cycle '{cycle}' (atomic per country-quarter):")
     batch_summary.show(truncate=False)
 
-    # 4. SCD2 merge runs exclusively on the macro-history table.
+    offenders = df_macro_final.filter(F.col("FAILED_RULE_ID").isNotNull())
+    if offenders.count():
+        print("Observations that failed a BIS consistency check:")
+        offenders.select(
+            "TIME_SERIES_CODE", "DATE", "OBS_VALUE", "FAILED_RULE_ID"
+        ).show(truncate=False)
+
     merge_scd2_macro(spark, df_macro_final, date_scope=date_scope, agg_scope=agg_scope)
 
 
 def run_pipeline(
     spark: SparkSession,
+    submission_root: str = DATA_DIR,
     date_scope: str = "2026-Q1",
     agg_scope: str = "LBSR",
-    freq: str = "Q"
 ) -> None:
-    """Runs the baseline submission followed by the revised submission.
+    """Processes each filed cycle in the order it was received.
 
-    The two cycles exist so the SCD2 state machine is exercised end to end: the baseline
-    publishes for every country, then Canada re-reports figures that fail the BIS
-    cross-checks. The revision must be quarantined without disturbing the published
+    The two cycles exist so the SCD2 state machine is exercised end to end: every
+    country publishes on the baseline, then each re-reports figures that break a BIS
+    cross-check. The revision must be quarantined without disturbing the published
     baseline, which stays IS_CURRENT = true and continues to feed v_agg_sdmx_published.
     """
-    for cycle in ("baseline", "revision"):
+    if not os.path.isdir(submission_root):
+        raise FileNotFoundError(
+            f"No submission root at {submission_root!r}. The reporting task writes it; "
+            f"check SOVEREIGNSHIELD_SUBMISSION_DIR is the same for both tasks."
+        )
+
+    # Arrivals are processed in filing order, which the sequence prefix on each
+    # directory encodes. A hub replaying them out of order would expire a live version
+    # against a submission that predates it.
+    cycles = sorted(
+        entry
+        for entry in os.listdir(submission_root)
+        if os.path.isdir(os.path.join(submission_root, entry))
+    )
+    if not cycles:
+        raise FileNotFoundError(f"No submission cycles filed under {submission_root!r}.")
+
+    for cycle in cycles:
+        cycle_dir = os.path.join(submission_root, cycle)
         print(f"\n{'=' * 70}\nSubmission cycle: {cycle}\n{'=' * 70}")
         process_and_publish_macro_batch(
-            spark, date_scope=date_scope, agg_scope=agg_scope, cycle=cycle, freq=freq
+            spark, cycle_dir, date_scope=date_scope, agg_scope=agg_scope, cycle=cycle
         )
 
 

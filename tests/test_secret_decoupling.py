@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Iterator, List, Tuple
 
@@ -197,16 +198,34 @@ def test_terraform_never_writes_a_credential_to_an_output(repo_root):
     assert not leaked, "credential exposed through an output:\n  " + "\n  ".join(leaked)
 
 
-def test_no_tfvars_or_env_files_committed(tracked_files, repo_root):
-    """These files exist to hold values that must never be committed."""
+def test_no_tfvars_or_env_files_committed(repo_root):
+    """These files exist to hold values that must never be committed.
+
+    Asks git what is tracked rather than scanning the working tree. A populated
+    ``terraform.tfvars`` on an operator's disk is how Terraform is meant to be
+    used and is already covered by .gitignore; failing on it would train people
+    to ignore this test on exactly the machines where it matters most.
+    """
     forbidden = {".env", "terraform.tfvars", "terraform.tfstate"}
+
+    try:
+        listed = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=repo_root,
+            capture_output=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("git is unavailable, so tracked files cannot be determined")
+
+    tracked = [name for name in listed.stdout.decode().split("\0") if name]
     found = [
-        str(p.relative_to(repo_root))
-        for p in tracked_files
-        if p.name in forbidden or p.name.endswith(".tfstate.backup")
+        name
+        for name in tracked
+        if Path(name).name in forbidden or name.endswith(".tfstate.backup")
     ]
 
-    assert not found, "value-bearing files present: " + ", ".join(found)
+    assert not found, "value-bearing files committed: " + ", ".join(found)
 
 
 def test_pre_auth_resolves_secrets_by_name(repo_root):

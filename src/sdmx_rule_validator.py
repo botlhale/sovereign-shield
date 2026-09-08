@@ -9,9 +9,13 @@ checks against each country's aggregated macro time series.
 No observation is ever dropped. Validation is atomic at the submission-batch
 level, keyed by `(reporting country, reporting quarter)`: if any row in a
 country-quarter batch violates a check, every row in that batch is marked
-`QUALITY_STATUS = 'FAIL'` / `BATCH_STATUS = 'QUARANTINE'` and carries the
-batch's full list of violated `FAILED_RULE_ID` codes. Only a wholly clean
+`QUALITY_STATUS = 'FAIL'` / `BATCH_STATUS = 'QUARANTINE'`. Only a wholly clean
 batch is marked `'PASS'` / `'PUBLISHED'`.
+
+`FAILED_RULE_ID` is attributed per observation rather than per batch: it names
+only the checks that row itself broke, and is null for a row that reconciles.
+A null inside a quarantined batch therefore reads as "this series is not the
+problem, its siblings are", which is what an investigator needs to know.
 """
 
 from __future__ import annotations
@@ -43,8 +47,12 @@ CHECKS_SHEET_NAME: str = "LBS"
 #: Live BIS REST endpoint exposing the BIS_LBS Data Structure Definition (DSD).
 BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all"
 
-#: Directory containing sovereign SDMx 3.0 XML submission files.
-DATA_DIR: str = os.path.join(_REPO_ROOT, "data")
+#: Directory containing sovereign SDMx 3.0 XML submission files. The reporting task
+#: writes here and the receiving task reads here, so it is the contract between them
+#: and must be overridden wherever the repo tree is not writable (a job cluster).
+DATA_DIR: str = os.environ.get(
+    "SOVEREIGNSHIELD_SUBMISSION_DIR", os.path.join(_REPO_ROOT, "data")
+)
 
 #: Aggregation framework code. Not modeled as a DSD dimension/attribute, so it
 #: is reattached as a constant when ingesting SDMx-ML submissions.
@@ -356,11 +364,14 @@ class SDMxRuleValidator:
         submission-batch level**, keyed by `(L_REP_CTY, DATE)`: BIS LBS
         submissions are accepted or rejected as a whole, never partially. If
         *any* row in a country-quarter batch violates a check, *every* row in
-        that batch is marked `QUALITY_STATUS = 'FAIL'`,
-        `BATCH_STATUS = 'QUARANTINE'`, and `FAILED_RULE_ID` is set to the
-        batch's full sorted list of violated check codes. Only a wholly clean
-        batch receives `QUALITY_STATUS = 'PASS'`, `BATCH_STATUS = 'PUBLISHED'`,
-        and a null `FAILED_RULE_ID`.
+        that batch is marked `QUALITY_STATUS = 'FAIL'` and
+        `BATCH_STATUS = 'QUARANTINE'`. Only a wholly clean batch receives
+        `QUALITY_STATUS = 'PASS'` and `BATCH_STATUS = 'PUBLISHED'`.
+
+        `FAILED_RULE_ID` is scoped to the observation, not to the batch: it
+        lists only the checks that row itself broke, sorted, and is null
+        otherwise. A quarantined row with a null `FAILED_RULE_ID` reconciles on
+        its own and was quarantined by a sibling in the same country-quarter.
 
         Args:
             df_macro: A macro DataFrame with `TIME_SERIES_CODE`, `DATE`,
@@ -442,8 +453,18 @@ class SDMxRuleValidator:
         batch_failed = df["_BATCH_FAILED_RULES"].apply(bool)
         df["QUALITY_STATUS"] = batch_failed.map({True: "FAIL", False: "PASS"})
         df["BATCH_STATUS"] = batch_failed.map({True: "QUARANTINE", False: "PUBLISHED"})
-        df["FAILED_RULE_ID"] = df["_BATCH_FAILED_RULES"].apply(
-            lambda rule_ids: ",".join(rule_ids) if rule_ids else None
+
+        # Attribution is per observation. Stamping the batch's whole rule list onto every
+        # row accuses series that reconcile of breaking checks they never touched, and
+        # leaves the investigator no way to find the actual break.
+        #
+        # Built as an explicit object Series so a clean row carries None rather than a
+        # float NaN: this column is handed to spark.createDataFrame under a StringType
+        # schema, where NaN is a coercion risk and None is unambiguously null.
+        df["FAILED_RULE_ID"] = pd.Series(
+            [",".join(sorted(rules)) if rules else None for rules in df["_ROW_FAILED_RULES"]],
+            index=df.index,
+            dtype=object,
         )
 
         return df[result_columns]

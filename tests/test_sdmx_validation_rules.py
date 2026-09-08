@@ -160,7 +160,34 @@ def test_broken_reconciliation_quarantines_the_whole_country_quarter(validator):
 
     assert (result["QUALITY_STATUS"] == "FAIL").all(), "verdict must cover every row"
     assert (result["BATCH_STATUS"] == "QUARANTINE").all()
-    assert result["FAILED_RULE_ID"].notna().all()
+
+
+def test_failed_rule_is_attributed_to_the_offending_observation(validator):
+    """The verdict is collective; the accusation is not.
+
+    Quarantine covers the whole country-quarter, but naming the batch's rules on
+    every row tells an investigator that ``B`` and ``N`` broke ``LBS_CC:04`` when
+    both reconcile perfectly. Only the aggregate that failed to equal its
+    components carries the code; the components are quarantined with a null,
+    which is what points the investigation at the aggregate.
+    """
+    context = "Q.S.C.A.TO1.A.5J.A.CA.{sector}.5J"
+    frame = _macro_frame(
+        [
+            (context.format(sector="A"), 1000.0),
+            (context.format(sector="B"), 300.0),
+            (context.format(sector="N"), 200.0),
+        ]
+    )
+    result = validator.validate(frame)
+
+    by_sector = dict(
+        zip(result["TIME_SERIES_CODE"].str.split(".").str[9], result["FAILED_RULE_ID"])
+    )
+
+    assert by_sector["A"] == "LBS_CC:04", "the aggregate is what failed to reconcile"
+    assert by_sector["B"] is None, "a reconciling component is not the offender"
+    assert by_sector["N"] is None, "a reconciling component is not the offender"
 
 
 def test_quarantine_does_not_cross_jurisdictions(validator):

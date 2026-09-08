@@ -85,8 +85,21 @@ MICRO_COLUMNS: List[str] = ["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE",
 #: Live BIS REST endpoint exposing the BIS_LBS Data Structure Definition (DSD).
 BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all"
 
-#: Directory where sovereign SDMx-ML submission files are written.
-OUTPUT_DIR: str = "data"
+#: Repo root, resolved from this file's location so the submission path does not
+#: depend on the process's working directory (a Databricks task sets its own).
+_REPO_ROOT: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#: Directory where sovereign SDMx-ML submission files are written. The receiving
+#: side reads the same location, so it is the contract between the two pipeline
+#: tasks and has to be set explicitly wherever the repo tree is not writable.
+OUTPUT_DIR: str = os.environ.get(
+    "SOVEREIGNSHIELD_SUBMISSION_DIR", os.path.join(_REPO_ROOT, "data")
+)
+
+#: Submission cycles, in the order a reporting body would file them. Each writes a
+#: complete set of national submissions into its own subdirectory, so the receiving
+#: organisation processes one arrival at a time rather than a merged pile of files.
+SUBMISSION_CYCLES: tuple = ("baseline", "revision")
 
 #: Sovereign sender metadata (SDMx Header `sender`), keyed by lower-case country code.
 SOVEREIGN_SENDERS: Dict[str, Organisation] = {
@@ -102,11 +115,20 @@ SUBMISSION_ACTIONS: Dict[str, ActionType] = {
     "Break in Series": ActionType.Replace,
 }
 
-#: Per-country lifecycle state used for the demo run (mix of a routine revision and a flagged break).
+#: Per-country lifecycle state used for the demo run. The baseline is each body's
+#: first filing for the quarter; the revision re-reports the same series keys, which
+#: is a Replace in SDMx terms regardless of whether the hub ends up accepting it.
 SOVEREIGN_SUBMISSION_TYPES: Dict[str, str] = {
+    "ca": "First Submission",
+    "us": "First Submission",
+    "gb": "First Submission",
+}
+
+#: Lifecycle state for a re-filing of a quarter already submitted.
+REVISION_SUBMISSION_TYPES: Dict[str, str] = {
     "ca": "Revision",
     "us": "Break in Series",
-    "gb": "First Submission",
+    "gb": "Revision",
 }
 
 
@@ -154,43 +176,56 @@ def _make_micro_rows(
     return rows
 
 
-def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
+def generate_micro_transactions(cycle: str = "baseline") -> Dict[str, pd.DataFrame]:
     """Generates synthetic, sovereign-isolated bank-level LBS micro-data per country.
 
     Models three separate national micro-data tables:
     ``dbw_sovereignshield.sovereign_shield.lbs_micro_transactions_ca``, ``_us``, and ``_gb``.
 
-    Scenario A (Canada, `L_REP_CTY = 'CA'`): components (Domestic + Foreign +
-    Unallocated) sum to exactly the `TO1.A` aggregate, satisfying the
-    `LBS_CC01` consistency check, and no single bank holds >= 60% of any
-    `TIME_SERIES_CODE`.
+    Confidentiality and quality are orthogonal, and the two cycles keep them
+    visibly separate. Confidentiality is the *reporting* country's decision, taken
+    here from the dominance threshold and travelling in the submission as
+    ``OBS_CONF``. Quality is the *receiving* organisation's decision, taken by
+    re-running ``checks_lbs.xls`` over the submitted file. A dominant bank makes
+    an observation confidential; it does not make the submission wrong.
 
-    Scenario B (United States, `L_REP_CTY = 'US'`): components sum to 1000
-    while the `TO1.A` aggregate sums to 1500, deliberately failing
-    `LBS_CC01`, and `BANK_US_1` holds 70% of the `TO1.A` aggregate, triggering
-    the dominance rule.
+    ``baseline`` — every country reconciles against every BIS cross-check, so all
+    three publish. They differ only in confidentiality: Canada spreads its
+    positions across three banks and publishes freely, while ``BANK_US_1`` holds
+    70% of the US ``TO1:A`` aggregate, so those observations are restricted
+    (``OBS_CONF = 'N'``) despite being arithmetically clean.
 
-    Scenario C (United Kingdom, `L_REP_CTY = 'GB'`): three isolated, deliberately
-    corrupted reconciliation groups (each a real math cross-check discrepancy,
-    no fabricated codelist values) to exercise the quarantine path, each
-    genuinely detected by `SDMxRuleValidator` (real check codes, verified
-    against `checks_lbs.xls` — not fabricated IDs):
+    ``revision`` — each country re-reports the same series keys with a genuine
+    arithmetic break, using only real BIS codes (no fabricated codelist values),
+    each detected by `SDMxRuleValidator` against the published workbook:
 
-    * Cross-check aggregation mismatch -> breaks `LBS_CC01` (`TO1:A` no longer
-      equals `D + F + U`).
-    * Currency breakdown mismatch -> breaks `LBS_CC02` (a net negative `EUR:F`
-      leg among the 5 mandatory currencies no longer sums to `TO1:F`; the
-      negative sign itself is valid SDMx, the broken cross-check is not).
-    * Sector cross-check violation -> breaks `LBS_CC:04` (`Banks (B) + Non-bank
-      (N)` no longer sums to `All sectors (A)`).
+    * Canada breaks the currency-type cross-check: the domestic leg is revised
+      down while the ``TO1:A`` aggregate is not, so ``D + F + U`` no longer
+      reconciles.
+    * The United States breaks the same cross-check from the other side: the
+      aggregate is revised up while its components are unchanged.
+    * The United Kingdom breaks the currency breakdown and the sector
+      cross-check, in two groups isolated from each other by ``L_CURR_TYPE``.
+
+    Because quarantine is atomic per country-quarter, the revision is rejected
+    whole and the published baseline stays ``IS_CURRENT``.
+
+    Args:
+        cycle: ``"baseline"`` or ``"revision"``.
 
     Returns:
         A dict keyed by lower-case country code (`'ca'`, `'us'`, `'gb'`), each
         value a pandas DataFrame with exactly the 5 columns in `MICRO_COLUMNS`.
     """
+    if cycle not in SUBMISSION_CYCLES:
+        raise ValueError(f"cycle must be one of {SUBMISSION_CYCLES}, got {cycle!r}")
+    revision = cycle == "revision"
+
     # ------------------------------------------------------------------
-    # Scenario A: Canada (CA) — clean submission, publicly publishable.
-    # LBS_CC01: TO1:A (total) = ISO:D (domestic) + TO1:F (foreign) + UN9:U (unallocated)
+    # Canada (CA). Baseline: TO1:A (1000) = CAD:D (400) + TO1:F (500) + UN9:U (100),
+    # spread across three banks so nothing reaches the dominance threshold.
+    # Revision: the domestic leg drops to 300 while the aggregate is re-reported
+    # unchanged, so the components no longer sum to it.
     # ------------------------------------------------------------------
     ca_base = {
         "FREQ": "Q",
@@ -203,17 +238,17 @@ def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
         "L_CP_SECTOR": "A",
         "L_CP_COUNTRY": "5J",
     }
+    ca_domestic_leg = 150.0 if revision else 200.0
     ca_components = [
-        # Domestic currency (CAD:D) -> total 400
-        ("CAD", "D", "BANK_CA_1", 200.0),
-        ("CAD", "D", "BANK_CA_2", 200.0),
-        # Foreign currencies (TO1:F) -> total 500
+        # Domestic currency (CAD:D) -> 400 at baseline, 300 on revision.
+        ("CAD", "D", "BANK_CA_1", ca_domestic_leg),
+        ("CAD", "D", "BANK_CA_2", ca_domestic_leg),
+        # Foreign currencies (TO1:F) -> 500.
         ("TO1", "F", "BANK_CA_1", 250.0),
         ("TO1", "F", "BANK_CA_2", 250.0),
-        # Unallocated currency type (UN9:U) -> total 100
+        # Unallocated currency type (UN9:U) -> 100.
         ("UN9", "U", "BANK_CA_3", 100.0),
-        # All-currencies aggregate (TO1:A) -> total 1000 = 400 + 500 + 100 (LBS_CC01 passes)
-        # Spread so no bank reaches the 60% dominance threshold.
+        # All-currencies aggregate (TO1:A) -> 1000, unchanged by the revision.
         ("TO1", "A", "BANK_CA_1", 400.0),
         ("TO1", "A", "BANK_CA_2", 400.0),
         ("TO1", "A", "BANK_CA_3", 200.0),
@@ -221,58 +256,61 @@ def generate_micro_transactions() -> Dict[str, pd.DataFrame]:
     df_ca = pd.DataFrame(_make_micro_rows(ca_base, ca_components), columns=MICRO_COLUMNS)
 
     # ------------------------------------------------------------------
-    # Scenario B: United States (US) — dirty submission, market dominant.
-    # LBS_CC01 intentionally fails: components sum to 1000, aggregate sums to 1500.
+    # United States (US). Market-dominant in both cycles: BANK_US_1 holds 70% of
+    # TO1:A, so those observations are confidential either way. Baseline still
+    # reconciles (1000 = 400 + 500 + 100); the revision inflates the aggregate to
+    # 1500 while leaving the components alone.
     # ------------------------------------------------------------------
     us_base = {**ca_base, "L_REP_CTY": "US"}
+    us_aggregate_scale = 1.5 if revision else 1.0
     us_components = [
-        # Domestic currency (USD:D) -> total 400
+        # Domestic currency (USD:D) -> 400.
         ("USD", "D", "BANK_US_1", 400.0),
-        # Foreign currencies (TO1:F) -> total 500
+        # Foreign currencies (TO1:F) -> 500.
         ("TO1", "F", "BANK_US_2", 500.0),
-        # Unallocated currency type (UN9:U) -> total 100
+        # Unallocated currency type (UN9:U) -> 100.
         ("UN9", "U", "BANK_US_2", 100.0),
-        # All-currencies aggregate (TO1:A) -> total 1500 != 1000 (LBS_CC01 fails)
-        # BANK_US_1 holds 1050 / 1500 = 70% of the aggregate (dominance triggered).
-        ("TO1", "A", "BANK_US_1", 1050.0),
-        ("TO1", "A", "BANK_US_2", 450.0),
+        # All-currencies aggregate (TO1:A). BANK_US_1 holds 70% at either scale.
+        ("TO1", "A", "BANK_US_1", 700.0 * us_aggregate_scale),
+        ("TO1", "A", "BANK_US_2", 300.0 * us_aggregate_scale),
     ]
     df_us = pd.DataFrame(_make_micro_rows(us_base, us_components), columns=MICRO_COLUMNS)
 
     # ------------------------------------------------------------------
-    # Scenario C: United Kingdom (GB) — three isolated, deliberately corrupted
-    # reconciliation groups (see docstring), each using only real BIS codes.
+    # United Kingdom (GB). Three reconciliation groups held apart by L_POSITION
+    # and L_CURR_TYPE so a break in one cannot contaminate the others. Group 1
+    # reconciles in both cycles; groups 2 and 3 break only on revision.
     # ------------------------------------------------------------------
     gb_base = {**ca_base, "L_REP_CTY": "GB"}
+    # TO1:F is re-reported as 500 against unchanged legs summing to 400.
+    gb_foreign_aggregate = 500.0 if revision else 400.0
+    # All sectors (A) is re-reported as 500 against banks (300) + non-bank (150).
+    gb_all_sectors = 500.0 if revision else 450.0
     gb_components = [
-        # --- Test 1: Cross-Check Aggregation Mismatch -> genuine LBS_CC01 FAIL ---
-        # Domestic + Foreign + Unallocated (300+500+100=900) deliberately do not sum
-        # to the fixed TO1:A aggregate (950); every code here is real and permitted.
+        # --- Group 1: currency-type cross-check, reconciles in both cycles ---
+        # 900 = 300 (GBP:D) + 500 (TO1:F) + 100 (UN9:U).
         ("GBP", "D", "BANK_GB_1", 300.0),
         ("TO1", "F", "BANK_GB_2", 500.0),
         ("UN9", "U", "BANK_GB_3", 100.0),
-        ("TO1", "A", "BANK_GB_1", 950.0),
+        ("TO1", "A", "BANK_GB_1", 900.0),
 
-        # --- Test 2: Currency Breakdown Mismatch -> genuine LBS_CC02 FAIL ---
-        # TO1:F must equal the sum of the 5 mandatory currencies + TO3:F. The EUR:F leg is
-        # reported as a net negative position, which is perfectly valid SDMx data, but the
-        # legs no longer reconcile: 100-50+100+100+100+50=400 != the fixed TO1:F total (500).
-        # L_POSITION='L' isolates this group from Test 1; L_POSITION is never itself
-        # a reconciliation target, so it cannot trigger spurious cross-check failures.
+        # --- Group 2: currency breakdown, breaks on revision ---
+        # TO1:F must equal the 5 mandatory currencies plus TO3:F. The EUR:F leg is a
+        # net negative position, which is valid SDMx data: 100-50+100+100+100+50 = 400.
+        # L_POSITION='L' isolates this group from Group 1, and L_POSITION is never
+        # itself a reconciliation target, so it cannot trigger spurious failures.
         ("USD", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
         ("EUR", "F", "BANK_GB_2", -50.0, {"L_POSITION": "L"}),
         ("JPY", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
         ("CHF", "F", "BANK_GB_2", 100.0, {"L_POSITION": "L"}),
         ("GBP", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
         ("TO3", "F", "BANK_GB_2", 50.0, {"L_POSITION": "L"}),
-        ("TO1", "F", "BANK_GB_1", 500.0, {"L_POSITION": "L"}),
+        ("TO1", "F", "BANK_GB_1", gb_foreign_aggregate, {"L_POSITION": "L"}),
 
-        # --- Test 3: Sector Cross-Check Violation -> genuine LBS_CC:04 FAIL ---
-        # All sectors (A) should equal Non-bank (N) + Banks (B); only real, permitted
-        # sector codes are used (no fabricated placeholders) but the totals deliberately
-        # don't reconcile: recomputed 300 (B) + 150 (N) = 450 != the fixed aggregate (500).
-        # Shares Test 2's L_POSITION='L' plane but is isolated by its own L_DENOM/L_CURR_TYPE.
-        ("GBP", "D", "BANK_GB_1", 500.0, {"L_POSITION": "L", "L_CP_SECTOR": "A"}),
+        # --- Group 3: sector cross-check, breaks on revision ---
+        # All sectors (A) = Banks (B) + Non-bank (N). Shares Group 2's L_POSITION='L'
+        # plane but is isolated from it by L_CURR_TYPE='D'.
+        ("GBP", "D", "BANK_GB_1", gb_all_sectors, {"L_POSITION": "L", "L_CP_SECTOR": "A"}),
         ("GBP", "D", "BANK_GB_2", 300.0, {"L_POSITION": "L", "L_CP_SECTOR": "B"}),
         ("GBP", "D", "BANK_GB_3", 150.0, {"L_POSITION": "L", "L_CP_SECTOR": "N"}),
     ]
@@ -370,6 +408,7 @@ def generate_sdmx_ml(
     country_code: str,
     submission_type: str = "First Submission",
     dsd: Optional[DataStructureDefinition] = None,
+    output_dir: Optional[str] = None,
 ) -> str:
     """Serializes an aggregated macro DataFrame into a sovereign SDMx 3.0 XML (ML) payload.
 
@@ -436,8 +475,9 @@ def generate_sdmx_ml(
 
     xml_payload = sdmx_io.write_sdmx(dataset, Format.DATA_SDMX_ML_3_0, header=header)
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    output_path = os.path.join(OUTPUT_DIR, f"{country_code}_submission_2026_Q1.xml")
+    target_dir = output_dir or OUTPUT_DIR
+    os.makedirs(target_dir, exist_ok=True)
+    output_path = os.path.join(target_dir, f"{country_code}_submission_2026_Q1.xml")
     with open(output_path, "w", encoding="utf-8") as xml_file:
         xml_file.write(xml_payload)
 
@@ -448,48 +488,73 @@ if __name__ == "__main__":
     print("Fetching live BIS_LBS Data Structure Definition from the BIS REST API...")
     bis_lbs_dsd = fetch_bis_lbs_dsd()
     print(f"Fetched DSD '{bis_lbs_dsd.agency}:{bis_lbs_dsd.id}({bis_lbs_dsd.version})'.")
-
-    print("\nGenerating sovereign-isolated synthetic LBS micro-data (CA clean / US dirty & dominant)...")
-    micro_by_country = generate_micro_transactions()
-
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    for country_code, df_micro in micro_by_country.items():
-        micro_csv_path = os.path.join(OUTPUT_DIR, f"micro_transactions_{country_code}.csv")
-        df_micro.to_csv(micro_csv_path, index=False)
-        print(f"Saved raw micro-data for {country_code.upper()} -> {micro_csv_path}")
+    print(f"Submissions will be filed under {OUTPUT_DIR}")
 
     submission_summary: List[Dict[str, object]] = []
-    for country_code, df_micro in micro_by_country.items():
-        submission_type = SOVEREIGN_SUBMISSION_TYPES.get(country_code, "First Submission")
-        sender = SOVEREIGN_SENDERS.get(country_code, Organisation(id="ZZZ"))
 
-        print(f"\n=== Sovereign submission: {country_code.upper()} ({submission_type}) ===")
-        print(f"--- Micro-Data: dbw_sovereignshield.sovereign_shield.lbs_micro_transactions_{country_code} ---")
-        print(df_micro.to_string(index=False))
+    for sequence, cycle in enumerate(SUBMISSION_CYCLES, start=1):
+        # Sequence-prefixed so the receiving side can process arrivals in filing order by
+        # sorting, rather than by knowing what the cycles are called.
+        cycle_dir = os.path.join(OUTPUT_DIR, f"{sequence:02d}_{cycle}")
+        os.makedirs(cycle_dir, exist_ok=True)
 
-        df_macro = aggregate_micro_to_macro(df_micro, threshold=DOMINANCE_THRESHOLD)
-        print(f"\n--- Macro-Data: SDMx 3.0 Aggregated Time Series ({country_code.upper()}) ---")
-        print(df_macro.to_string(index=False))
+        print(f"\n{'#' * 70}\n# Reporting cycle: {cycle}\n{'#' * 70}")
+        micro_by_country = generate_micro_transactions(cycle=cycle)
 
-        generate_sdmx_ml(df_macro, country_code, submission_type=submission_type, dsd=bis_lbs_dsd)
-        output_path = os.path.join(OUTPUT_DIR, f"{country_code}_submission_2026_Q1.xml")
-        submission_summary.append(
-            {
-                "country": country_code.upper(),
-                "sender": f"{sender.id} ({sender.name})",
-                "submission_type": submission_type,
-                "dataset_action": SUBMISSION_ACTIONS[submission_type].value,
-                "series_count": len(df_macro),
-                "restricted_series": int((df_macro["OBS_CONF"] == "N").sum()),
-                "output_path": output_path,
-            }
+        for country_code, df_micro in micro_by_country.items():
+            micro_csv_path = os.path.join(cycle_dir, f"micro_transactions_{country_code}.csv")
+            df_micro.to_csv(micro_csv_path, index=False)
+            print(f"Saved raw micro-data for {country_code.upper()} -> {micro_csv_path}")
+
+        lifecycle = (
+            SOVEREIGN_SUBMISSION_TYPES if cycle == "baseline" else REVISION_SUBMISSION_TYPES
         )
+
+        for country_code, df_micro in micro_by_country.items():
+            submission_type = lifecycle.get(country_code, "First Submission")
+            sender = SOVEREIGN_SENDERS.get(country_code, Organisation(id="ZZZ"))
+
+            print(f"\n=== Sovereign submission: {country_code.upper()} ({submission_type}) ===")
+            print(f"--- Micro-Data: lbs_micro_transactions_{country_code} ({cycle}) ---")
+            print(df_micro.to_string(index=False))
+
+            # Confidentiality is decided here, by the reporting country, from the
+            # dominance threshold. Whether the submission is accepted is not.
+            df_macro = aggregate_micro_to_macro(df_micro, threshold=DOMINANCE_THRESHOLD)
+            print(f"\n--- Macro-Data: SDMx 3.0 Aggregated Time Series ({country_code.upper()}) ---")
+            print(df_macro.to_string(index=False))
+
+            generate_sdmx_ml(
+                df_macro,
+                country_code,
+                submission_type=submission_type,
+                dsd=bis_lbs_dsd,
+                output_dir=cycle_dir,
+            )
+            submission_summary.append(
+                {
+                    "cycle": cycle,
+                    "country": country_code.upper(),
+                    "sender": f"{sender.id} ({sender.name})",
+                    "submission_type": submission_type,
+                    "dataset_action": SUBMISSION_ACTIONS[submission_type].value,
+                    "series_count": len(df_macro),
+                    "restricted_series": int((df_macro["OBS_CONF"] == "N").sum()),
+                    "output_path": os.path.join(
+                        cycle_dir, f"{country_code}_submission_2026_Q1.xml"
+                    ),
+                }
+            )
 
     print("\n--- Execution Summary ---")
     for entry in submission_summary:
         print(
-            f"[{entry['country']}] sender={entry['sender']} | "
+            f"[{entry['cycle']}/{entry['country']}] sender={entry['sender']} | "
             f"lifecycle={entry['submission_type']} (action={entry['dataset_action']}) | "
             f"{entry['series_count']} series aggregated, "
             f"{entry['restricted_series']} restricted (OBS_CONF='N') -> {entry['output_path']}"
         )
+    print(
+        "\nQuality is not decided here. The receiving organisation re-runs "
+        "checks_lbs.xls over these files and rules on them independently."
+    )
