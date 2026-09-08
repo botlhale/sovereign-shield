@@ -49,6 +49,22 @@ Missing the GitHub CLI:
 winget install --id GitHub.cli --exact
 ```
 
+Every `sh/*.ps1` script in this runbook is blocked until PowerShell is allowed to
+run local scripts. Windows ships as `Restricted`, which permits none:
+
+```powershell
+Get-ExecutionPolicy -List                      # LocalMachine Restricted is the default
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+`CurrentUser` scope needs no admin rights. Prefer setting the policy over
+`powershell -ExecutionPolicy Bypass -File ...`: Stage 3 dot-sources
+`pre_auth.ps1` to load credentials into the *current* session, and a child
+process would discard them on exit.
+
+VS Code's PowerShell Extension terminal launches with `Bypass` already applied,
+so a script that runs there can still fail in an ordinary terminal.
+
 Open a **new** terminal afterwards — `PATH` does not refresh in the session that
 ran the installer — then `gh auth login`. You need admin rights on the
 repository; environment protection rules are an admin-only API.
@@ -581,6 +597,12 @@ exist, and the next `apply` fails on refresh.
 ---
 
 ## When it doesn't work
+
+**A script fails with "running scripts is disabled on this system".** The
+execution policy is `Restricted`. See Stage 0 —
+`Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`. Note
+that VS Code's PowerShell Extension terminal bypasses the policy, so the same
+script can work there and fail in a plain terminal.
 
 **`terraform init` reports "Too many command line arguments. Did you mean to use
 -chdir?"** Windows PowerShell splits an unquoted native-command argument
