@@ -82,7 +82,13 @@ function Invoke-Gh {
 
 function New-TempJson($Object) {
     $path = [System.IO.Path]::GetTempFileName()
-    ($Object | ConvertTo-Json -Depth 10 -Compress) | Set-Content -Path $path -Encoding utf8
+    $json = $Object | ConvertTo-Json -Depth 10 -Compress
+
+    # Windows PowerShell 5.1 writes a BOM for -Encoding utf8, and `gh api --input`
+    # sends the file verbatim, so GitHub rejects the leading EF BB BF with
+    # "Problems parsing JSON (HTTP 400)".
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($path, $json, $utf8NoBom)
     return $path
 }
 

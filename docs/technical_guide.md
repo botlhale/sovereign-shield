@@ -20,8 +20,9 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pytest tests/ --no-header
 ```
 
-Expect `59 passed, 2 skipped`. The two skips are the `--live` tests that need a real
-workspace. If this passes, every pass in this guide is available to you offline.
+Expect `59 passed, 12 skipped`. The skips are the `--live` tests that need a real
+workspace and the `--stress` benchmarks that take minutes. If this passes, every
+pass in this guide is available to you offline.
 
 **The one idea to hold onto.** Almost every design decision in this repository
 follows from a single claim: *entitlement is a property of the table, not of the

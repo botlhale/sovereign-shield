@@ -31,47 +31,134 @@ az --version                  # Azure CLI
 databricks --version          # v1.10+ for apps-in-bundles
 terraform version             # v1.9+ for Path A only
 python --version              # 3.11+
+gh --version                  # GitHub CLI, for Stage 0.2 only
 
 az login
 az account set --subscription "<your-subscription>"
 ```
+
+Missing the GitHub CLI:
+
+```powershell
+winget install --id GitHub.cli --exact
+```
+
+Open a **new** terminal afterwards — `PATH` does not refresh in the session that
+ran the installer — then `gh auth login`. You need admin rights on the
+repository; environment protection rules are an admin-only API.
 
 Then verify the build works before touching any cloud resource. This is the gate
 a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 59 passed, 2 skipped
+pytest tests/                 # expect 59 passed, 12 skipped
 ```
 
-The 2 skips are the `--live` tests; they need a workspace and are meant to skip
-here.
+The skips are the `--live` tests, which need a workspace, and the `--stress`
+benchmarks, which take minutes. Both are meant to skip here.
 
-### 0.1 GitHub repository controls (CI only)
+### 0.1 Terraform state backend (Path A only)
 
-Skip if you are deploying by hand. Required before the promotion workflow means
-anything:
+A bootstrap resource: it has to exist before the configuration that would
+otherwise create it, so Terraform cannot own it. Create it once, by hand.
 
 ```powershell
-./sh/github_environment_setup.ps1 -Repository <owner>/<repo> `
-    -Reviewers <github-username> `
-    -AzureClientId <app-id> -AzureTenantId <tenant> -AzureSubscriptionId <sub> `
-    -DatabricksHost <workspace-host> `
-    -TfStateResourceGroup rg-sovereignshield-tfstate `
-    -TfStateStorageAccount <state-storage-account>
+$location    = "canadacentral"
+$stateRg     = "rg-sovereignshield-tfstate"
+$stateAccount = "st<something-globally-unique>"   # 3-24 chars, lowercase alphanumeric
+
+# Storage account names are globally unique across all of Azure. Check first.
+az storage account check-name --name $stateAccount --query nameAvailable -o tsv
+
+az group create --name $stateRg --location $location
+
+az storage account create `
+    --name $stateAccount `
+    --resource-group $stateRg `
+    --location $location `
+    --sku Standard_LRS `
+    --allow-blob-public-access false `
+    --allow-shared-key-access false `
+    --min-tls-version TLS1_2
+
+az storage container create `
+    --name tfstate `
+    --account-name $stateAccount `
+    --auth-mode login
 ```
+
+`--allow-shared-key-access false` is the reason `backend.hcl.example` sets
+`use_azuread_auth = true`. There is no account key to leak or rotate, so
+Terraform and CI both authenticate as themselves. `--auth-mode login` on the
+container create is required for the same reason: without a key, the CLI has to
+use your Entra identity.
+
+State holds resource identifiers and should be treated as sensitive even though
+this configuration keeps credentials out of it.
+
+> **Teardown note.** This resource group is deliberately outside
+> `terraform destroy`. Stage 9 removes it separately.
+
+### 0.2 GitHub repository controls (CI only)
+
+Skip if you are deploying by hand. Required before the promotion workflow means
+anything.
 
 GitHub creates an environment implicitly the first time a job references one,
 **with no protection rules attached**. Without this step `environment: production`
 is decorative: the workflow looks like it has a human gate while every merge
 deploys straight through.
 
+**Run it in two passes.** The workflow's preflight job treats the repository
+variables as all-or-nothing — all six set means deploy, none set means skip
+cleanly, and *some* set fails the run naming the gap. The Databricks host is not
+knowable until Stage 1 creates the workspace, so setting it now would either be
+wrong or leave the repository half-configured.
+
+**Pass 1 — now.** Protection rules only, no variables:
+
+```powershell
+./sh/github_environment_setup.ps1 -Repository <owner>/<repo> `
+    -Reviewers <github-username>
+```
+
+Blank variables are skipped by design, so preflight stays at `configured=false`
+and CI skips deployment cleanly instead of failing.
+
+**Pass 2 — after Stage 1.** Re-run with every value filled in. The script is
+idempotent; it reports what already matches and changes only drift:
+
+```powershell
+$dbHost = az databricks workspace list --query "[0].workspaceUrl" -o tsv
+$sub    = az account show --query id -o tsv
+$tenant = az account show --query tenantId -o tsv
+$appId  = az ad sp list --display-name spn-sovereignshield-cicd --query "[0].appId" -o tsv
+
+./sh/github_environment_setup.ps1 -Repository <owner>/<repo> `
+    -Reviewers <github-username> `
+    -AzureClientId $appId -AzureTenantId $tenant -AzureSubscriptionId $sub `
+    -DatabricksHost $dbHost `
+    -TfStateResourceGroup $stateRg `
+    -TfStateStorageAccount $stateAccount
+```
+
+Every value here is an **identifier, not a secret**. The service principal's
+credential stays in Key Vault and is exchanged via OIDC at run time.
+
 The script sets required reviewers, prevents self-review, restricts deployments
 to protected branches, and writes the repository variables the workflow reads.
 
-One thing it cannot do for you: **protect the `main` branch**. Settings → Branches
-→ require a pull request before merging. Restricting deployments to protected
-branches means nothing if no branch is protected.
+Two things it cannot do for you:
+
+**Protect the `main` branch.** Settings → Branches → require a pull request
+before merging. Restricting deployments to protected branches means nothing if
+no branch is protected.
+
+**Give you a second reviewer.** `prevent_self_review` is set whenever reviewers
+are supplied, so on a solo repository *you cannot approve your own deployment*
+and every merge waits indefinitely. Either name a second reviewer, or omit
+`-Reviewers` until the gate is genuinely wanted.
 
 ---
 
@@ -81,7 +168,7 @@ branches means nothing if no branch is protected.
 
 ```powershell
 cd terraform
-cp backend.hcl.example backend.hcl              # edit: your state storage account
+cp backend.hcl.example backend.hcl              # edit: the state account from Stage 0.1
 cp terraform.tfvars.example terraform.tfvars    # edit: subscription_id, tenant_id
 
 terraform init -backend-config=backend.hcl
