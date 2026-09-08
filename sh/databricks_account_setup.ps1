@@ -131,10 +131,10 @@ function Get-Resources($response) {
         }
     }
 
-    # $items is already flat, so a single comma is enough to stop PowerShell
-    # unrolling it on return. Wrapping an array again would nest it, and the
-    # caller's $found[0] would be an array rather than a resource.
-    return , $items
+    # Returned bare, not as `, $items`. Every caller wraps the result in @(),
+    # which normalises correctly. The comma idiom emits the array as a single
+    # object, which turns "no matches" into one match holding an empty array.
+    return $items
 }
 
 # The CLI has shipped several response shapes across versions. When one slips
