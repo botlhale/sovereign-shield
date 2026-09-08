@@ -845,6 +845,37 @@ workspace admin. Deploying the workspace as subscription Owner does not grant
 that implicitly on a workspace someone else created — add yourself under
 **Settings → Identity and access**.
 
+**`UC_AZURE_CREDENTIAL_NOT_FOUND` — "the access connector may have been deleted
+or recreated".** Unity Catalog stores an internal `credential_id` resolved when
+the storage credential was created. Recreating the access connector leaves that
+handle dangling even though the ARM resource ID string is unchanged, so Azure
+looks entirely healthy. Confirm before changing anything:
+
+```powershell
+$json = @{ storage_credential_name = "sc-sovereignshield"; external_location_name = "el-sovereignshield" } | ConvertTo-Json -Compress
+[System.IO.File]::WriteAllText("$PWD\val.json", $json, (New-Object System.Text.UTF8Encoding($false)))
+databricks api post /api/2.1/unity-catalog/validate-storage-credentials --json "@val.json"
+```
+
+Re-setting the connector ID to the same value forces UC to re-resolve it. Check
+the reported dependent-table count first — `force` is safe at zero, and a signal
+to stop and think if not:
+
+```powershell
+databricks storage-credentials update sc-sovereignshield --json '{"force":true,"azure_managed_identity":{"access_connector_id":"<connector-arm-id>"}}'
+```
+
+A changed `credential_id` in the response confirms the rebind.
+
+**"This Azure storage request is not authorized — Firewalls and virtual networks".**
+The storage account is unreachable from compute. Serverless SQL egresses from the
+Databricks serverless plane and classic compute from the Databricks-managed VNet;
+neither can be admitted by an IP rule, a VNet rule, or an access-connector
+resource instance rule. `public_network_access_enabled` must stay `true` unless
+the workspace is VNet-injected with private endpoints. This costs less than it
+looks: `shared_access_key_enabled = false` and no anonymous container mean every
+request still needs an Entra token that RBAC allows.
+
 **`terraform destroy` fails on the catalog.** Step 1 of the teardown was skipped;
 tables still carry live row filters.
 

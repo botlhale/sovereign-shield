@@ -39,11 +39,21 @@ resource "azurerm_storage_account" "unity_catalog" {
   # external locations are defined against.
   is_hns_enabled = true
 
-  # No public network path to sovereign data, and no anonymous container.
+  # Reachability is not the access control here. With no account key and no
+  # anonymous container, every request must carry an Entra token that RBAC
+  # allows. Closing the public endpoint strands the account instead: serverless
+  # SQL egresses from the Databricks serverless plane and classic compute from
+  # the Databricks-managed VNet, and no firewall rule can admit either. Locking
+  # this to Deny requires a VNet-injected workspace and private endpoints.
   allow_nested_items_to_be_public = false
-  public_network_access_enabled   = false
+  public_network_access_enabled   = true
   min_tls_version                 = "TLS1_2"
   shared_access_key_enabled       = false
+
+  network_rules {
+    default_action = "Allow"
+    bypass         = ["AzureServices"]
+  }
 
   tags = var.tags
 }
