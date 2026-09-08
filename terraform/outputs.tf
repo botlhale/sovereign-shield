@@ -49,15 +49,20 @@ output "next_steps" {
        only; workspace-scoped groups of the same name silently match nothing.
          ./sh/databricks_account_setup.ps1 -AccountId <account-id>
 
-    2. Deploy the data and policy plane. Terraform does not own table DDL, the
+    2. Re-apply with -var="account_groups_ready=true". The persona groups now
+       resolve in the Databricks account directory, so catalog, schema and
+       warehouse permissions can finally bind to them. Skipping this leaves the
+       platform reachable by nobody but the deploying principal.
+
+    3. Deploy the data and policy plane. Terraform does not own table DDL, the
        policy UDFs, or the row filter and mask bindings.
          databricks bundle deploy -t dev --var="warehouse_id=${module.unity_catalog_governance.sql_warehouse_id}"
          databricks bundle run sovereignshield_sdmx_pipeline -t dev
 
-    3. Re-apply with -var="grant_tables=true" so table-level grants can bind to
+    4. Re-apply with -var="grant_tables=true" so table-level grants can bind to
        tables that now exist.
 
-    4. Verify the anonymous tier is genuinely fail-closed. Every observation
+    5. Verify the anonymous tier is genuinely fail-closed. Every observation
        returned must carry BATCH_STATUS=PUBLISHED and OBS_CONF=F.
   EOT
 }
