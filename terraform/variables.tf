@@ -20,6 +20,23 @@ variable "resource_group_name" {
   default     = "rg-sovereignshield"
 }
 
+variable "create_resource_group" {
+  description = <<-EOT
+    Create the resource group, or adopt one that already exists.
+
+    Set to false when the group is provisioned outside this configuration. That
+    is the normal arrangement in a regulated estate, where a landing zone owns
+    resource groups and the workload identity is denied
+    Microsoft.Resources/subscriptions/resourceGroups/write. It is also the
+    correct setting after the sh/ quickstart, which creates the group first.
+
+    When false, var.location is ignored and the group's own region is used, and
+    `terraform destroy` leaves the group in place.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "location" {
   description = "Azure region. Data residency for a sovereignty demonstrator is not incidental."
   type        = string

@@ -7,11 +7,17 @@
 # secret-shaped Terraform variable is ever declared, and asserts that no
 # terraform.tfvars file is committed.
 
-subscription_id = "00000000-0000-0000-0000-000000000000"
-tenant_id       = "00000000-0000-0000-0000-000000000000"
+subscription_id = "c0642147-5434-45b4-a041-e90fc846be92"
+tenant_id       = "f4f2ab4f-0397-41ab-a28a-5152e4a7afe9"
 
 resource_group_name = "rg-sovereignshield"
 location            = "canadacentral"
+
+# Set to false when the resource group already exists - a landing zone owns it,
+# or the sh/ quickstart created it before Terraform saw it. Terraform then reads
+# the group instead of creating it, uses its region rather than `location`, and
+# leaves it in place on destroy.
+create_resource_group = true
 workspace_name      = "dbw-sovereignshield"
 
 catalog_name = "dbw_sovereignshield"

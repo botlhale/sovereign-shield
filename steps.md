@@ -250,6 +250,15 @@ terraform apply tfplan
 cd ..
 ```
 
+> **If `rg-sovereignshield` already exists**, set `create_resource_group = false`
+> in `terraform.tfvars` before planning. Terraform then reads the group instead
+> of creating it. This is the normal setting in a regulated estate, where a
+> landing zone owns resource groups and the workload identity has no rights to
+> create them, and it is also correct after running the `sh/` quickstart.
+>
+> Two consequences: `location` is ignored in favour of the group's own region,
+> and `terraform destroy` leaves the group in place.
+
 Provisions the resource group, Entra persona groups, both service principals,
 the GitHub OIDC federated credentials, Key Vault, the Databricks workspace,
 the access connector and storage credential, the catalog and schema, and the
@@ -576,6 +585,7 @@ az keyvault purge --name <vault-name> --location canadacentral
 | Entra persona **users** | Never created by Terraform — membership is an administrative act with its own approval path | `az ad user delete --id boc_analyst@<tenant>` |
 | Terraform state storage account | Bootstrap resource, created before the configuration existed | `az group delete -n rg-sovereignshield-tfstate` |
 | Key Vault (soft-deleted) | `purge_protection_enabled` is deliberate — it stops an accidental destroy discarding secrets other environments reference | `az keyvault purge` |
+| The resource group, when `create_resource_group = false` | Terraform never owned it, so it does not destroy it | `az group delete -n rg-sovereignshield` |
 
 Account-level identities surviving is usually what you want: a rebuild becomes
 near-instant and Stage 2 collapses to `[skip]` lines. Remove them only when the
@@ -597,6 +607,20 @@ exist, and the next `apply` fails on refresh.
 ---
 
 ## When it doesn't work
+
+**`terraform apply` says a resource "already exists - to be managed via Terraform
+this resource needs to be imported".** Something outside this configuration
+created it, usually the `sh/` quickstart. For the resource group, set
+`create_resource_group = false` and re-plan; Terraform reads it instead of
+creating it. For anything else, adopt it explicitly rather than deleting it:
+
+```powershell
+terraform import azurerm_resource_group.main "/subscriptions/<sub>/resourceGroups/rg-sovereignshield"
+```
+
+Deleting the conflicting resource is usually the wrong move here. The Key Vault
+carries `purge_protection_enabled`, so a destroy-and-recreate cycle leaves the
+name reserved and the next apply fails on a soft-deleted vault.
 
 **A script fails with "running scripts is disabled on this system".** The
 execution policy is `Restricted`. See Stage 0 —

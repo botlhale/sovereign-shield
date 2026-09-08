@@ -5,17 +5,43 @@
 # that can read from it. No table is ever reachable before the groups that
 # constrain it exist.
 
+# The resource group is either created here or adopted.
+#
+# Adoption is not a workaround. In a regulated estate the resource group is
+# routinely provisioned by a platform team through a landing zone, and the
+# workload identity is deliberately denied Microsoft.Resources/subscriptions/
+# resourceGroups/write. Insisting on creating it would make the configuration
+# unusable exactly where this architecture is meant to run. It is also the
+# correct setting after the sh/ quickstart, which creates the group before
+# Terraform ever sees it.
 resource "azurerm_resource_group" "main" {
+  count = var.create_resource_group ? 1 : 0
+
   name     = var.resource_group_name
   location = var.location
   tags     = var.tags
 }
 
+data "azurerm_resource_group" "existing" {
+  count = var.create_resource_group ? 0 : 1
+
+  name = var.resource_group_name
+}
+
+locals {
+  resource_group_name = var.create_resource_group ? azurerm_resource_group.main[0].name : data.azurerm_resource_group.existing[0].name
+
+  # Location follows the group when adopting. A resource placed in a different
+  # region from its own resource group is legal in Azure and almost always a
+  # mistake, so var.location is ignored rather than trusted here.
+  location = var.create_resource_group ? azurerm_resource_group.main[0].location : data.azurerm_resource_group.existing[0].location
+}
+
 module "identity" {
   source = "./modules/identity"
 
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   tenant_id           = var.tenant_id
 
   group_prefix            = var.group_prefix
@@ -29,8 +55,8 @@ module "identity" {
 module "databricks_workspace" {
   source = "./modules/databricks_workspace"
 
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
   workspace_name      = var.workspace_name
 
   key_vault_id  = module.identity.key_vault_id
@@ -67,8 +93,8 @@ module "dissemination_gateway" {
   source = "./modules/dissemination_gateway"
   count  = var.deploy_dissemination_gateway ? 1 : 0
 
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
+  resource_group_name = local.resource_group_name
+  location            = local.location
 
   key_vault_id               = module.identity.key_vault_id
   public_client_id_secret_id = module.identity.public_spn_client_id_secret_id
