@@ -109,17 +109,36 @@ function Get-Resources($response) {
     # scalar throws under Set-StrictMode.
     if ($null -eq $response) { return , @() }
 
-    # The CLI returns a bare array on some versions and a SCIM envelope on others.
-    if ($response.PSObject.Properties.Name -contains "Resources") {
-        if ($null -eq $response.Resources) { return , @() }
-        return , @($response.Resources)
+    # The CLI returns a bare array on some versions and an envelope on others,
+    # keyed differently per endpoint.
+    foreach ($key in @("Resources", "permission_assignments")) {
+        if ($response.PSObject.Properties.Name -contains $key) {
+            if ($null -eq $response.$key) { return , @() }
+            return , @($response.$key)
+        }
     }
 
-    # An envelope with no Resources key means nothing matched. Wrapping it would
-    # report one result and then read an id that does not exist.
-    if ($response.PSObject.Properties.Name -contains "totalResults") { return , @() }
+    # An object with no properties, or one carrying only a result count, is an
+    # empty response rather than a single result. Wrapping it would report one
+    # match and then read an id that was never there - which passes as a
+    # "[skip] exists" line and fails several statements later.
+    if ($response -is [System.Management.Automation.PSCustomObject]) {
+        $names = @($response.PSObject.Properties.Name)
+        if ($names.Count -eq 0 -or $names -contains "totalResults") { return , @() }
+    }
 
     return , @($response)
+}
+
+# The CLI has shipped several response shapes across versions. When one slips
+# past Get-Resources, fail with the payload rather than a bare StrictMode
+# "property 'id' cannot be found", which names neither the object nor the call.
+function Get-ResourceId($resource, [string]$Label) {
+    if ($null -ne $resource -and $resource.PSObject.Properties.Name -contains "id") {
+        return [string]$resource.id
+    }
+    $shape = try { $resource | ConvertTo-Json -Depth 3 -Compress } catch { "<unserialisable>" }
+    throw "Databricks returned a result for '$Label' with no id field. Response: $shape"
 }
 
 function New-TempJson($object) {
@@ -163,7 +182,7 @@ try {
         $found = @(Get-Resources (Invoke-Db @("account", "groups", "list", "--filter", "displayName eq '$name'")))
         if ($found.Count -gt 0) {
             Write-Host "  [skip]   Group $name exists"
-            $groupIds[$name] = $found[0].id
+            $groupIds[$name] = Get-ResourceId $found[0] "group $name"
         }
         else {
             Write-Host "  [create] Group $name" -ForegroundColor Green
@@ -179,7 +198,7 @@ try {
         $found = @(Get-Resources (Invoke-Db @("account", "users", "list", "--filter", "userName eq '$upn'")))
         if ($found.Count -gt 0) {
             Write-Host "  [skip]   User $upn exists"
-            $userId = $found[0].id
+            $userId = Get-ResourceId $found[0] "user $upn"
         }
         else {
             Write-Host "  [create] User $upn" -ForegroundColor Green
@@ -203,7 +222,7 @@ try {
         $found = @(Get-Resources (Invoke-Db @("account", "service-principals", "list", "--filter", "applicationId eq '$appId'")))
         if ($found.Count -gt 0) {
             Write-Host "  [skip]   Service principal $($spn.Name) exists"
-            $spId = $found[0].id
+            $spId = Get-ResourceId $found[0] "service principal $($spn.Name)"
         }
         else {
             Write-Host "  [create] Service principal $($spn.Name)" -ForegroundColor Green
@@ -273,7 +292,7 @@ try {
         else {
             Add-GroupMember -GroupId $groupIds["sg-sovereignshield-public"] `
                 -GroupName "sg-sovereignshield-public" `
-                -PrincipalId $found[0].id `
+                -PrincipalId (Get-ResourceId $found[0] "$AppName managed SP") `
                 -Label "$AppName (managed SP)"
             Write-Host "  Restart the app so it picks up the new membership." -ForegroundColor DarkGray
         }
