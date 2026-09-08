@@ -104,41 +104,58 @@ function Invoke-Db {
 }
 
 function Get-Resources($response) {
-    # The leading comma stops PowerShell unrolling a single-element array on
-    # return. Without it the caller receives a bare object, and .Count on a
-    # scalar throws under Set-StrictMode.
-    if ($null -eq $response) { return , @() }
+    $items = @()
 
-    # The CLI returns a bare array on some versions and an envelope on others,
-    # keyed differently per endpoint.
-    foreach ($key in @("Resources", "permission_assignments")) {
-        if ($response.PSObject.Properties.Name -contains $key) {
-            if ($null -eq $response.$key) { return , @() }
-            return , @($response.$key)
+    if ($null -ne $response) {
+        # The CLI returns a bare array on some versions and an envelope on others,
+        # keyed differently per endpoint.
+        $envelopeKey = $null
+        foreach ($key in @("Resources", "permission_assignments")) {
+            if ($response.PSObject.Properties.Name -contains $key) { $envelopeKey = $key; break }
+        }
+
+        if ($envelopeKey) {
+            if ($null -ne $response.$envelopeKey) { $items = @($response.$envelopeKey) }
+        }
+        elseif ($response -is [System.Management.Automation.PSCustomObject]) {
+            # An object with no properties, or one carrying only a result count,
+            # is an empty response rather than a single result. Wrapping it would
+            # report one match and then read an id that was never there.
+            $names = @($response.PSObject.Properties.Name)
+            if ($names.Count -gt 0 -and -not ($names -contains "totalResults")) {
+                $items = @($response)
+            }
+        }
+        else {
+            $items = @($response)
         }
     }
 
-    # An object with no properties, or one carrying only a result count, is an
-    # empty response rather than a single result. Wrapping it would report one
-    # match and then read an id that was never there - which passes as a
-    # "[skip] exists" line and fails several statements later.
-    if ($response -is [System.Management.Automation.PSCustomObject]) {
-        $names = @($response.PSObject.Properties.Name)
-        if ($names.Count -eq 0 -or $names -contains "totalResults") { return , @() }
-    }
-
-    return , @($response)
+    # $items is already flat, so a single comma is enough to stop PowerShell
+    # unrolling it on return. Wrapping an array again would nest it, and the
+    # caller's $found[0] would be an array rather than a resource.
+    return , $items
 }
 
 # The CLI has shipped several response shapes across versions. When one slips
 # past Get-Resources, fail with the payload rather than a bare StrictMode
 # "property 'id' cannot be found", which names neither the object nor the call.
 function Get-ResourceId($resource, [string]$Label) {
-    if ($null -ne $resource -and $resource.PSObject.Properties.Name -contains "id") {
-        return [string]$resource.id
+    # Unwrap any array layer first. Piping to ConvertTo-Json would hide one,
+    # because the pipeline unrolls before serialising - which is exactly how the
+    # last round of this bug disguised itself as a missing field.
+    $item = $resource
+    while ($item -is [System.Array]) {
+        if ($item.Count -lt 1) { break }
+        $item = $item[0]
     }
-    $shape = try { $resource | ConvertTo-Json -Depth 3 -Compress } catch { "<unserialisable>" }
-    throw "Databricks returned a result for '$Label' with no id field. Response: $shape"
+
+    if ($null -ne $item -and $item.PSObject.Properties.Name -contains "id") {
+        return [string]$item.id
+    }
+
+    $shape = try { ConvertTo-Json -InputObject $resource -Depth 3 -Compress } catch { "<unserialisable>" }
+    throw "Databricks returned a result for '$Label' with no id field. Type: $($resource.GetType().Name). Response: $shape"
 }
 
 function New-TempJson($object) {
