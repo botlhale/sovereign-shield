@@ -104,15 +104,32 @@ function Invoke-Db {
 }
 
 function Get-Resources($response) {
-    if ($null -eq $response) { return @() }
+    # The leading comma stops PowerShell unrolling a single-element array on
+    # return. Without it the caller receives a bare object, and .Count on a
+    # scalar throws under Set-StrictMode.
+    if ($null -eq $response) { return , @() }
+
     # The CLI returns a bare array on some versions and a SCIM envelope on others.
-    if ($response.PSObject.Properties.Name -contains "Resources") { return @($response.Resources) }
-    return @($response)
+    if ($response.PSObject.Properties.Name -contains "Resources") {
+        if ($null -eq $response.Resources) { return , @() }
+        return , @($response.Resources)
+    }
+
+    # An envelope with no Resources key means nothing matched. Wrapping it would
+    # report one result and then read an id that does not exist.
+    if ($response.PSObject.Properties.Name -contains "totalResults") { return , @() }
+
+    return , @($response)
 }
 
 function New-TempJson($object) {
     $path = [System.IO.Path]::GetTempFileName()
-    ($object | ConvertTo-Json -Depth 10 -Compress) | Set-Content -Path $path -Encoding utf8
+    $json = $object | ConvertTo-Json -Depth 10 -Compress
+
+    # Windows PowerShell writes a BOM for -Encoding utf8, and the CLI forwards
+    # the file verbatim, so the leading EF BB BF breaks JSON parsing server-side.
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($path, $json, $utf8NoBom)
     return $path
 }
 
@@ -143,7 +160,7 @@ try {
     Write-Host "=== 1. Account groups ===" -ForegroundColor Cyan
     $groupIds = @{}
     foreach ($name in $GROUPS) {
-        $found = Get-Resources (Invoke-Db @("account", "groups", "list", "--filter", "displayName eq '$name'"))
+        $found = @(Get-Resources (Invoke-Db @("account", "groups", "list", "--filter", "displayName eq '$name'")))
         if ($found.Count -gt 0) {
             Write-Host "  [skip]   Group $name exists"
             $groupIds[$name] = $found[0].id
@@ -159,7 +176,7 @@ try {
     Write-Host "`n=== 2. Account users ===" -ForegroundColor Cyan
     foreach ($user in $USERS) {
         $upn = "$($user.Prefix)@$TenantDomain"
-        $found = Get-Resources (Invoke-Db @("account", "users", "list", "--filter", "userName eq '$upn'"))
+        $found = @(Get-Resources (Invoke-Db @("account", "users", "list", "--filter", "userName eq '$upn'")))
         if ($found.Count -gt 0) {
             Write-Host "  [skip]   User $upn exists"
             $userId = $found[0].id
@@ -183,7 +200,7 @@ try {
             continue
         }
 
-        $found = Get-Resources (Invoke-Db @("account", "service-principals", "list", "--filter", "applicationId eq '$appId'"))
+        $found = @(Get-Resources (Invoke-Db @("account", "service-principals", "list", "--filter", "applicationId eq '$appId'")))
         if ($found.Count -gt 0) {
             Write-Host "  [skip]   Service principal $($spn.Name) exists"
             $spId = $found[0].id
@@ -207,7 +224,7 @@ try {
 
     $assigned = @{}
     $current = Invoke-Db @("account", "workspace-assignment", "list", $workspaceId)
-    foreach ($item in (Get-Resources $current)) {
+    foreach ($item in @(Get-Resources $current)) {
         if ($item.PSObject.Properties.Name -contains "principal" -and $item.principal) {
             $assigned[[string]$item.principal.principal_id] = $true
         }
@@ -249,7 +266,7 @@ try {
     # ---------------------------------------------------------------------
     if ($appClientId) {
         Write-Host "`n=== 5. App service principal ===" -ForegroundColor Cyan
-        $found = Get-Resources (Invoke-Db @("account", "service-principals", "list", "--filter", "applicationId eq '$appClientId'"))
+        $found = @(Get-Resources (Invoke-Db @("account", "service-principals", "list", "--filter", "applicationId eq '$appClientId'")))
         if ($found.Count -eq 0) {
             Write-Host "  [warn]   No account service principal for $appClientId yet; retry shortly." -ForegroundColor Yellow
         }
