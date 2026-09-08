@@ -620,6 +620,16 @@ cd ..
 az keyvault purge --name <vault-name> --location canadacentral
 ```
 
+> **Let step 3 finish.** The Container Apps managed environment routinely reports
+> `Still destroying...` for ten to twenty minutes while it tears down its
+> underlying infrastructure. That is normal, not a hang.
+>
+> Interrupting it is the single most expensive mistake available here: the
+> resource ends up half-deleted while state still believes it exists, and
+> recovering means hand-editing state. If you need the demo gone quickly, prefer
+> `az group delete -n rg-sovereignshield --no-wait` and then reconcile state, over
+> Ctrl-C during a destroy.
+
 ### 9.3 What survives, and why
 
 | Resource | Why Terraform leaves it | Remove with |
@@ -650,6 +660,57 @@ exist, and the next `apply` fails on refresh.
 ---
 
 ## When it doesn't work
+
+**`failed to validate workspace_id: ... cannot configure default credentials`.**
+The Databricks provider is configured from the workspace this same
+configuration creates:
+
+```hcl
+provider "databricks" {
+  azure_workspace_resource_id = module.databricks_workspace.workspace_id
+}
+```
+
+That works on a clean create and on a clean destroy. It breaks when the
+workspace is deleted **outside** Terraform, because state still holds Databricks
+objects whose provider can no longer authenticate — the workspace it would
+authenticate against is gone. Refresh fails before the plan can decide to
+recreate anything.
+
+The Databricks objects died with the workspace, so tell Terraform to forget
+them. This deletes nothing in Azure:
+
+```powershell
+terraform state list | Select-String "databricks_"
+terraform state rm module.databricks_workspace.databricks_cluster_policy.ingestion `
+                   module.databricks_workspace.databricks_external_location.main `
+                   module.databricks_workspace.databricks_secret_scope.key_vault `
+                   module.databricks_workspace.databricks_storage_credential.main `
+                   module.unity_catalog_governance.databricks_sql_endpoint.dissemination
+terraform plan -out=tfplan
+```
+
+The `azurerm_*` entries need no such treatment: their provider authenticates to
+Azure directly, so refresh detects the deletion and plans a rebuild.
+
+**`cannot create catalog: Catalog 'dbw_sovereignshield' already exists`.** Same
+root cause from the other direction — the catalog outlived a failed apply, or
+Azure auto-created it with the workspace. Adopt it rather than deleting it:
+
+```powershell
+terraform import module.unity_catalog_governance.databricks_catalog.main dbw_sovereignshield
+```
+
+**A destroy sits on `Still destroying... azurerm_container_app_environment`.**
+Ten to twenty minutes is normal; the managed environment tears down its
+infrastructure before reporting. **Do not interrupt it.** Ctrl-C mid-delete
+leaves the resource half-gone and state believing it exists, which is how most
+of the failures above start. If it has already happened, delete the remnant in
+the portal and `terraform state rm` the entry.
+
+**`Error: Cannot apply incomplete plan`.** The plan errored, so the saved file
+is unusable. Fix the underlying error and re-run `terraform plan -out=tfplan`
+before applying — a stale `tfplan` cannot be salvaged.
 
 **`cannot create catalog: metastore_id must be empty or equal to the metastore id
 assigned to the workspace`.** A workspace is bound to exactly one metastore and
