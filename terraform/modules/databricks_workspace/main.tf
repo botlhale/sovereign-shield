@@ -71,6 +71,19 @@ resource "azurerm_role_assignment" "connector_storage" {
   principal_id         = azurerm_databricks_access_connector.main.identity[0].principal_id
 }
 
+# Azure RBAC is eventually consistent, and data-plane propagation is the slowest
+# part of it. Creating an external location makes Unity Catalog immediately HEAD
+# the container as the connector identity, so without a wait the validation runs
+# against a role assignment the storage service has not observed yet and fails
+# with a 403 that looks like a misconfiguration rather than a race.
+#
+# depends_on alone is not enough: it orders the API calls, not the propagation.
+resource "time_sleep" "connector_rbac_propagation" {
+  depends_on = [azurerm_role_assignment.connector_storage]
+
+  create_duration = var.rbac_propagation_wait
+}
+
 resource "databricks_storage_credential" "main" {
   name = "sc-sovereignshield"
 
@@ -80,7 +93,7 @@ resource "databricks_storage_credential" "main" {
 
   comment = "Managed identity credential; no account key exists to leak."
 
-  depends_on = [azurerm_role_assignment.connector_storage]
+  depends_on = [time_sleep.connector_rbac_propagation]
 }
 
 resource "databricks_external_location" "main" {
@@ -92,6 +105,8 @@ resource "databricks_external_location" "main" {
   )
   credential_name = databricks_storage_credential.main.name
   comment         = "Managed storage for the sovereign_shield schema."
+
+  depends_on = [time_sleep.connector_rbac_propagation]
 }
 
 # ---------------------------------------------------------------------------

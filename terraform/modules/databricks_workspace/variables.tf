@@ -74,6 +74,20 @@ variable "autotermination_minutes" {
   default     = 20
 }
 
+variable "rbac_propagation_wait" {
+  description = <<-EOT
+    How long to wait after granting the access connector its storage role before
+    Unity Catalog validates the credential. Azure RBAC is eventually consistent
+    and the data plane is the slowest tier to observe a new assignment.
+
+    Raise it if external location creation still fails with a 403 naming READ,
+    LIST, WRITE, DELETE permissions - that error is a propagation race, not a
+    missing grant.
+  EOT
+  type        = string
+  default     = "120s"
+}
+
 variable "tags" {
   description = "Resource tags."
   type        = map(string)

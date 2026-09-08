@@ -625,6 +625,22 @@ exist, and the next `apply` fails on refresh.
 
 ## When it doesn't work
 
+**`cannot create external location: ... does not have READ, LIST, WRITE, DELETE
+permissions`.** Azure RBAC is eventually consistent. The access connector's
+`Storage Blob Data Contributor` grant exists, but the storage data plane has not
+observed it yet, and Unity Catalog validates a credential the moment it is
+created by issuing a HEAD against the container.
+
+`depends_on` cannot fix this — it orders API calls, not propagation. The module
+inserts a `time_sleep` between the role assignment and the credential. If it
+still fails, raise the wait and re-apply:
+
+```powershell
+terraform apply -var="rbac_propagation_wait=300s"
+```
+
+Re-applying alone often succeeds, because by then the assignment has propagated.
+
 **`terraform apply` reports 409 `MissingSubscriptionRegistration`.** The
 subscription has never used that resource provider. Register it and re-apply —
 no state surgery is needed, the apply is resumable:
