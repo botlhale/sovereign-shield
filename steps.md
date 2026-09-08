@@ -35,6 +35,12 @@ gh --version                  # GitHub CLI, for Stage 0.2 only
 
 az login
 az account set --subscription "<your-subscription>"
+
+# `az databricks` lives in an extension. Without it, the first command that
+# needs it stops on an interactive "install now? (Y/n)" prompt, which looks
+# like a hang when the prompt is not visible.
+az extension add --name databricks --upgrade
+az config set extension.use_dynamic_install=yes_without_prompt
 ```
 
 Missing the GitHub CLI:
@@ -126,15 +132,40 @@ wrong or leave the repository half-configured.
 Blank variables are skipped by design, so preflight stays at `configured=false`
 and CI skips deployment cleanly instead of failing.
 
+> **Pass 2 belongs at the end of Stage 4, not here.** It needs a Databricks
+> workspace that does not exist yet. Running it early sets some variables and
+> not others, and a partially configured repository fails CI instead of skipping
+> it. Come back once Stage 1 has finished.
+
 **Pass 2 — after Stage 1.** Re-run with every value filled in. The script is
-idempotent; it reports what already matches and changes only drift:
+idempotent; it reports what already matches and changes only drift.
+
+The two state-backend values are shell variables from Stage 0.1. **They do not
+survive a new terminal**, so set them again rather than assuming they are still
+in scope:
 
 ```powershell
+$stateRg      = "rg-sovereignshield-tfstate"
+$stateAccount = "<the account you created in Stage 0.1>"
+
 $dbHost = az databricks workspace list --query "[0].workspaceUrl" -o tsv
 $sub    = az account show --query id -o tsv
 $tenant = az account show --query tenantId -o tsv
 $appId  = az ad sp list --display-name spn-sovereignshield-cicd --query "[0].appId" -o tsv
 
+# Every value must be non-empty. An empty one is silently skipped by the script
+# and leaves the repository half-configured, which fails the workflow's
+# preflight rather than skipping it.
+@{ appId = $appId; tenant = $tenant; sub = $sub; dbHost = $dbHost;
+   stateRg = $stateRg; stateAccount = $stateAccount }.GetEnumerator() |
+  ForEach-Object { "{0,-13} {1}" -f $_.Key, $(if ($_.Value) { $_.Value } else { "<<< EMPTY >>>" }) }
+```
+
+If `dbHost` is empty the workspace does not exist yet. If `appId` is empty the
+service principal was never created, or carries a different display name.
+Resolve both before continuing.
+
+```powershell
 ./sh/github_environment_setup.ps1 -Repository <owner>/<repo> `
     -Reviewers <github-username> `
     -AzureClientId $appId -AzureTenantId $tenant -AzureSubscriptionId $sub `
