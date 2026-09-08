@@ -350,9 +350,19 @@ databricks bundle validate -t dev
 databricks bundle deploy -t dev --var="warehouse_id=<warehouse-id>"
 ```
 
-`pre_auth.ps1` discovers the vault by prefix and prints the workspace it
-resolved, so a stale URL is visible immediately rather than surfacing as a
-deploy failure.
+`pre_auth.ps1` discovers the vault by prefix and prints both the workspace it
+resolved and the identity it loaded, so a stale URL or an unexpected credential
+is visible immediately rather than surfacing as a deploy failure.
+
+On this path it will report `Identity: Azure CLI user <you>`. That is correct.
+Terraform federates the CI/CD principal to GitHub OIDC and deliberately mints no
+client secret, so there is no deployment credential to load locally — you deploy
+as yourself, and CI deploys as the federated identity. The two are separate by
+design: a secret that could be loaded onto a laptop is a secret that can leave
+one. If it reports a service principal instead, you are on a vault seeded by
+`sh/kv_spn_create.sh`.
+
+Requires an `az login` session in the tenant.
 
 ---
 
@@ -824,6 +834,16 @@ Terraform must not manage them, or it fights the pipeline on every run.
 **The bundle deploy 401s.** A stale `databricks-workspace-url` in Key Vault,
 pointing at a workspace that no longer exists. `pre_auth.ps1` prints the
 workspace it resolved for exactly this reason.
+
+**`Secret 'spn-client-id' is missing`.** An older `pre_auth.ps1` that assumed
+every vault holds a CI/CD client secret. Terraform never creates one — the
+principal is OIDC-only. Pull the current script, which falls back to your Azure
+CLI session on this path.
+
+**`Identity: Azure CLI user` and then a 403.** The signed-in operator is not a
+workspace admin. Deploying the workspace as subscription Owner does not grant
+that implicitly on a workspace someone else created — add yourself under
+**Settings → Identity and access**.
 
 **`terraform destroy` fails on the catalog.** Step 1 of the teardown was skipped;
 tables still carry live row filters.
