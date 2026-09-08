@@ -41,6 +41,23 @@ az account set --subscription "<your-subscription>"
 # like a hang when the prompt is not visible.
 az extension add --name databricks --upgrade
 az config set extension.use_dynamic_install=yes_without_prompt
+
+# Resource providers are registered per subscription, and a fresh subscription
+# has most of them off. Terraform surfaces this late, as a 409
+# MissingSubscriptionRegistration part-way through an apply.
+foreach ($ns in @(
+    "Microsoft.Databricks",
+    "Microsoft.App",                # Container Apps, Stage 7
+    "Microsoft.OperationalInsights", # Log Analytics, required by Container Apps
+    "Microsoft.KeyVault",
+    "Microsoft.Storage",
+    "Microsoft.ManagedIdentity"
+)) {
+    az provider register --namespace $ns
+}
+
+# Registration is asynchronous. Confirm all report Registered before Stage 1.
+az provider list --query "[?namespace=='Microsoft.Databricks' || namespace=='Microsoft.App' || namespace=='Microsoft.OperationalInsights'].{ns:namespace, state:registrationState}" -o table
 ```
 
 Missing the GitHub CLI:
@@ -607,6 +624,26 @@ exist, and the next `apply` fails on refresh.
 ---
 
 ## When it doesn't work
+
+**`terraform apply` reports 409 `MissingSubscriptionRegistration`.** The
+subscription has never used that resource provider. Register it and re-apply —
+no state surgery is needed, the apply is resumable:
+
+```powershell
+az provider register --namespace Microsoft.App
+az provider register --namespace Microsoft.OperationalInsights
+az provider show --namespace Microsoft.App --query registrationState -o tsv
+```
+
+Registration is asynchronous and takes a minute or two. Stage 0 registers the
+full set up front so this does not interrupt an apply half-way through.
+
+**`terraform apply` reports 403 `KeyBasedAuthenticationNotPermitted` on the
+Unity Catalog storage account.** The account is created with
+`shared_access_key_enabled = false` on purpose, and the provider was falling
+back to key auth for its data-plane poll. `providers.tf` sets
+`storage_use_azuread = true` to force Entra ID instead. If you still see it,
+confirm that setting survived a `terraform init -upgrade`.
 
 **`terraform apply` says a resource "already exists - to be managed via Terraform
 this resource needs to be imported".** Something outside this configuration

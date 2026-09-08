@@ -13,6 +13,12 @@ provider "azurerm" {
   subscription_id = var.subscription_id
   tenant_id       = var.tenant_id
 
+  # The Unity Catalog storage account sets shared_access_key_enabled = false, so
+  # there is no account key for the provider to fall back on. Without this the
+  # post-create blob-service poll is rejected with
+  # "Key based authentication is not permitted on this storage account".
+  storage_use_azuread = true
+
   features {
     key_vault {
       # Soft-delete recovery is on by default; purge stays manual so a destroy
