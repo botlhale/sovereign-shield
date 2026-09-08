@@ -661,56 +661,55 @@ exist, and the next `apply` fails on refresh.
 
 ## When it doesn't work
 
-**`failed to validate workspace_id: ... cannot configure default credentials`.**
-The Databricks provider is configured from the workspace this same
-configuration creates:
+### Recovering after an interrupted apply or an out-of-band deletion
 
-```hcl
-provider "databricks" {
-  azure_workspace_resource_id = module.databricks_workspace.workspace_id
-}
-```
+Terraform assumes it is the only writer. When that breaks — a destroy is
+interrupted, a resource group is emptied in the portal, an apply fails half-way
+— state and reality diverge in one of two directions, and the errors look
+unrelated to each other:
 
-That works on a clean create and on a clean destroy. It breaks when the
-workspace is deleted **outside** Terraform, because state still holds Databricks
-objects whose provider can no longer authenticate — the workspace it would
-authenticate against is gone. Refresh fails before the plan can decide to
-recreate anything.
+| Symptom | Meaning | Fix |
+| --- | --- | --- |
+| `cannot configure default credentials` / `failed to get the workspace_id` | State holds an object whose provider can no longer authenticate | `terraform state rm` |
+| `already exists - to be managed via Terraform this resource needs to be imported` | The object exists, state does not know it | `terraform import` |
+| `Storage Credential '...' already exists` | Same, for a Unity Catalog object | `terraform import` |
 
-The Databricks objects died with the workspace, so tell Terraform to forget
-them. This deletes nothing in Azure:
+Run the reconciler rather than doing this by hand. It reads state, compares it
+against Azure and the metastore, and imports or forgets each resource
+accordingly. It changes nothing in the cloud:
 
 ```powershell
-terraform state list | Select-String "databricks_"
-terraform state rm module.databricks_workspace.databricks_cluster_policy.ingestion `
-                   module.databricks_workspace.databricks_external_location.main `
-                   module.databricks_workspace.databricks_secret_scope.key_vault `
-                   module.databricks_workspace.databricks_storage_credential.main `
-                   module.unity_catalog_governance.databricks_sql_endpoint.dissemination
-terraform plan -out=tfplan
+./sh/terraform_reconcile.ps1 -WhatIf     # report only
+./sh/terraform_reconcile.ps1
+terraform -chdir=terraform plan -out=tfplan
 ```
 
-The `azurerm_*` entries need no such treatment: their provider authenticates to
-Azure directly, so refresh detects the deletion and plans a rebuild.
+**Scope is the thing that catches people out.** Unity Catalog objects live in the
+**metastore**, which is account-level, so a catalog, storage credential or
+external location *outlives the workspace that created it*. Cluster policies,
+secret scopes and SQL warehouses are workspace-scoped and die with it.
 
-**`cannot create catalog: Catalog 'dbw_sovereignshield' already exists`.** Same
-root cause from the other direction — the catalog outlived a failed apply, or
-Azure auto-created it with the workspace. Adopt it rather than deleting it:
+Deleting a workspace therefore orphans the first group and destroys the second.
+Removing all of them from state — the correct move for the workspace-scoped ones
+— strands the metastore objects, and the next apply fails on "already exists".
+The reconciler encodes that distinction so it does not have to be remembered.
 
-```powershell
-terraform import module.unity_catalog_governance.databricks_catalog.main dbw_sovereignshield
-```
+Key Vault secrets come back for a different reason: the vault is created with
+purge protection, so deleting it soft-deletes it, and
+`recover_soft_deleted_key_vaults = true` restores it complete with every secret.
+The vault reappears; state does not.
+
+**`Error: Cannot apply incomplete plan`.** The plan errored, so the saved file is
+unusable. Fix the underlying error and re-run `terraform plan -out=tfplan` — a
+stale `tfplan` cannot be salvaged.
 
 **A destroy sits on `Still destroying... azurerm_container_app_environment`.**
 Ten to twenty minutes is normal; the managed environment tears down its
 infrastructure before reporting. **Do not interrupt it.** Ctrl-C mid-delete
 leaves the resource half-gone and state believing it exists, which is how most
-of the failures above start. If it has already happened, delete the remnant in
-the portal and `terraform state rm` the entry.
+of the failures above start.
 
-**`Error: Cannot apply incomplete plan`.** The plan errored, so the saved file
-is unusable. Fix the underlying error and re-run `terraform plan -out=tfplan`
-before applying — a stale `tfplan` cannot be salvaged.
+### Other failures
 
 **`cannot create catalog: metastore_id must be empty or equal to the metastore id
 assigned to the workspace`.** A workspace is bound to exactly one metastore and
