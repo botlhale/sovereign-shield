@@ -41,6 +41,6 @@ terraform {
   }
 
   # Configured at init time so no storage account name is committed:
-  #   terraform init -backend-config=backend.hcl
+  #   terraform init -backend-config="backend.hcl"
   backend "azurerm" {}
 }

@@ -216,7 +216,7 @@ SovereignShield holds a hard constraint: **no credential literal ever enters the
 cd terraform
 cp backend.hcl.example backend.hcl              # your state storage account
 cp terraform.tfvars.example terraform.tfvars    # subscription_id, tenant_id
-terraform init -backend-config=backend.hcl
+terraform init -backend-config="backend.hcl"
 terraform apply
 ```
 

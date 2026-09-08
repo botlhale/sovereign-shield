@@ -100,6 +100,31 @@ Terraform and CI both authenticate as themselves. `--auth-mode login` on the
 container create is required for the same reason: without a key, the CLI has to
 use your Entra identity.
 
+Which means every identity that runs Terraform needs a **data-plane** role on
+this account. Subscription Owner is not enough — Owner is a control-plane role
+and grants nothing inside the blob service:
+
+```powershell
+$scope = az storage account show -n $stateAccount -g $stateRg --query id -o tsv
+
+# You, for local runs.
+$me = az ad signed-in-user show --query id -o tsv
+az role assignment create --assignee-object-id $me --assignee-principal-type User `
+    --role "Storage Blob Data Contributor" --scope $scope
+
+# The CI service principal, for the promotion workflow. Skip until Stage 1
+# creates it; come back and run this before the first CI deployment.
+$cicd = az ad sp list --display-name spn-sovereignshield-cicd --query "[0].id" -o tsv
+if ($cicd) {
+    az role assignment create --assignee-object-id $cicd --assignee-principal-type ServicePrincipal `
+        --role "Storage Blob Data Contributor" --scope $scope
+}
+```
+
+Without this, `terraform init` fails at *"Failed to get existing workspaces:
+listing blobs: ... 403 AuthorizationPermissionMismatch"*. Role assignments take
+up to a few minutes to propagate.
+
 State holds resource identifiers and should be treated as sensitive even though
 this configuration keeps credentials out of it.
 
@@ -202,7 +227,7 @@ cd terraform
 cp backend.hcl.example backend.hcl              # edit: the state account from Stage 0.1
 cp terraform.tfvars.example terraform.tfvars    # edit: subscription_id, tenant_id
 
-terraform init -backend-config=backend.hcl
+terraform init -backend-config="backend.hcl"
 terraform validate
 terraform plan -out=tfplan
 terraform apply tfplan
@@ -556,6 +581,24 @@ exist, and the next `apply` fails on refresh.
 ---
 
 ## When it doesn't work
+
+**`terraform init` reports "Too many command line arguments. Did you mean to use
+-chdir?"** Windows PowerShell splits an unquoted native-command argument
+containing `=`, so Terraform receives `backend.hcl` as a stray positional. Quote
+the whole token:
+
+```powershell
+terraform init -backend-config="backend.hcl"      # quoted
+```
+
+**`terraform init` reports 403 `AuthorizationPermissionMismatch`.** The identity
+running Terraform has no data-plane role on the state storage account.
+Subscription Owner does not grant blob access — assign **Storage Blob Data
+Contributor** as shown in Stage 0.1, then wait a few minutes for propagation.
+
+**An `az databricks ...` command appears to hang** after printing two extension
+warnings. It is waiting on a hidden `install now? (Y/n)` prompt. Ctrl-C, then
+`az extension add --name databricks --upgrade`.
 
 **The portal renders empty for a persona that should see rows.** Almost always
 account groups created at *workspace* scope. They look identical in the UI:

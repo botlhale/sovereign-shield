@@ -2,7 +2,7 @@
 # committed:
 #
 #   cp backend.hcl.example backend.hcl
-#   terraform init -backend-config=backend.hcl
+#   terraform init -backend-config="backend.hcl"      # quotes matter on PowerShell
 #
 # State contains resource identifiers and should be treated as sensitive even
 # though this configuration keeps credentials out of it. Use a storage account
