@@ -8,14 +8,24 @@ variable "schema_name" {
   type        = string
 }
 
-variable "metastore_id" {
-  description = "Metastore the catalog is created in."
-  type        = string
-}
-
 variable "storage_root" {
   description = "abfss:// managed storage root for the catalog."
   type        = string
+}
+
+variable "account_groups_ready" {
+  description = <<-EOT
+    Whether the persona groups have been mirrored into the Databricks *account*.
+
+    Terraform creates them in Entra ID, but Databricks resolves principals
+    against its own account directory, which sh/databricks_account_setup.ps1
+    populates in Stage 2. Granting before that fails with
+    "Principal: GroupName(...) does not exist".
+
+    Leave false for the first apply; set true and re-apply after Stage 2.
+  EOT
+  type        = bool
+  default     = false
 }
 
 variable "admin_group" {

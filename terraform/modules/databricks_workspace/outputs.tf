@@ -13,11 +13,6 @@ output "workspace_numeric_id" {
   value       = azurerm_databricks_workspace.main.workspace_id
 }
 
-output "metastore_id" {
-  description = "Metastore the workspace is attached to."
-  value       = azurerm_databricks_workspace.main.id
-}
-
 output "external_location_url" {
   description = "abfss:// root for the managed schema."
   value       = databricks_external_location.main.url

@@ -60,9 +60,16 @@ node_type_id            = "Standard_DS3_v2"
 enable_photon           = false
 autotermination_minutes = 20
 
-# The only deployment that can demonstrate genuinely anonymous access.
-deploy_dissemination_gateway = true
-gateway_image                = "acrsovereignshield.azurecr.io/sovereignshield-portal:latest"
+# The only deployment that can demonstrate genuinely anonymous access, but it
+# needs an image that does not exist until Stage 7 builds one. Flip both together
+# at that point; gateway_image is validated at plan time when this is true.
+deploy_dissemination_gateway = false
+gateway_image                = ""
+
+# Leave false on the first apply. Databricks resolves principals against its own
+# account directory, which sh/databricks_account_setup.ps1 populates in Stage 2.
+# Set true and re-apply afterwards.
+account_groups_ready = false
 
 # Leave false on the first apply. Tables are created by the Asset Bundle, and a
 # grant on a non-existent securable fails.

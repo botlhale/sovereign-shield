@@ -76,11 +76,12 @@ module "unity_catalog_governance" {
 
   catalog_name        = var.catalog_name
   schema_name         = var.schema_name
-  metastore_id        = module.databricks_workspace.metastore_id
   storage_root        = module.databricks_workspace.external_location_url
   admin_group         = module.identity.group_names["admin"]
   persona_group_names = module.identity.group_names
   grant_tables        = var.grant_tables
+
+  account_groups_ready = var.account_groups_ready
 
   sql_warehouse_size              = var.sql_warehouse_size
   sql_warehouse_auto_stop_minutes = var.sql_warehouse_auto_stop_minutes

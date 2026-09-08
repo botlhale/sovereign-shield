@@ -166,15 +166,39 @@ variable "deploy_dissemination_gateway" {
     Provision the Azure Container Apps deployment of the public gateway.
     Only this path can demonstrate genuinely anonymous access - a Databricks App
     always sits behind workspace SSO.
+
+    Off by default because it needs a container image that does not exist until
+    Stage 7 builds and pushes one. Enabling it earlier fails after a multi-minute
+    rollout with a DNS error against a registry that was never created.
   EOT
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "gateway_image" {
-  description = "Fully qualified container image for the dissemination gateway."
+  description = "Fully qualified container image for the dissemination gateway, e.g. myacr.azurecr.io/sovereignshield-portal:latest"
   type        = string
   default     = ""
+
+  # Fail at plan time rather than after a multi-minute rollout that ends in a
+  # DNS lookup against a registry nobody created.
+  validation {
+    condition     = !var.deploy_dissemination_gateway || trimspace(var.gateway_image) != ""
+    error_message = "deploy_dissemination_gateway = true requires gateway_image. Build and push the image first - see Stage 7."
+  }
+}
+
+variable "account_groups_ready" {
+  description = <<-EOT
+    Whether the persona groups exist in the Databricks *account* directory.
+
+    Terraform creates them in Entra ID, but Databricks resolves principals
+    against its own account directory, which sh/databricks_account_setup.ps1
+    populates in Stage 2. Leave false for the first apply; set true and re-apply
+    afterwards to attach catalog, schema and warehouse permissions.
+  EOT
+  type        = bool
+  default     = false
 }
 
 variable "grant_tables" {

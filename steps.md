@@ -281,8 +281,18 @@ the GitHub OIDC federated credentials, Key Vault, the Databricks workspace,
 the access connector and storage credential, the catalog and schema, and the
 serverless SQL warehouse.
 
-Leave `grant_tables = false` for now. Tables are created by the Asset Bundle in
-Stage 4, and a grant against a securable that does not yet exist fails the apply.
+**Three toggles stay `false` on this first apply.** Each one depends on
+something that does not exist yet, and Terraform cannot tell you that in advance
+— it discovers it mid-apply, after other resources are already created:
+
+| Toggle | Blocked by | Flip it after |
+| --- | --- | --- |
+| `account_groups_ready` | Databricks resolves principals against its own account directory, not Entra ID | Stage 2 |
+| `grant_tables` | Tables are created by the Asset Bundle; a grant on a missing securable fails | Stage 4 |
+| `deploy_dissemination_gateway` | Needs a container image that is built and pushed later | Stage 7 |
+
+Re-applying is cheap and idempotent, so the sequence is: apply, run the stage
+that satisfies the dependency, flip one toggle, apply again.
 
 Capture what the next stages need:
 
@@ -358,6 +368,22 @@ Azure auto-creates a default catalog named after the workspace, and Path A
 creates it explicitly. If it is absent on Path B, create it and make the SPN
 owner before proceeding. The `sovereign_shield` schema is created by the DDL
 itself.
+
+### 2.1 Attach the persona grants (Path A)
+
+The groups now exist in the Databricks account, so Terraform can grant against
+them. This is the first of the deferred toggles from Stage 1:
+
+```powershell
+cd terraform
+terraform apply -var="account_groups_ready=true"
+cd ..
+```
+
+Set `account_groups_ready = true` in `terraform.tfvars` so later applies keep it.
+Skipping this leaves the catalog and warehouse reachable by nobody but the
+deploying principal, which reads as a broken deployment rather than a missing
+step.
 
 ---
 
@@ -624,6 +650,22 @@ exist, and the next `apply` fails on refresh.
 ---
 
 ## When it doesn't work
+
+**`cannot create catalog: metastore_id must be empty or equal to the metastore id
+assigned to the workspace`.** A workspace is bound to exactly one metastore and
+the provider resolves it from the workspace it is configured against, so the
+catalog must not set `metastore_id` at all. Passing the workspace's Azure
+resource id looks plausible and is a different identifier entirely.
+
+**`cannot create permissions: Principal: GroupName(...) does not exist`.** The
+group exists in Entra ID but not in the Databricks *account* directory, which is
+where Databricks resolves principals. Run Stage 2, then re-apply with
+`account_groups_ready=true`.
+
+**Container App fails with `failed to resolve registry ... no such host`.** The
+image does not exist. `deploy_dissemination_gateway` must stay `false` until
+Stage 7 builds and pushes one; `gateway_image` is validated at plan time when
+the toggle is on.
 
 **`cannot create external location: ... does not have READ, LIST, WRITE, DELETE
 permissions`.** Azure RBAC is eventually consistent. The access connector's

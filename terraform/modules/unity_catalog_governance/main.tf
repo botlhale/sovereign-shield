@@ -25,26 +25,32 @@ locals {
 
   # Everyone reaches the catalog and schema. Traversal reveals nothing on its
   # own; the row filter decides what a query returns.
-  traversal_groups = values(var.persona_group_names)
+  #
+  # Empty until the groups exist in the Databricks account directory. Databricks
+  # resolves principals there, not in Entra ID, so granting earlier fails.
+  traversal_groups = var.account_groups_ready ? values(var.persona_group_names) : []
 
   history_table = "${local.full_schema}.agg_sdmx_history"
   micro_table   = "${local.full_schema}.lbs_micro_transactions"
 
   # Institution-identifying detail. Submitters only - protecting the aggregate
   # while leaving the source open is not sovereignty.
-  micro_reader_groups = [
+  micro_reader_groups = var.account_groups_ready ? [
     for key, name in var.persona_group_names : name
     if startswith(key, "submitter-")
-  ]
+  ] : []
 }
 
 # ---------------------------------------------------------------------------
 # Catalog and schema
 # ---------------------------------------------------------------------------
 
+# metastore_id is deliberately unset. A workspace is bound to exactly one
+# metastore, and the provider resolves it from the workspace it is configured
+# against. Passing anything else - including the workspace's own Azure resource
+# id, which is a different identifier entirely - is rejected outright.
 resource "databricks_catalog" "main" {
   name         = var.catalog_name
-  metastore_id = var.metastore_id
   storage_root = var.storage_root
   comment      = "SovereignShield governed BIS LBS submissions (synthetic data)."
 
@@ -76,6 +82,8 @@ resource "databricks_grant" "schema_traversal" {
 }
 
 resource "databricks_grant" "admin_schema_ownership" {
+  count = var.account_groups_ready ? 1 : 0
+
   schema    = "${databricks_catalog.main.name}.${databricks_schema.main.name}"
   principal = var.admin_group
   privileges = [
@@ -112,6 +120,8 @@ resource "databricks_sql_endpoint" "dissemination" {
 }
 
 resource "databricks_permissions" "warehouse_usage" {
+  count = var.account_groups_ready ? 1 : 0
+
   sql_endpoint_id = databricks_sql_endpoint.dissemination.id
 
   dynamic "access_control" {
