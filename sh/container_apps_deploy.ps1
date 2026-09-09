@@ -236,22 +236,33 @@ if ($EnableEntraSignIn) {
     # reminder on stderr that admin consent is still required. Capture the
     # stream so PowerShell's ErrorActionPreference does not abort on that
     # expected warning, then grant consent explicitly below.
-    $permissionAddOutput = az ad app permission add `
-        --id $authAppId `
-        --api $AzureDatabricksResourceId `
-        --api-permissions "739272be-e143-11e8-9f32-f2801f1b9fd1=Scope" `
-        --output none 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not add the AzureDatabricks delegated permission: $permissionAddOutput"
-    }
+    $previousPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell can promote native stderr to a terminating error
+        # even when it is redirected. Azure CLI emits its consent reminder on
+        # stderr after a successful permission add, so keep this small block
+        # non-terminating and rely on LASTEXITCODE for the real result.
+        $ErrorActionPreference = "Continue"
+        $permissionAddOutput = az ad app permission add `
+            --id $authAppId `
+            --api $AzureDatabricksResourceId `
+            --api-permissions "739272be-e143-11e8-9f32-f2801f1b9fd1=Scope" `
+            --output none 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not add the AzureDatabricks delegated permission: $permissionAddOutput"
+        }
 
-    $permissionGrantOutput = az ad app permission grant `
-        --id $authAppId `
-        --api $AzureDatabricksResourceId `
-        --scope "user_impersonation" `
-        --output none 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not grant admin consent for AzureDatabricks user_impersonation: $permissionGrantOutput"
+        $permissionGrantOutput = az ad app permission grant `
+            --id $authAppId `
+            --api $AzureDatabricksResourceId `
+            --scope "user_impersonation" `
+            --output none 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not grant admin consent for AzureDatabricks user_impersonation: $permissionGrantOutput"
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
     }
 
     # Only minted when the container app has no stored secret: resetting one
