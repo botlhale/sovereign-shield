@@ -98,9 +98,14 @@ targets:
                 # The submission directory is the contract between tasks 2 and 3. It has to
                 # be somewhere both can reach and one can write: the synced workspace tree is
                 # read-only, and a relative path resolves against whatever each task's working
-                # directory happens to be. A hub receiving real filings would keep these in a
-                # Unity Catalog volume so the submissions of record are themselves governed.
+                # directory happens to be.
+                #
+                # /tmp rather than /local_disk0, whose root the job process cannot create
+                # under USER_ISOLATION. Both tasks share this job cluster, so they share the
+                # driver's filesystem. A hub receiving real filings would keep these in a
+                # Unity Catalog volume instead, so the submissions of record are governed and
+                # outlive the cluster.
                 spark_env_vars:
-                  SOVEREIGNSHIELD_SUBMISSION_DIR: /local_disk0/sovereignshield/submissions
+                  SOVEREIGNSHIELD_SUBMISSION_DIR: /tmp/sovereignshield/submissions
                 azure_attributes:
                   availability: SPOT_WITH_FALLBACK_AZURE # Enforces massive spot discount
