@@ -160,7 +160,23 @@ CREATE CATALOG IF NOT EXISTS dbw_sovereignshield;
 ALTER CATALOG dbw_sovereignshield OWNER TO `spn-sovereignshield-cicd`;
 ```
 
-The `sovereign_shield` schema is created by the DDL itself in Stage 4.
+The `sovereign_shield` and `sovereign_intake` schemas are created by the DDL
+itself in Stage 4. The submissions volume is not: `unity_catalog_triple_lock.sql`
+only creates the two schemas the hand-made-workspace shim documents, and neither
+the volume nor its schema has an equivalent statement, because on the Terraform
+path that volume is a security control — a schema no persona but admin can
+traverse — not merely a folder, and provisioning it from a script that runs as
+whoever is logged in would defeat the point. Create it explicitly before Stage 5:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS dbw_sovereignshield.sovereign_submissions;
+CREATE VOLUME IF NOT EXISTS dbw_sovereignshield.sovereign_submissions.submissions;
+```
+
+Without this, `generate_synthetic_data` fails on its first write with a Unity
+Catalog "path not found", since `databricks.yml` defaults
+`SOVEREIGNSHIELD_SUBMISSION_DIR` to that volume regardless of which path
+provisioned the catalog.
 
 Grants are applied by `src/unity_catalog_grants.sql`, which
 `sh/apply_security.py` runs as part of the pipeline. On the Terraform path that
