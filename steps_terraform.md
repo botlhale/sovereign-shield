@@ -963,19 +963,50 @@ provider has no host. It falls back to default auth, finds only `ARM_TENANT_ID`,
 and reports a credentials error for what is really an unknown target. Every
 failure will be a *read* — refreshing resources that already exist.
 
-Anything that replaces the workspace therefore needs two applies. `workspace_name`
-is force-new, so renaming it is the usual trigger:
+Anything that replaces the workspace therefore needs the provider told where to
+look, because it can no longer work it out. `workspace_name` is force-new, so
+renaming it is the usual trigger. Point `DATABRICKS_HOST` at the workspace that
+still exists, and the provider configures from the environment instead of from
+the unknown attribute:
 
 ```powershell
+$url = az databricks workspace show -n <current-workspace-name> -g rg-sovereignshield --query workspaceUrl -o tsv
+$env:DATABRICKS_HOST = "https://" + $url.Trim()
+$env:DATABRICKS_AUTH_TYPE = "azure-cli"
+
 terraform destroy -target="module.unity_catalog_governance" -target="module.databricks_workspace" -var-file="terraform.tfvars"
+
+# Clear it before the rebuild: after the rename this names a workspace that no
+# longer exists, and the apply fails with "Did not find workspace with specified
+# org ID" - see the entry below.
+Remove-Item Env:DATABRICKS_HOST, Env:DATABRICKS_AUTH_TYPE
 terraform apply -var-file="terraform.tfvars"
 ```
 
-The destroy resolves normally because the workspace still exists at that point,
-and the apply has nothing to refresh. Creates tolerate a deferred provider
-configuration; reads do not. Leave the identity module out of the targets —
-recreating the Entra groups would issue new object ids and break the account-level
-group assignments made in Stage 2.
+Leave the identity module out of the targets — recreating the Entra groups would
+issue new object ids and break the account-level group assignments made in
+Stage 2.
+
+If the destroy has already failed and left the state half-owned, the fallback is
+to take the Databricks resources out of state so nothing needs refreshing through
+the provider at all. **Delete the metastore-scoped ones first.** The external
+location and storage credential outlive the workspace, so a `state rm` alone
+leaves them holding their names against the rebuild:
+
+```powershell
+databricks external-locations  delete el-sovereignshield --force
+databricks storage-credentials delete sc-sovereignshield --force
+terraform state rm module.databricks_workspace.databricks_external_location.main `
+                   module.databricks_workspace.databricks_storage_credential.main `
+                   module.databricks_workspace.databricks_cluster_policy.ingestion `
+                   module.databricks_workspace.databricks_secret_scope.key_vault `
+                   module.unity_catalog_governance.databricks_sql_endpoint.dissemination
+```
+
+The cluster policy, secret scope and warehouse are workspace-scoped and die with
+the workspace, so they need removing from state but not deleting. The subsequent
+apply recreates all of them, and creates tolerate a deferred provider
+configuration where reads do not.
 
 **`Did not find workspace with specified org ID`, on a workspace that exists.**
 A stale `DATABRICKS_HOST` in the shell. The Databricks provider reads its ambient
