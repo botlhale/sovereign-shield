@@ -427,8 +427,10 @@ databricks catalogs delete dbw_sovereignshield --force
 # 4. Everything in the resource group.
 az group delete -n rg-sovereignshield --yes
 
-# 5. Purge the soft-deleted vault, whose name stays reserved until purged.
-az keyvault purge --name <vault-name> --location canadacentral
+# 5. The vault soft-deletes. Whether it can be purged depends on how it was created:
+#    a vault with purge protection cannot be purged before its retention expires.
+az keyvault list-deleted --query "[].{name:name,protected:properties.purgeProtectionEnabled}" -o table
+az keyvault purge --name <vault-name> --location canadacentral   # only if not protected
 ```
 
 Step 2 is the one that is easy to skip and expensive to skip. A catalog left in

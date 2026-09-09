@@ -638,9 +638,11 @@ terraform apply -var="grant_tables=false"
 terraform destroy
 cd ..
 
-# 5. Purge the soft-deleted vault. purge_protection_enabled is on, so the vault
-#    survives destroy by design and its name stays reserved until purged.
-az keyvault purge --name <vault-name> --location canadacentral
+# 5. Nothing to purge. purge_protection_enabled is on, so the soft-deleted vault
+#    cannot be purged before its 90-day retention expires - that is the guarantee
+#    the setting exists to make. It is free, and the next deployment gets a fresh
+#    random suffix, so it collides with nothing. Leave it.
+az keyvault list-deleted --query "[].{name:name,purgeable:properties.purgeProtectionEnabled}" -o table
 ```
 
 > **Run step 1 before step 4, not after.** Terraform destroys the Key Vault secrets
@@ -671,7 +673,7 @@ az keyvault purge --name <vault-name> --location canadacentral
 | Databricks **account** groups and service principals | Account scope; the provider is workspace-scoped | Account console, or reverse `databricks_account_setup.ps1` |
 | Entra persona **users** | Never created by Terraform — membership is an administrative act with its own approval path | `az ad user delete --id boc_analyst@<tenant>` |
 | Terraform state storage account | Bootstrap resource, created before the configuration existed | `az group delete -n rg-sovereignshield-tfstate` |
-| Key Vault (soft-deleted) | `purge_protection_enabled` is deliberate — it stops an accidental destroy discarding secrets other environments reference | `az keyvault purge` |
+| Key Vault (soft-deleted) | `purge_protection_enabled` is deliberate — it stops an accidental or malicious destroy discarding secrets permanently | **Nothing.** A purge-protected vault cannot be purged early; it self-deletes after 90 days |
 | The resource group, when `create_resource_group = false` | Terraform never owned it, so it does not destroy it | `az group delete -n rg-sovereignshield` |
 | **The Unity Catalog catalog, if destroy was interrupted** | Catalogs are metastore-scoped and outlive the workspace. An orphan holds its name and is unreachable from any live workspace | See troubleshooting below |
 
@@ -686,8 +688,13 @@ az resource list --resource-group rg-sovereignshield --output table
 az keyvault list-deleted --query "[].name" -o tsv
 ```
 
-An empty resource list and a purged vault means teardown is complete. If the
-resource group lingers, `az group delete -n rg-sovereignshield` — but run
+An empty resource list means teardown is complete. The soft-deleted vault will
+still be listed and that is expected — `az keyvault purge` on it returns
+`(MethodNotAllowed) Operation 'DeletedVaultPurge' is not allowed`, because purge
+protection is doing what it was enabled to do. It costs nothing and the vault
+name carries a random suffix, so it never blocks a rebuild.
+
+If the resource group lingers, `az group delete -n rg-sovereignshield` — but run
 `terraform destroy` first so state stays consistent with reality. Deleting the
 group behind Terraform's back leaves state describing resources that no longer
 exist, and the next `apply` fails on refresh.
