@@ -447,6 +447,29 @@ renders empty for every visitor.
 
 Restart the app afterwards so it picks up the new membership.
 
+> **On-behalf-of-user SQL queries fail with a bare `"Error during request to
+> server"`, even after `whoami` correctly resolves your identity.** The forwarded
+> caller token (`X-Forwarded-Access-Token`) defaults to two identity-only scopes
+> — `iam.current-user:read`, `iam.access-control:read` — visible under the app's
+> **Authorization** tab. Neither covers opening a SQL warehouse session as the
+> caller, which is what every `/api/v1/facets` or `/api/v1/export/*` call needs.
+>
+> Two mechanisms were tried here and **both confirmed not to exist** on this
+> workspace/CLI version — recorded so nobody repeats the same dead end:
+> - `user_authorization: scopes: [sql]` in `app.yaml` — deploys cleanly, has no
+>   effect. `databricks apps get` afterwards shows the same two scopes.
+> - `{"user_authorization": {"scopes": ["sql"]}}` against `databricks apps update`
+>   directly — rejected outright: `Warning: unknown field: user_authorization`.
+>   ⚠️ This call is also **not a partial patch** despite the update command's
+>   per-field flags: it silently dropped the app's `resources` block (the
+>   `sql-warehouse` grant) and `description`. Recover with a plain
+>   `databricks bundle deploy`, which reconciles both back from `databricks.yml`.
+>
+> The correct way to request a broader on-behalf-of-user scope for this
+> workspace's Apps version is not yet confirmed. Check the **Learn more** link on
+> the app's Authorization tab against current Databricks Apps documentation
+> before trying a third mechanism blind.
+
 ---
 
 ## Stage 6 — Verify the persona matrix

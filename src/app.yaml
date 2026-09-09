@@ -17,15 +17,14 @@ command:
   - "8000"
 
 # The default forwarded caller token (X-Forwarded-Access-Token) only covers
-# identity - iam.current-user:read and iam.access-control:read. It is what lets
-# whoami resolve the caller, and it is not enough to open a SQL warehouse session
-# as that caller: uc_query.py's on-behalf-of connect fails with a bare "Error
-# during request to server" until this scope is granted. Requesting it here is
-# what populates the Apps Authorization tab with something to consent to; there
-# is no button there to add a scope the app has not asked for.
-user_authorization:
-  scopes:
-    - "sql"
+# identity - iam.current-user:read and iam.access-control:read - which is not
+# enough for uc_query.py's on-behalf-of SQL connect; it fails with a bare "Error
+# during request to server" until a broader scope is granted. `user_authorization`
+# is NOT that mechanism: the Apps API rejects it outright as an unknown field
+# ("databricks apps update ... --json" confirms this against the live API, not
+# just app.yaml), so it is not a matter of getting the YAML key right. The
+# correct mechanism for this workspace/CLI version is still unconfirmed - see
+# steps_terraform.md Stage 5 troubleshooting before adding anything here.
 
 env:
   # DATABRICKS_HOST, DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET are
