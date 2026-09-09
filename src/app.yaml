@@ -16,6 +16,17 @@ command:
   - "--port"
   - "8000"
 
+# The default forwarded caller token (X-Forwarded-Access-Token) only covers
+# identity - iam.current-user:read and iam.access-control:read. It is what lets
+# whoami resolve the caller, and it is not enough to open a SQL warehouse session
+# as that caller: uc_query.py's on-behalf-of connect fails with a bare "Error
+# during request to server" until this scope is granted. Requesting it here is
+# what populates the Apps Authorization tab with something to consent to; there
+# is no button there to add a scope the app has not asked for.
+user_authorization:
+  scopes:
+    - "sql"
+
 env:
   # DATABRICKS_HOST, DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET are
   # injected by the Apps runtime for the app's own service principal. That
