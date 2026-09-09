@@ -450,25 +450,32 @@ Restart the app afterwards so it picks up the new membership.
 > **On-behalf-of-user SQL queries fail with a bare `"Error during request to
 > server"`, even after `whoami` correctly resolves your identity.** The forwarded
 > caller token (`X-Forwarded-Access-Token`) defaults to two identity-only scopes
-> — `iam.current-user:read`, `iam.access-control:read` — visible under the app's
-> **Authorization** tab. Neither covers opening a SQL warehouse session as the
-> caller, which is what every `/api/v1/facets` or `/api/v1/export/*` call needs.
+> — `iam.current-user:read`, `iam.access-control:read`. Neither covers opening a
+> SQL warehouse session as the caller, which is what every `/api/v1/facets` or
+> `/api/v1/export/*` call needs.
 >
-> Two mechanisms were tried here and **both confirmed not to exist** on this
-> workspace/CLI version — recorded so nobody repeats the same dead end:
-> - `user_authorization: scopes: [sql]` in `app.yaml` — deploys cleanly, has no
->   effect. `databricks apps get` afterwards shows the same two scopes.
-> - `{"user_authorization": {"scopes": ["sql"]}}` against `databricks apps update`
->   directly — rejected outright: `Warning: unknown field: user_authorization`.
->   ⚠️ This call is also **not a partial patch** despite the update command's
->   per-field flags: it silently dropped the app's `resources` block (the
->   `sql-warehouse` grant) and `description`. Recover with a plain
->   `databricks bundle deploy`, which reconciles both back from `databricks.yml`.
+> The fix is `user_api_scopes: ["sql"]` on the app resource in
+> [databricks.yml](databricks.yml) — a `databricks bundle deploy` away, not a
+> click in the UI. Two things that look plausible and are not:
+> - `user_authorization` in `app.yaml` — the correct-sounding key, wrong file and
+>   wrong name. Deploys cleanly, has no effect at all; `databricks apps get`
+>   afterwards shows the same two default scopes.
+> - The same field passed directly to `databricks apps update --json` — rejected
+>   as `unknown field: user_authorization`. Confirms it isn't a syntax problem;
+>   the field doesn't exist under that name anywhere in this API. Also: that
+>   command is **not** a partial patch despite its per-field flags — a JSON body
+>   containing only one field silently dropped this app's `resources` block and
+>   `description` on the live app. Recovered with a plain `bundle deploy`, which
+>   reconciles both from this file. Use `apps create-update APP_NAME UPDATE_MASK`
+>   for a true field-mask patch if you ever need one outside the bundle.
 >
-> The correct way to request a broader on-behalf-of-user scope for this
-> workspace's Apps version is not yet confirmed. Check the **Learn more** link on
-> the app's Authorization tab against current Databricks Apps documentation
-> before trying a third mechanism blind.
+> Verify with `databricks apps get sovereignshield-portal` and look for `"sql"`
+> in `effective_user_api_scopes` — not just that the deploy succeeded.
+>
+> Each visitor consents to the scope once, and can't revoke it themselves; an
+> admin can pre-consent on their behalf. A workspace-wide allowlist
+> (**Settings → Development → Restrict OAuth scopes for apps**) can block a scope
+> even from an app that requests it.
 
 ---
 

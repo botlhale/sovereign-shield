@@ -55,6 +55,18 @@ targets:
               sql_warehouse:
                 id: ${var.warehouse_id}
                 permission: "CAN_USE"
+          # Requests the on-behalf-of-user scope uc_query.py needs to open a SQL
+          # warehouse session as the caller. Without it, the forwarded caller token
+          # defaults to iam.current-user:read / iam.access-control:read - enough
+          # for whoami, not enough for a query - and every warehouse call fails
+          # with a bare "Error during request to server" that names no missing
+          # scope. This belongs in app.yaml's schema conceptually, but only the
+          # bundle's app resource (this block) actually applies it; app.yaml has
+          # no such key at all. Each visitor consents once; admins can pre-consent
+          # on their behalf, and a workspace allowlist can restrict it further -
+          # see steps_terraform.md Stage 5.
+          user_api_scopes:
+            - "sql"
 
       jobs:
         sovereignshield_sdmx_pipeline:
