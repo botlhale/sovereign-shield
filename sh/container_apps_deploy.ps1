@@ -229,6 +229,18 @@ if ($EnableEntraSignIn) {
             --query appId -o tsv
     }
 
+    # Permission grants target the client service principal, not just the app
+    # registration. A newly created app registration has no service principal
+    # until this object is created explicitly.
+    $authServicePrincipal = az ad sp show --id $authAppId --query id -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($authServicePrincipal)) {
+        Write-Host "    [create] Entra service principal" -ForegroundColor Green
+        az ad sp create --id $authAppId --output none
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not create the Entra service principal for app $authAppId."
+        }
+    }
+
     # The forwarded token must be issued for the AzureDatabricks resource,
     # otherwise the workspace rejects it and every signed-in caller falls back
     # to the public tier without any visible error.
