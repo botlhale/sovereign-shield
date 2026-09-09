@@ -10,7 +10,12 @@ output "schema_full_name" {
 
 output "submission_volume_path" {
   description = "Volume path for SOVEREIGNSHIELD_SUBMISSION_DIR. Readable by the admin persona only."
-  value       = "/Volumes/${databricks_catalog.main.name}/${databricks_schema.intake.name}/${databricks_volume.submissions.name}"
+  value       = "/Volumes/${databricks_catalog.main.name}/${databricks_schema.submissions.name}/${databricks_volume.submissions.name}"
+}
+
+output "intake_schema_full_name" {
+  description = "catalog.schema holding the domestic micro ledger."
+  value       = "${databricks_catalog.main.name}.${databricks_schema.intake.name}"
 }
 
 output "sql_warehouse_id" {

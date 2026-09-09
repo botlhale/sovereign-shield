@@ -458,7 +458,7 @@ def generate_sdmx_ml(
     Reserve System, keyed by `country_code`), configures the dataset lifecycle
     action (`Information`, `Append`, or `Replace`) and `OBS_STATUS` according to
     `submission_type`, and writes the resulting structure-specific SDMx-ML 3.0
-    data message to `data/{country_code}_submission_2026_Q1.xml`.
+    data message as `{country_code}_submission_{YYYY-MM-DD}_{HHMMSS}.xml`.
 
     Args:
         df_macro: Aggregated macro DataFrame, as returned by `aggregate_micro_to_macro`.
@@ -470,9 +470,11 @@ def generate_sdmx_ml(
             `'First Submission'`.
         dsd: The live BIS_LBS `DataStructureDefinition` used to build the SDMx
             schema. Fetched via `fetch_bis_lbs_dsd()` if not supplied.
+        output_dir: Directory to file into. Defaults to `OUTPUT_DIR`.
 
     Returns:
-        The serialized SDMx 3.0 XML (ML) string that was written to disk.
+        The path written. The filename carries a timestamp resolved at call time,
+        so a caller cannot reconstruct it and must use this value.
 
     Raises:
         ValueError: If `submission_type` is not a recognized lifecycle state.
@@ -518,13 +520,15 @@ def generate_sdmx_ml(
 
     target_dir = output_dir or OUTPUT_DIR
     os.makedirs(target_dir, exist_ok=True)
-    # The reporting period lives in the observations and the arrival date in the path,
-    # so repeating either in the filename only invites the two to disagree.
-    output_path = os.path.join(target_dir, f"{country_code}_submission.xml")
+    # Timestamped to the second: a country may re-file the same period on the same
+    # day, and a filing is evidence of what was sent when, so nothing here overwrites.
+    # The reporting period stays in the observations rather than the name.
+    filed_at = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+    output_path = os.path.join(target_dir, f"{country_code}_submission_{filed_at}.xml")
     with open(output_path, "w", encoding="utf-8") as xml_file:
         xml_file.write(xml_payload)
 
-    return xml_payload
+    return output_path
 
 
 if __name__ == "__main__":
@@ -581,7 +585,7 @@ if __name__ == "__main__":
             print(f"\n--- Macro-Data: SDMx 3.0 Aggregated Time Series ({country_code.upper()}) ---")
             print(df_macro.to_string(index=False))
 
-            generate_sdmx_ml(
+            filed_path = generate_sdmx_ml(
                 df_macro,
                 country_code,
                 submission_type=submission_type,
@@ -597,9 +601,7 @@ if __name__ == "__main__":
                     "dataset_action": SUBMISSION_ACTIONS[submission_type].value,
                     "series_count": len(df_macro),
                     "restricted_series": int((df_macro["OBS_CONF"] == "N").sum()),
-                    "output_path": os.path.join(
-                        cycle_dir, f"{country_code}_submission.xml"
-                    ),
+                    "output_path": filed_path,
                 }
             )
 

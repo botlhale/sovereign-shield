@@ -43,10 +43,16 @@ GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshiel
 GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-researchers`;
 GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-public`;
 
+-- Intake holds the pre-submission ledger. Submitters traverse it to reach their own
+-- rows; researchers and the public tier are absent, so they cannot see it at all.
+GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_intake TO `sg-sovereignshield-admin`;
+GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_intake TO `sg-sovereignshield-submitter-ca`;
+GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_intake TO `sg-sovereignshield-submitter-us`;
+
 -- =====================================================================
 -- 2. ADMINISTRATORS / CENTRAL AUDITORS
 -- =====================================================================
-GRANT ALL PRIVILEGES ON TABLE lbs_micro_transactions TO `sg-sovereignshield-admin`;
+GRANT ALL PRIVILEGES ON TABLE sovereign_intake.lbs_micro_transactions TO `sg-sovereignshield-admin`;
 GRANT ALL PRIVILEGES ON TABLE agg_sdmx_history TO `sg-sovereignshield-admin`;
 
 -- =====================================================================
@@ -67,8 +73,8 @@ GRANT SELECT ON TABLE agg_sdmx_history TO `sg-sovereignshield-public`;
 -- jurisdiction. Researchers and the public tier are deliberately absent -
 -- protecting the aggregate while leaving the source open is not sovereignty.
 -- =====================================================================
-GRANT SELECT ON TABLE lbs_micro_transactions TO `sg-sovereignshield-submitter-ca`;
-GRANT SELECT ON TABLE lbs_micro_transactions TO `sg-sovereignshield-submitter-us`;
+GRANT SELECT ON TABLE sovereign_intake.lbs_micro_transactions TO `sg-sovereignshield-submitter-ca`;
+GRANT SELECT ON TABLE sovereign_intake.lbs_micro_transactions TO `sg-sovereignshield-submitter-us`;
 
 -- =====================================================================
 -- 5. CURATED PUBLISHED VIEW

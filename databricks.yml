@@ -27,7 +27,7 @@ variables:
       evidence a filing was received. Readable by the admin persona only: volumes
       support neither row filters nor column masks, and the XML carries the
       unmasked values the column mask withholds from every other persona.
-    default: /Volumes/dbw_sovereignshield/sovereign_intake/submissions
+    default: /Volumes/dbw_sovereignshield/sovereign_submissions/submissions
 
   schema:
     description: Schema holding the governed tables.

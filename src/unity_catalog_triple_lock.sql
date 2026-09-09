@@ -16,6 +16,13 @@ USE CATALOG dbw_sovereignshield;
 -- The catalog is the workspace default catalog, created with the workspace.
 -- The schema is not, so a rebuilt workspace would otherwise abort here.
 CREATE SCHEMA IF NOT EXISTS sovereign_shield;
+
+-- The bank-level ledger lives apart from the published history: it is what a
+-- reporting country holds before it aggregates and applies confidentiality, and
+-- in practice it never leaves the jurisdiction. Terraform owns both schemas; these
+-- statements exist so the script still runs against a hand-made workspace.
+CREATE SCHEMA IF NOT EXISTS sovereign_intake;
+
 USE SCHEMA sovereign_shield;
 
 -- =====================================================================
@@ -28,7 +35,7 @@ ALTER TABLE agg_sdmx_history DROP ROW FILTER;
 -- @tolerate-failure
 ALTER TABLE agg_sdmx_history ALTER COLUMN OBS_VALUE DROP MASK;
 -- @tolerate-failure
-ALTER TABLE lbs_micro_transactions DROP ROW FILTER;
+ALTER TABLE sovereign_intake.lbs_micro_transactions DROP ROW FILTER;
 
 -- The single-column filter is superseded by fn_rls_multi_persona_lock.
 -- Dropping it keeps the metastore free of an unbound policy that still
@@ -142,7 +149,7 @@ RETURN
 -- solely on table-level grants. Researchers and the public portal principal
 -- are deliberately absent - no persona reaches institution-level rows.
 -- =====================================================================
-CREATE OR REPLACE FUNCTION fn_rls_micro_country_lock(reporting_country STRING)
+CREATE OR REPLACE FUNCTION sovereign_intake.fn_rls_micro_country_lock(reporting_country STRING)
 RETURNS BOOLEAN
 RETURN CASE
   WHEN is_account_group_member('sg-sovereignshield-admin') THEN TRUE
@@ -155,8 +162,13 @@ END;
 
 -- =====================================================================
 -- 5. APPEND-ONLY MICRO TRANSACTIONS LEDGER
+--
+-- In sovereign_intake, not alongside the published history. This is what a
+-- reporting country holds before it aggregates and decides confidentiality; only
+-- the aggregate is ever filed. The filter function is co-located with the table it
+-- protects rather than referenced across schemas.
 -- =====================================================================
-CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
+CREATE TABLE IF NOT EXISTS sovereign_intake.lbs_micro_transactions (
   transaction_id STRING,
   reporting_country STRING,
   reporting_institution STRING,
@@ -174,7 +186,7 @@ CREATE TABLE IF NOT EXISTS lbs_micro_transactions (
   date_scope STRING,
   transaction_timestamp TIMESTAMP
 )
-WITH ROW FILTER fn_rls_micro_country_lock ON (reporting_country);
+WITH ROW FILTER sovereign_intake.fn_rls_micro_country_lock ON (reporting_country);
 
 -- =====================================================================
 -- 6. MACRO SDMX HISTORY TABLE (SCD2, WITH RLS & DDM APPLIED)
@@ -215,7 +227,7 @@ ALTER TABLE agg_sdmx_history ALTER COLUMN OBS_VALUE SET MASK fn_ddm_obs_conf_mas
 -- @tolerate-failure
 ALTER TABLE agg_sdmx_history SET ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
 -- @tolerate-failure
-ALTER TABLE lbs_micro_transactions SET ROW FILTER fn_rls_micro_country_lock ON (reporting_country);
+ALTER TABLE sovereign_intake.lbs_micro_transactions SET ROW FILTER sovereign_intake.fn_rls_micro_country_lock ON (reporting_country);
 
 -- =====================================================================
 -- 8. QUARANTINE VIEW ISOLATION

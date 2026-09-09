@@ -363,8 +363,8 @@ resolved and the identity it loaded, so a stale URL or an unexpected credential
 is visible immediately rather than surfacing as a deploy failure.
 
 The bundle's `submission_volume` variable must match the volume Terraform built.
-It defaults to `/Volumes/dbw_sovereignshield/sovereign_intake/submissions`; if you
-changed `catalog_name` or `intake_schema_name`, pass it:
+It defaults to `/Volumes/dbw_sovereignshield/sovereign_submissions/submissions`;
+if you changed `catalog_name` or `submissions_schema_name`, pass it:
 
 ```powershell
 terraform -chdir=terraform output -raw submission_volume_path
@@ -650,13 +650,14 @@ empty. The schema has 3 tables(s), 3 functions(s), 0 volumes(s)
 #    both tables bind the policy functions, which cannot be dropped while bound.
 #    These are Unity Catalog API calls - no warehouse or cluster needs to be running.
 . .\sh\pre_auth.ps1
-$fqn = "dbw_sovereignshield.sovereign_shield"
-databricks tables    delete "$fqn.v_agg_sdmx_published"
-databricks tables    delete "$fqn.agg_sdmx_history"
-databricks tables    delete "$fqn.lbs_micro_transactions"
-databricks functions delete "$fqn.fn_ddm_obs_conf_mask"
-databricks functions delete "$fqn.fn_rls_multi_persona_lock"
-databricks functions delete "$fqn.fn_rls_micro_country_lock"
+$published = "dbw_sovereignshield.sovereign_shield"
+$intake    = "dbw_sovereignshield.sovereign_intake"
+databricks tables    delete "$published.v_agg_sdmx_published"
+databricks tables    delete "$published.agg_sdmx_history"
+databricks tables    delete "$intake.lbs_micro_transactions"
+databricks functions delete "$published.fn_ddm_obs_conf_mask"
+databricks functions delete "$published.fn_rls_multi_persona_lock"
+databricks functions delete "$intake.fn_rls_micro_country_lock"
 
 # 2. Bundle-declared resources: the job definition, the app, the workspace files.
 databricks bundle destroy -t dev

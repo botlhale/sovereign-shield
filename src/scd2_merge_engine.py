@@ -146,7 +146,7 @@ def ingest_submitted_micro(
     # Write incoming micro transactions to Delta; mergeSchema evolves pre-existing tables
     # deployed before these institutional attribute columns were added.
     df_micro.write.format("delta").mode("append").option("mergeSchema", "true") \
-        .saveAsTable("dbw_sovereignshield.sovereign_shield.lbs_micro_transactions")
+        .saveAsTable("dbw_sovereignshield.sovereign_intake.lbs_micro_transactions")
     print(f"Multi-country micro transactions ingested successfully (cycle={cycle}).")
 
 

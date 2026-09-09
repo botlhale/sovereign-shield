@@ -10,13 +10,22 @@ variable "schema_name" {
 
 variable "intake_schema_name" {
   description = <<-EOT
-    Schema holding the submission volume. Separate from schema_name because the
-    two need opposite access: every persona traverses the governed schema so the
-    row filter can decide what a query returns, and nobody but the admin persona
-    traverses intake, whose files are unmasked by construction.
+    Schema holding the domestic micro ledger. Separate from schema_name because the
+    ledger is pre-submission material that does not leave the reporting country,
+    and because submitters need USE_SCHEMA here to reach their own rows.
   EOT
   type        = string
   default     = "sovereign_intake"
+}
+
+variable "submissions_schema_name" {
+  description = <<-EOT
+    Schema holding the submissions volume. Separate from intake_schema_name because
+    submitters traverse intake, and a volume cannot be row-filtered: one holding
+    every jurisdiction's filings must stay behind a gate no submitter can open.
+  EOT
+  type        = string
+  default     = "sovereign_submissions"
 }
 
 variable "storage_root" {

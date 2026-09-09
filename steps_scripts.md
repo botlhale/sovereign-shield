@@ -409,13 +409,14 @@ storage account and Key Vault — pennies.
 
 ```powershell
 # 1. Data and policy plane. Unity Catalog API calls, so nothing needs to be running.
-$fqn = "dbw_sovereignshield.sovereign_shield"
-databricks tables    delete "$fqn.v_agg_sdmx_published"
-databricks tables    delete "$fqn.agg_sdmx_history"
-databricks tables    delete "$fqn.lbs_micro_transactions"
-databricks functions delete "$fqn.fn_ddm_obs_conf_mask"
-databricks functions delete "$fqn.fn_rls_multi_persona_lock"
-databricks functions delete "$fqn.fn_rls_micro_country_lock"
+$published = "dbw_sovereignshield.sovereign_shield"
+$intake    = "dbw_sovereignshield.sovereign_intake"
+databricks tables    delete "$published.v_agg_sdmx_published"
+databricks tables    delete "$published.agg_sdmx_history"
+databricks tables    delete "$intake.lbs_micro_transactions"
+databricks functions delete "$published.fn_ddm_obs_conf_mask"
+databricks functions delete "$published.fn_rls_multi_persona_lock"
+databricks functions delete "$intake.fn_rls_micro_country_lock"
 
 # 2. Bundle-declared resources: the job definition, the app, the workspace files.
 databricks bundle destroy -t dev

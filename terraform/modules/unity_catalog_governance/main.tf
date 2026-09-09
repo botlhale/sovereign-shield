@@ -36,7 +36,11 @@ locals {
   traversal_groups = var.account_groups_ready ? values(var.persona_group_names) : []
 
   history_table = "${local.full_schema}.agg_sdmx_history"
-  micro_table   = "${local.full_schema}.lbs_micro_transactions"
+
+  # In the intake schema, not the published one: the bank-level ledger is what a
+  # reporting country holds before it aggregates and decides confidentiality, and
+  # in practice it never leaves the jurisdiction.
+  micro_table = "${var.catalog_name}.${var.intake_schema_name}.lbs_micro_transactions"
 
   # Institution-identifying detail. Submitters only - protecting the aggregate
   # while leaving the source open is not sovereignty.
@@ -66,23 +70,39 @@ resource "databricks_catalog" "main" {
 resource "databricks_schema" "main" {
   catalog_name  = databricks_catalog.main.name
   name          = var.schema_name
-  comment       = "Macro history, micro ledger, and the published view."
+  comment       = "Macro history and the published view."
   force_destroy = false
 }
 
 # ---------------------------------------------------------------------------
-# Submission intake
+# Domestic intake and submissions of record
 # ---------------------------------------------------------------------------
 
-# A separate schema rather than a volume inside sovereign_shield, because the two
-# need opposite access. Every persona holds USE_SCHEMA on the governed schema so
-# that the row filter is what decides visibility; a volume placed there would have
-# only its own grant between every persona and the raw files. Nothing traverses
-# intake except the admin persona, so reaching a submission means clearing two
-# independent gates instead of one.
+# Three schemas because there are three audiences, and a schema gate is
+# all-or-nothing per principal:
+#
+#   sovereign_shield      published macro history      every persona traverses
+#   sovereign_intake      domestic micro ledger        submitters and admin
+#   sovereign_submissions filed submissions, as sent   admin only
+#
+# The micro ledger is pre-submission material. It never leaves the reporting
+# country in practice, and it is here rather than beside the published history to
+# say so. Submitters read their own jurisdiction through
+# fn_rls_micro_country_lock, which needs USE_SCHEMA on whatever schema holds it.
 resource "databricks_schema" "intake" {
   catalog_name  = databricks_catalog.main.name
   name          = var.intake_schema_name
+  comment       = "Domestic bank-level ledger, before aggregation and confidentiality."
+  force_destroy = false
+}
+
+# Kept apart from intake precisely because granting submitters USE_SCHEMA there
+# would drop the volume from two gates to one. A volume cannot be row-filtered, and
+# this one holds every jurisdiction's filings, so a Canadian submitter with read
+# would see the United States' figures. Nothing traverses this schema but admin.
+resource "databricks_schema" "submissions" {
+  catalog_name  = databricks_catalog.main.name
+  name          = var.submissions_schema_name
   comment       = "Submissions of record, as filed. Deliberately has no persona traversal."
   force_destroy = false
 }
@@ -97,7 +117,7 @@ resource "databricks_schema" "intake" {
 # unmasked access to everything.
 resource "databricks_volume" "submissions" {
   catalog_name = databricks_catalog.main.name
-  schema_name  = databricks_schema.intake.name
+  schema_name  = databricks_schema.submissions.name
   name         = "submissions"
   volume_type  = "MANAGED"
   comment      = "SDMx-ML submissions and their accompanying micro-data, partitioned by arrival date."
@@ -147,6 +167,24 @@ resource "databricks_grant" "intake_schema_admin" {
   count = var.account_groups_ready ? 1 : 0
 
   schema     = "${databricks_catalog.main.name}.${databricks_schema.intake.name}"
+  principal  = var.admin_group
+  privileges = ["ALL_PRIVILEGES", "USE_SCHEMA", "CREATE_TABLE"]
+}
+
+# Submitters traverse intake to reach their own rows in the micro ledger; the row
+# filter on that table, not this grant, is what confines them to their jurisdiction.
+resource "databricks_grant" "intake_schema_submitters" {
+  for_each = toset(local.micro_reader_groups)
+
+  schema     = "${databricks_catalog.main.name}.${databricks_schema.intake.name}"
+  principal  = each.value
+  privileges = ["USE_SCHEMA"]
+}
+
+resource "databricks_grant" "submissions_schema_admin" {
+  count = var.account_groups_ready ? 1 : 0
+
+  schema     = "${databricks_catalog.main.name}.${databricks_schema.submissions.name}"
   principal  = var.admin_group
   privileges = ["USE_SCHEMA", "CREATE_VOLUME"]
 }
