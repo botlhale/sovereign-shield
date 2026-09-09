@@ -33,6 +33,11 @@ variable "warehouse_id" {
   type        = string
 }
 
+variable "tenant_id" {
+  description = "Entra ID tenant used by Azure service-principal authentication."
+  type        = string
+}
+
 variable "catalog_name" {
   description = "Unity Catalog catalog."
   type        = string

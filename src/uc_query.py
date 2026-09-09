@@ -351,17 +351,19 @@ class DatabricksBackend:
                 access_token=access_token,
             )
 
-        from databricks.sdk.core import Config, oauth_service_principal
+        from databricks.sdk.core import Config, azure_service_principal
 
         config = Config(
             host=f"https://{self.hostname}",
-            client_id=self.client_id,
-            client_secret=self.client_secret,
+            azure_client_id=self.client_id,
+            azure_client_secret=self.client_secret,
+            azure_tenant_id=os.getenv("DATABRICKS_AZURE_TENANT_ID")
+            or os.getenv("ARM_TENANT_ID"),
         )
         return sql.connect(
             server_hostname=self.hostname,
             http_path=self.http_path,
-            credentials_provider=lambda: oauth_service_principal(config),
+            credentials_provider=lambda: azure_service_principal(config),
         )
 
     def query(

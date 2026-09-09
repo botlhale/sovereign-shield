@@ -160,6 +160,7 @@ $principalId = az containerapp show --name $AppName --resource-group $ResourceGr
 $vaultId = az keyvault show --name $KeyVaultName --query id -o tsv
 $vaultUsesRbac = az keyvault show --name $KeyVaultName `
     --query properties.enableRbacAuthorization -o tsv
+$tenantId = az account show --query tenantId -o tsv
 
 Write-Host "==> 6/8 Granting the app identity read access to $KeyVaultName" -ForegroundColor Cyan
 if ($vaultUsesRbac -eq "true") {
@@ -197,6 +198,7 @@ az containerapp update `
         "DATABRICKS_HOST=$DatabricksHost" `
         "DATABRICKS_SERVER_HOSTNAME=$DatabricksHost" `
         "DATABRICKS_WAREHOUSE_ID=$WarehouseId" `
+        "DATABRICKS_AZURE_TENANT_ID=$tenantId" `
         "DATABRICKS_CLIENT_ID=secretref:public-spn-client-id" `
         "DATABRICKS_CLIENT_SECRET=secretref:public-spn-client-secret" `
         "SOVEREIGNSHIELD_CATALOG=dbw_sovereignshield" `

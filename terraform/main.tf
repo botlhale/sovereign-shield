@@ -103,6 +103,7 @@ module "dissemination_gateway" {
 
   workspace_host  = module.databricks_workspace.workspace_host
   warehouse_id    = module.unity_catalog_governance.sql_warehouse_id
+  tenant_id       = var.tenant_id
   catalog_name    = var.catalog_name
   schema_name     = var.schema_name
   container_image = var.gateway_image
