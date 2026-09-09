@@ -289,29 +289,44 @@ def generate_micro_transactions(cycle: str = "baseline") -> Dict[str, pd.DataFra
     gb_components = [
         # --- Group 1: currency-type cross-check, reconciles in both cycles ---
         # 900 = 300 (GBP:D) + 500 (TO1:F) + 100 (UN9:U).
-        ("GBP", "D", "BANK_GB_1", 300.0),
-        ("TO1", "F", "BANK_GB_2", 500.0),
+        ("GBP", "D", "BANK_GB_1", 150.0),
+        ("GBP", "D", "BANK_GB_2", 150.0),
+        ("TO1", "F", "BANK_GB_2", 250.0),
+        ("TO1", "F", "BANK_GB_3", 250.0),
+        # Left with a single reporter: 100% of this series is one bank's position, so
+        # it stays restricted and gives the column mask something to actually withhold.
         ("UN9", "U", "BANK_GB_3", 100.0),
-        ("TO1", "A", "BANK_GB_1", 900.0),
+        ("TO1", "A", "BANK_GB_1", 400.0),
+        ("TO1", "A", "BANK_GB_2", 300.0),
+        ("TO1", "A", "BANK_GB_3", 200.0),
 
         # --- Group 2: currency breakdown, breaks on revision ---
         # TO1:F must equal the 5 mandatory currencies plus TO3:F. The EUR:F leg is a
         # net negative position, which is valid SDMx data: 100-50+100+100+100+50 = 400.
         # L_POSITION='L' isolates this group from Group 1, and L_POSITION is never
         # itself a reconciliation target, so it cannot trigger spurious failures.
-        ("USD", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
+        ("USD", "F", "BANK_GB_1", 50.0, {"L_POSITION": "L"}),
+        ("USD", "F", "BANK_GB_2", 50.0, {"L_POSITION": "L"}),
+        # Single reporter and signed: dominance is measured on absolute contribution,
+        # so a lone negative leg is restricted for concentration, not for its sign.
         ("EUR", "F", "BANK_GB_2", -50.0, {"L_POSITION": "L"}),
-        ("JPY", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
-        ("CHF", "F", "BANK_GB_2", 100.0, {"L_POSITION": "L"}),
-        ("GBP", "F", "BANK_GB_1", 100.0, {"L_POSITION": "L"}),
+        ("JPY", "F", "BANK_GB_1", 55.0, {"L_POSITION": "L"}),
+        ("JPY", "F", "BANK_GB_3", 45.0, {"L_POSITION": "L"}),
+        ("CHF", "F", "BANK_GB_2", 50.0, {"L_POSITION": "L"}),
+        ("CHF", "F", "BANK_GB_3", 50.0, {"L_POSITION": "L"}),
+        ("GBP", "F", "BANK_GB_1", 50.0, {"L_POSITION": "L"}),
+        ("GBP", "F", "BANK_GB_2", 50.0, {"L_POSITION": "L"}),
         ("TO3", "F", "BANK_GB_2", 50.0, {"L_POSITION": "L"}),
-        ("TO1", "F", "BANK_GB_1", gb_foreign_aggregate, {"L_POSITION": "L"}),
+        ("TO1", "F", "BANK_GB_1", gb_foreign_aggregate / 2, {"L_POSITION": "L"}),
+        ("TO1", "F", "BANK_GB_2", gb_foreign_aggregate / 2, {"L_POSITION": "L"}),
 
         # --- Group 3: sector cross-check, breaks on revision ---
         # All sectors (A) = Banks (B) + Non-bank (N). Shares Group 2's L_POSITION='L'
         # plane but is isolated from it by L_CURR_TYPE='D'.
-        ("GBP", "D", "BANK_GB_1", gb_all_sectors, {"L_POSITION": "L", "L_CP_SECTOR": "A"}),
-        ("GBP", "D", "BANK_GB_2", 300.0, {"L_POSITION": "L", "L_CP_SECTOR": "B"}),
+        ("GBP", "D", "BANK_GB_1", gb_all_sectors / 2, {"L_POSITION": "L", "L_CP_SECTOR": "A"}),
+        ("GBP", "D", "BANK_GB_2", gb_all_sectors / 2, {"L_POSITION": "L", "L_CP_SECTOR": "A"}),
+        ("GBP", "D", "BANK_GB_1", 150.0, {"L_POSITION": "L", "L_CP_SECTOR": "B"}),
+        ("GBP", "D", "BANK_GB_2", 150.0, {"L_POSITION": "L", "L_CP_SECTOR": "B"}),
         ("GBP", "D", "BANK_GB_3", 150.0, {"L_POSITION": "L", "L_CP_SECTOR": "N"}),
     ]
     df_gb = pd.DataFrame(_make_micro_rows(gb_base, gb_components), columns=MICRO_COLUMNS)

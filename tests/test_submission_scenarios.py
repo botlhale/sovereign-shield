@@ -130,3 +130,22 @@ def test_confidentiality_is_decided_before_the_hub_sees_it(validator):
         restricted[cycle] = country[macro["OBS_CONF"] == "N"].value_counts().to_dict()
 
     assert restricted["baseline"] == restricted["revision"]
+
+
+def test_published_data_exercises_the_mask_in_both_directions():
+    """The persona matrix is only meaningful if the mask has both kinds of row.
+
+    All-restricted output would make a broken mask indistinguishable from a working
+    one: every persona would see nothing either way. All-free output would never
+    exercise the mask at all. The baseline must carry both, in more than one
+    jurisdiction, or the Stage 6 verification proves nothing.
+    """
+    macro = _submitted_macro("baseline")
+    country = macro["TIME_SERIES_CODE"].str.split(".").str[8]
+
+    free = country[macro["OBS_CONF"] == "F"]
+    restricted = country[macro["OBS_CONF"] == "N"]
+
+    assert len(free) >= 10, "too few publishable series to demonstrate anything"
+    assert free.nunique() >= 2, "publishable data must span more than one jurisdiction"
+    assert len(restricted) >= 1, "nothing left for the mask to withhold"

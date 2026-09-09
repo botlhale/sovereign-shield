@@ -168,7 +168,12 @@ Statistical reporting data is non-destructive; retrospective revisions are commo
 
 
 * **Distributed Delta Merge:** The engine (`scd2_merge_engine.py`) executes high-efficiency PySpark Delta Lake `MERGE` operations, tracking temporal validity through `valid_from`, `valid_to`, and `is_current` flags without row duplication.
-* **Domain Validation:** Ingested records are checked against the SDMx 3.0 Data Structure Definition (DSD) using `pysdmx` object models, validating mandatory dimensions (`FREQ`, `L_REP_CTY`, `L_POS_TYPE`, `L_MEASURE`, `L_TYPE`, `L_REP_BANK_TYPE`, `L_CP_SECTOR`, `L_CP_CTY`, `CURR_TYPE`) and observation attributes before data enters the Silver tier.
+* **Two Independent Verdicts:** Confidentiality and quality are decided by different parties, and the platform keeps them separate. The **reporting body** decides confidentiality from a configurable dominance threshold — where one institution contributes most of a series, the observation is marked `OBS_CONF = 'N'` before it ever leaves the jurisdiction. The **receiving organisation** decides acceptance, independently, by re-running the published consistency checks over the file it received. A dominant contributor makes an observation confidential; it does not make the submission wrong.
+* **The Submission Is the Contract:** The reporting task authors an SDMx-ML 3.0 file per jurisdiction per cycle; the receiving task reads that file and rules on it. It deliberately does not re-derive the figures from the accompanying microdata — a hub that recomputes is checking its own arithmetic rather than the submission it was sent.
+* **Rules Read, Not Transcribed:** `sdmx_rule_validator.py` parses the BIS consistency checks directly from the published workbook (`checks_lbs.xls`) at runtime and evaluates each aggregate against the sum of its reported components. Transcribing 27 checks into code would make the platform's rulebook a fork of the standard, drifting silently from it at the next revision.
+* **Atomic Verdict, Precise Attribution:** Acceptance is atomic per `(reporting country, reporting period)`. Partial publication is incoherent rather than merely undesirable: the aggregates that reconcile depend on the components that did not. Every observation in a broken batch is therefore withheld — but `FAILED_RULE_ID` names only the checks that observation itself broke, and is null for a series that reconciles. The verdict is collective; the accusation is not, so an investigator is pointed at the break rather than at every row that shares its quarter.
+* **Structural Validation:** Submissions are parsed against the live BIS_LBS Data Structure Definition using `pysdmx` object models, resolving the eleven dimensions that compose the series key (`FREQ`, `L_MEASURE`, `L_POSITION`, `L_INSTR`, `L_DENOM`, `L_CURR_TYPE`, `L_PARENT_CTY`, `L_REP_BANK_TYPE`, `L_REP_CTY`, `L_CP_SECTOR`, `L_CP_COUNTRY`). A key of the wrong arity is rejected outright rather than silently misaligned against the dimension list.
+* **Revision Without Regression:** A quarantined re-filing is written as a non-current audit record. The previously published version stays `IS_CURRENT` and continues to feed the public view, so a failed revision can never withdraw data that was already correct.
 
 ---
 
@@ -185,7 +190,7 @@ Statistical reporting data is non-destructive; retrospective revisions are commo
 Hiring organizations do not need to share internal records to initiate development:
 
 1. The enterprise extracts structural metadata from its DSD or schema catalog.
-2. The mock generator (`src/generate_sovereign_submissions.py`) produces an authentic synthetic fixture exercising all security branches: multi-country jurisdictions, public vs. confidential flags, revision cycles, and deliberately malformed rows.
+2. The mock generator (`src/generate_sovereign_submissions.py`) produces an authentic synthetic fixture exercising all security branches: multiple jurisdictions, free-to-publish and confidential observations, and a revision cycle whose figures break named checks in the published BIS workbook. The corrupted submissions use only real, permitted codelist values — the failures are genuine arithmetic inconsistencies a validator detects, not malformed records a parser would reject, because a fixture that fails at parse time never reaches the controls it is meant to test.
 3. External contractors build and validate all SQL, PySpark, and Terraform logic against the MVSD using local test harnesses.
 
 ### Cluster Sizing & Enterprise Scale
