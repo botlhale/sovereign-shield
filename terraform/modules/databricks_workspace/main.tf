@@ -103,6 +103,10 @@ resource "databricks_storage_credential" "main" {
 
   comment = "Managed identity credential; no account key exists to leak."
 
+  # Safe for the same reason as the external location below: nothing reaches this
+  # resource until the catalog and schema have already been destroyed.
+  force_destroy = true
+
   depends_on = [time_sleep.connector_rbac_propagation]
 }
 
@@ -115,6 +119,14 @@ resource "databricks_external_location" "main" {
   )
   credential_name = databricks_storage_credential.main.name
   comment         = "Managed storage for the sovereign_shield schema."
+
+  # Unity Catalog counts dropped managed tables as dependents for the duration of
+  # their undrop retention window, so without this a teardown stays blocked for days
+  # after any table has merely existed. The data guard is upstream and unaffected:
+  # force_destroy = false on the catalog and schema means destroy has already failed
+  # if anything live is still here, so by the time this resource is reached the only
+  # dependents left are tombstones over storage being deleted in the same operation.
+  force_destroy = true
 
   depends_on = [time_sleep.connector_rbac_propagation]
 }
