@@ -504,7 +504,13 @@ def process_and_publish_macro_batch(
     df_submitted["OBS_STATUS"] = df_submitted["OBS_STATUS"].fillna("A")
 
     df_macro_final = spark.createDataFrame(
-        validator.validate(df_submitted), schema=VALIDATED_MACRO_SCHEMA
+        # Records rather than the pandas frame itself. validator.validate() inherits
+        # df_submitted's provenance as one CSV per country concatenated together,
+        # which under pandas 3 backs each string column with a multi-chunk Arrow
+        # ChunkedArray - the same shape createDataFrame cannot turn into a
+        # RecordBatch that broke ingest_submitted_micro above.
+        validator.validate(df_submitted).to_dict("records"),
+        schema=VALIDATED_MACRO_SCHEMA,
     )
 
     # Log the verdict before committing. FAILED_RULE_ID names only the observations that

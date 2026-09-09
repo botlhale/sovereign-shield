@@ -320,7 +320,7 @@ class SDMxRuleValidator:
         dim_cols = [dim for dim in self.dimension_order if dim in data.columns]
         data["TIME_SERIES_CODE"] = data[dim_cols].astype(str).agg(".".join, axis=1)
         data = data.rename(columns={"TIME_PERIOD": "DATE"})
-        data["OBS_VALUE"] = pd.to_numeric(data["OBS_VALUE"])
+        data["OBS_VALUE"] = pd.to_numeric(data["OBS_VALUE"]).astype(float)
         data["AGG_CODE"] = AGG_CODE_DEFAULT
         for col in ("OBS_STATUS", "OBS_CONF"):
             if col not in data.columns:
