@@ -12,7 +12,13 @@ import os
 import pandas as pd
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
-from pyspark.sql.types import DoubleType, StringType, StructField, StructType
+from pyspark.sql.types import (
+    DoubleType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 from delta.tables import DeltaTable
 from delta import configure_spark_with_delta_pip
 import datetime
@@ -48,14 +54,30 @@ UPPERCASE_MICRO_COLUMNS = [
 ]
 
 
-#: Full column order of the micro ledger, matching the DDL in
-#: unity_catalog_triple_lock.sql.
-MICRO_SCHEMA = [
-    "transaction_id", "reporting_country", "reporting_institution",
-    "position_type", "instrument", "currency", "currency_type",
-    "parent_country", "bank_type", "counterpart_country", "sector_code",
-    "transaction_amount", "obs_conf", "agg_scope", "date_scope", "transaction_timestamp"
-]
+#: Micro ledger schema, matching the DDL in unity_catalog_triple_lock.sql. Declared
+#: rather than inferred: an all-null column in one arrival would otherwise be typed
+#: from that batch and disagree with the table it is appended to.
+MICRO_STRUCT = StructType([
+    StructField("transaction_id", StringType(), True),
+    StructField("reporting_country", StringType(), True),
+    StructField("reporting_institution", StringType(), True),
+    StructField("position_type", StringType(), True),
+    StructField("instrument", StringType(), True),
+    StructField("currency", StringType(), True),
+    StructField("currency_type", StringType(), True),
+    StructField("parent_country", StringType(), True),
+    StructField("bank_type", StringType(), True),
+    StructField("counterpart_country", StringType(), True),
+    StructField("sector_code", StringType(), True),
+    StructField("transaction_amount", DoubleType(), True),
+    StructField("obs_conf", StringType(), True),
+    StructField("agg_scope", StringType(), True),
+    StructField("date_scope", StringType(), True),
+    StructField("transaction_timestamp", TimestampType(), True),
+])
+
+#: Full column order of the micro ledger.
+MICRO_SCHEMA = [field.name for field in MICRO_STRUCT.fields]
 
 #: The 11 BIS_LBS dimensions in TIME_SERIES_CODE order. The submitted key is the only
 #: place the institutional attributes survive, so the ledger is rebuilt by splitting it.
@@ -134,7 +156,19 @@ def ingest_submitted_micro(
         }
     )
 
-    df_micro = spark.createDataFrame(ledger[MICRO_SCHEMA])
+    # Built from records rather than handed to Spark as a pandas frame. pandas backs
+    # string columns with Arrow arrays, and concatenating one CSV per country yields a
+    # multi-chunk ChunkedArray that Spark's pandas-to-Arrow path cannot turn into a
+    # RecordBatch. A filing is a few thousand rows at most, so the cost is nil.
+    records = ledger[MICRO_SCHEMA].to_dict("records")
+
+    # Restored from the original scalar because pandas promotes a datetime column to
+    # pandas.Timestamp, and Spark's verifier matches on exact type rather than
+    # isinstance - so a subclass of datetime is refused.
+    for record in records:
+        record["transaction_timestamp"] = batch_timestamp
+
+    df_micro = spark.createDataFrame(records, schema=MICRO_STRUCT)
 
     # Normalize casing before the key is built: a lowercase 'ca' would silently fall outside
     # the RLS predicate and make the row invisible to its own submitter.
