@@ -477,6 +477,40 @@ Restart the app afterwards so it picks up the new membership.
 > (**Settings → Development → Restrict OAuth scopes for apps**) can block a scope
 > even from an app that requests it.
 
+> **`Permission Required — You don't have access to the app"`, for any persona
+> other than the one who deployed it.** A third, separate authorization layer
+> from the two above — this is workspace-level "can this identity open the app
+> at all," decided before the request reaches `api_gateway.py`, which is why it
+> never shows up in the app's own logs no matter how long you search them.
+>
+> Deploying an app grants the deployer `CAN_MANAGE` and nobody else anything.
+> Every persona group needs `CAN_USE` declared explicitly, as `permissions` on
+> the app resource in [databricks.yml](databricks.yml):
+>
+> ```yaml
+> permissions:
+>   - group_name: "sg-sovereignshield-admin"
+>     level: "CAN_MANAGE"
+>   - group_name: "sg-sovereignshield-researchers"
+>     level: "CAN_USE"
+>   # ... one entry per persona group
+> ```
+>
+> This is admission, not entitlement — the same split as the SQL grants.
+> `CAN_USE` only lets a group load the app; Unity Catalog's row filter and
+> column mask still decide what that session can see once inside. Verify with
+> `databricks apps get-permissions sovereignshield-portal` and confirm every
+> persona group appears with `CAN_USE`, rather than trusting that the deploy
+> succeeded.
+>
+> **"Sign out" appears to do nothing.** It isn't broken — a Databricks App has
+> no session of its own to end. The workspace SSO session lives at the browser's
+> Azure AD scope, which no app-level route can clear; `SOVEREIGNSHIELD_SIGNOUT_URL`
+> is `/` on this path for exactly that reason. A fresh incognito window per
+> persona, which is what you're already doing, is the correct way to test more
+> than one persona in one browser. Real per-app sign-out (`/.auth/logout`) only
+> exists behind Stage 7's Container Apps front door.
+
 ---
 
 ## Stage 6 — Verify the persona matrix

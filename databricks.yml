@@ -67,6 +67,24 @@ targets:
           # see steps_terraform.md Stage 5.
           user_api_scopes:
             - "sql"
+          # App-level admission, not entitlement - the same split as the SQL
+          # grants below. Without this, only the deploying user can open the app
+          # at all: every other persona hits the platform's own "Permission
+          # Required" screen before the request ever reaches api_gateway.py, so
+          # it never appears in the app's logs. CAN_USE only lets a group load
+          # the app; Unity Catalog's row filter and column mask still decide
+          # what that session can see once inside.
+          permissions:
+            - group_name: "sg-sovereignshield-admin"
+              level: "CAN_MANAGE"
+            - group_name: "sg-sovereignshield-submitter-ca"
+              level: "CAN_USE"
+            - group_name: "sg-sovereignshield-submitter-us"
+              level: "CAN_USE"
+            - group_name: "sg-sovereignshield-researchers"
+              level: "CAN_USE"
+            - group_name: "sg-sovereignshield-public"
+              level: "CAN_USE"
 
       jobs:
         sovereignshield_sdmx_pipeline:
