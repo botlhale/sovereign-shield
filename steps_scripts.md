@@ -382,6 +382,11 @@ Databricks App always sits behind workspace SSO. Requires
 Add `-EnableEntraSignIn` to layer Container Apps built-in authentication over the
 anonymous tier, so signed-in visitors elevate to their real persona.
 
+The deployment declares the AzureDatabricks `user_impersonation` permission and
+then grants admin consent automatically. The identity running the script must
+be allowed to grant tenant-wide consent; otherwise the script stops at Stage 8
+and Entra sign-in remains unavailable until an administrator grants consent.
+
 > **The one manual step.** The Entra token forwarded by built-in authentication
 > must be issued for the **AzureDatabricks** resource
 > (`2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`), which means adding

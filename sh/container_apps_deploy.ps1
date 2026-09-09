@@ -232,11 +232,27 @@ if ($EnableEntraSignIn) {
     # The forwarded token must be issued for the AzureDatabricks resource,
     # otherwise the workspace rejects it and every signed-in caller falls back
     # to the public tier without any visible error.
-    az ad app permission add `
+    # `permission add` declares the delegated permission but Azure CLI emits a
+    # reminder on stderr that admin consent is still required. Capture the
+    # stream so PowerShell's ErrorActionPreference does not abort on that
+    # expected warning, then grant consent explicitly below.
+    $permissionAddOutput = az ad app permission add `
         --id $authAppId `
         --api $AzureDatabricksResourceId `
         --api-permissions "739272be-e143-11e8-9f32-f2801f1b9fd1=Scope" `
-        --output none 2>$null
+        --output none 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not add the AzureDatabricks delegated permission: $permissionAddOutput"
+    }
+
+    $permissionGrantOutput = az ad app permission grant `
+        --id $authAppId `
+        --api $AzureDatabricksResourceId `
+        --scope "user_impersonation" `
+        --output none 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not grant admin consent for AzureDatabricks user_impersonation: $permissionGrantOutput"
+    }
 
     # Only minted when the container app has no stored secret: resetting one
     # that already works would break the running sign-in flow.
