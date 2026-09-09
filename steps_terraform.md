@@ -627,6 +627,8 @@ $result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CON
 ```
 
 Every returned row must have `BATCH_STATUS=PUBLISHED` and `OBS_CONF=F`.
+The script detects the Key Vault authorization mode and uses either the RBAC
+role assignment or the legacy access-policy command, never both.
 
 ### 7.2 Terraform-managed alternative
 

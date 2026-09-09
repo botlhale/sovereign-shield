@@ -158,17 +158,25 @@ else {
 $principalId = az containerapp show --name $AppName --resource-group $ResourceGroup `
     --query identity.principalId -o tsv
 $vaultId = az keyvault show --name $KeyVaultName --query id -o tsv
+$vaultUsesRbac = az keyvault show --name $KeyVaultName `
+    --query properties.enableRbacAuthorization -o tsv
 
 Write-Host "==> 6/8 Granting the app identity read access to $KeyVaultName" -ForegroundColor Cyan
-# Works whether the vault uses RBAC or access policies; one of the two is a no-op.
-az role assignment create `
-    --assignee-object-id $principalId `
-    --assignee-principal-type ServicePrincipal `
-    --role "Key Vault Secrets User" `
-    --scope $vaultId `
-    --output none 2>$null
-az keyvault set-policy --name $KeyVaultName --object-id $principalId `
-    --secret-permissions get list --output none 2>$null
+if ($vaultUsesRbac -eq "true") {
+    # RBAC-enabled vaults reject az keyvault set-policy. The role assignment is
+    # the sole supported authorization path for the managed identity.
+    az role assignment create `
+        --assignee-object-id $principalId `
+        --assignee-principal-type ServicePrincipal `
+        --role "Key Vault Secrets User" `
+        --scope $vaultId `
+        --output none 2>$null
+}
+else {
+    # Legacy access-policy vaults do not evaluate the RBAC role assignment.
+    az keyvault set-policy --name $KeyVaultName --object-id $principalId `
+        --secret-permissions get list --output none
+}
 
 Write-Host "==> 7/8 Wiring Key Vault references and environment" -ForegroundColor Cyan
 # Credentials are Key Vault references resolved by the platform at start-up.

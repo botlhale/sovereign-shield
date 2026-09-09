@@ -337,6 +337,10 @@ $result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CON
 Every returned observation must be `PUBLISHED` and `F`. This is a separate
 deployment from the Databricks App and does not require app OAuth consent.
 
+The deployment script detects whether the vault uses Azure RBAC. RBAC vaults
+receive the `Key Vault Secrets User` role only; access-policy vaults receive a
+`set-policy` grant. These mechanisms are mutually exclusive in Azure Key Vault.
+
 Idempotent: it discovers an existing `acrsovereignshield*` registry, reuses the
 Container Apps environment, and `update`s the app rather than failing if it
 already exists. The image is always rebuilt, since shipping new code is the point
