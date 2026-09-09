@@ -13,7 +13,12 @@
 # granted.
 
 resource "databricks_grant" "history_readers" {
-  for_each = var.grant_tables ? toset(values(var.persona_group_names)) : toset([])
+  # Admin is excluded because admin_tables below owns that pair. databricks_grant
+  # is authoritative per (securable, principal), so two resources on one pair each
+  # read back the union and reject it for not matching their own list.
+  for_each = var.grant_tables ? toset([
+    for name in values(var.persona_group_names) : name if name != var.admin_group
+  ]) : toset([])
 
   table     = local.history_table
   principal = each.value
@@ -25,6 +30,7 @@ resource "databricks_grant" "history_readers" {
 }
 
 resource "databricks_grant" "micro_readers" {
+  # micro_reader_groups is submitters only, so it never overlaps admin_tables.
   for_each = var.grant_tables ? toset(local.micro_reader_groups) : toset([])
 
   table      = local.micro_table

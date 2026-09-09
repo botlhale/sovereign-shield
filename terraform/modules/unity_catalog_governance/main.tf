@@ -15,10 +15,15 @@
 # A Terraform resource describing the same binding would report drift after
 # every pipeline execution, and an apply could detach a live filter mid-query.
 #
-# Grants use `databricks_grant` (singular), which is ADDITIVE. The plural
-# `databricks_grants` is authoritative and revokes any privilege it does not
-# declare - which would silently strip whatever the SQL quickstart path granted.
-# The two paths therefore converge instead of fighting.
+# Grants use `databricks_grant` (singular), which is authoritative for one
+# (securable, principal) PAIR and leaves other principals on that securable
+# alone. The plural `databricks_grants` is authoritative for the whole securable
+# and would revoke anything it does not declare, including whatever the SQL
+# quickstart path granted. The two paths therefore converge instead of fighting.
+#
+# The corollary is that no two resources here may target the same pair. Both
+# would write, then read back the union and reject it as not matching their own
+# list - see the admin exclusion in schema_traversal below.
 
 locals {
   full_schema = "${var.catalog_name}.${var.schema_name}"
@@ -74,7 +79,12 @@ resource "databricks_grant" "catalog_traversal" {
 }
 
 resource "databricks_grant" "schema_traversal" {
-  for_each = toset(local.traversal_groups)
+  # Admin is excluded because admin_schema_ownership below already owns this pair.
+  # Two databricks_grant resources on one (securable, principal) each write and
+  # then read back the union, and each rejects it for not matching its own list.
+  for_each = toset([
+    for name in local.traversal_groups : name if name != var.admin_group
+  ])
 
   schema     = "${databricks_catalog.main.name}.${databricks_schema.main.name}"
   principal  = each.value
@@ -86,10 +96,14 @@ resource "databricks_grant" "admin_schema_ownership" {
 
   schema    = "${databricks_catalog.main.name}.${databricks_schema.main.name}"
   principal = var.admin_group
+
+  # USE_SCHEMA is implied by ALL_PRIVILEGES but is listed because this resource is
+  # the sole authority for the pair, and the API reports it back.
   privileges = [
     "ALL_PRIVILEGES",
     "CREATE_TABLE",
     "CREATE_FUNCTION",
+    "USE_SCHEMA",
   ]
 }
 
