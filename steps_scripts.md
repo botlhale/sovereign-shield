@@ -387,8 +387,12 @@ rows.
 
 ## Stage 9 — Teardown
 
-Nothing here is declarative, so teardown is manual and order still matters:
-Unity Catalog refuses to drop a schema whose tables carry live row filters.
+Nothing here is declarative, so teardown is manual and order still matters. The
+one non-obvious part: `databricks bundle destroy` removes what the *bundle*
+declares — the job, the app, the uploaded files — and not the tables, functions
+or view, which a job run created imperatively. Those have to go first, and in
+dependency order, because Unity Catalog will not drop a policy function while a
+table still binds it through a row filter or column mask.
 
 ### 9.1 Pause between demos
 
@@ -404,17 +408,26 @@ storage account and Key Vault — pennies.
 ### 9.2 Full teardown
 
 ```powershell
-# 1. Data and policy plane: tables, policy UDFs, row filters, masks, the view.
+# 1. Data and policy plane. Unity Catalog API calls, so nothing needs to be running.
+$fqn = "dbw_sovereignshield.sovereign_shield"
+databricks tables    delete "$fqn.v_agg_sdmx_published"
+databricks tables    delete "$fqn.agg_sdmx_history"
+databricks tables    delete "$fqn.lbs_micro_transactions"
+databricks functions delete "$fqn.fn_ddm_obs_conf_mask"
+databricks functions delete "$fqn.fn_rls_multi_persona_lock"
+databricks functions delete "$fqn.fn_rls_micro_country_lock"
+
+# 2. Bundle-declared resources: the job definition, the app, the workspace files.
 databricks bundle destroy -t dev
 
-# 2. The catalog. Metastore-scoped, so it outlives the workspace - leaving it
+# 3. The catalog. Metastore-scoped, so it outlives the workspace - leaving it
 #    behind means its name is taken on the next rebuild.
 databricks catalogs delete dbw_sovereignshield --force
 
-# 3. Everything in the resource group.
+# 4. Everything in the resource group.
 az group delete -n rg-sovereignshield --yes
 
-# 4. Purge the soft-deleted vault, whose name stays reserved until purged.
+# 5. Purge the soft-deleted vault, whose name stays reserved until purged.
 az keyvault purge --name <vault-name> --location canadacentral
 ```
 
@@ -516,8 +529,12 @@ a first pass — the group does not exist yet. Re-run it after
 **A persona user cannot sign in.** `grp_users_create.sh` never resets an existing
 password. Reset it in Entra ID, or delete the user and re-run.
 
-**Dropping the schema fails.** Tables still carry live row filters. Run
-`databricks bundle destroy -t dev` first, which detaches them.
+**Dropping the schema fails.** The tables, functions and view are still present.
+`databricks bundle destroy` does not remove them: it removes what the bundle
+declares, and those objects were created by a job run. Drop them explicitly with
+`databricks tables delete` and `databricks functions delete` first — the view
+before the history table it reads, and both tables before the policy functions
+they bind.
 
 ---
 

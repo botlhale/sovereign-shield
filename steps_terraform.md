@@ -596,32 +596,67 @@ storage account and Key Vault — pennies.
 
 ### 9.2 Full teardown
 
-Order matters. Terraform does not own the tables or the policy bindings, so it
-cannot remove them, and Unity Catalog refuses to drop a schema whose tables carry
-live row filters. Destroying in the wrong order produces a dependency error that
-does not name the cause.
+Order matters, and the first step is the one that is easy to get wrong.
+
+`databricks bundle destroy` removes what the *bundle* declares — the job, the app,
+the uploaded files. It does **not** drop the tables, functions, or the view: those
+were created imperatively by a job run, not declared as bundle resources, so
+nothing in the bundle knows they exist. Terraform will not drop them either;
+`force_destroy = false` on the catalog and schema is deliberate, so that a
+`terraform destroy` can never silently discard populated tables.
+
+The result is that skipping the explicit drops fails late, after Terraform has
+already destroyed the service principals and Key Vault secrets:
+
+```
+Error: cannot delete schema: Schema 'dbw_sovereignshield.sovereign_shield' is not
+empty. The schema has 3 tables(s), 3 functions(s), 0 volumes(s)
+```
 
 ```powershell
-# 1. Data and policy plane: tables, policy UDFs, row filters, masks, the view.
+# 1. Data and policy plane. Dependency order: the view reads the history table, and
+#    both tables bind the policy functions, which cannot be dropped while bound.
+#    These are Unity Catalog API calls - no warehouse or cluster needs to be running.
+. .\sh\pre_auth.ps1
+$fqn = "dbw_sovereignshield.sovereign_shield"
+databricks tables    delete "$fqn.v_agg_sdmx_published"
+databricks tables    delete "$fqn.agg_sdmx_history"
+databricks tables    delete "$fqn.lbs_micro_transactions"
+databricks functions delete "$fqn.fn_ddm_obs_conf_mask"
+databricks functions delete "$fqn.fn_rls_multi_persona_lock"
+databricks functions delete "$fqn.fn_rls_micro_country_lock"
+
+# 2. Bundle-declared resources: the job definition, the app, the workspace files.
 databricks bundle destroy -t dev
 
-# 2. Release the table grants so those securables are no longer referenced.
+# 3. Release the table grants, if grant_tables was ever set true.
 cd terraform
 terraform apply -var="grant_tables=false"
 
-# 3. Everything Terraform owns: gateway, warehouse, catalog, schema, workspace,
+# 4. Everything Terraform owns: gateway, warehouse, catalog, schema, workspace,
 #    storage, Key Vault, service principals, Entra groups.
 terraform destroy
 cd ..
 
-# 4. Purge the soft-deleted vault. purge_protection_enabled is on, so the vault
+# 5. Purge the soft-deleted vault. purge_protection_enabled is on, so the vault
 #    survives destroy by design and its name stays reserved until purged.
 az keyvault purge --name <vault-name> --location canadacentral
 ```
 
-> **Let step 3 finish.** The Container Apps managed environment routinely reports
-> `Still destroying...` for ten to twenty minutes while it tears down its
-> underlying infrastructure. That is normal, not a hang.
+> **Run step 1 before step 4, not after.** Terraform destroys the Key Vault secrets
+> early, so once step 4 has failed, `pre_auth.ps1` can no longer resolve the
+> workspace URL. Recovering means reading it back from ARM:
+>
+> ```powershell
+> $url = az databricks workspace show -n dbw-sovereignshield -g rg-sovereignshield --query workspaceUrl -o tsv
+> $env:DATABRICKS_HOST = "https://$($url.Trim())"
+> $env:DATABRICKS_AUTH_TYPE = "azure-cli"
+> ```
+
+> **Let step 4 finish.** With `deploy_dissemination_gateway = true`, the Container
+> Apps managed environment routinely reports `Still destroying...` for ten to
+> twenty minutes while it tears down its underlying infrastructure. That is normal,
+> not a hang.
 >
 > Interrupting it is the single most expensive mistake available here: the
 > resource ends up half-deleted while state still believes it exists, and
@@ -876,8 +911,10 @@ the workspace is VNet-injected with private endpoints. This costs less than it
 looks: `shared_access_key_enabled = false` and no anonymous container mean every
 request still needs an Entra token that RBAC allows.
 
-**`terraform destroy` fails on the catalog.** Step 1 of the teardown was skipped;
-tables still carry live row filters.
+**`terraform destroy` fails with "schema is not empty".** The tables, functions
+and view are still there. `databricks bundle destroy` does not remove them — it
+only removes what the bundle declares, and those objects were created by a job
+run. Drop them explicitly as in Stage 9.2 step 1, then re-run the destroy.
 
 ---
 
