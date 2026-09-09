@@ -29,19 +29,24 @@ function Get-VaultSecret {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
-        $value = az keyvault secret show --vault-name $KeyVaultName --name $Name --query value -o tsv 2>$null
+        $value = az keyvault secret show --vault-name $KeyVaultName --name $Name --query value -o tsv 2>&1
     } finally {
         $ErrorActionPreference = $previous
     }
+    $failed = $LASTEXITCODE -ne 0
 
-    if ([string]::IsNullOrWhiteSpace($value)) {
+    if ($failed -or [string]::IsNullOrWhiteSpace($value)) {
         if ($Optional) { return $null }
-        throw "Secret '$Name' is missing from $KeyVaultName."
+        # "Missing" and "forbidden" are different problems with different fixes, and
+        # Owner grants no data-plane access to an RBAC vault, so a 403 here is common
+        # and easy to misread. Carry az's own reason rather than guessing at it.
+        $reason = ($value | Out-String).Trim()
+        throw "Could not read secret '$Name' from $KeyVaultName.$(if ($reason) { "`n$reason" })"
     }
 
     # .Trim() is load-bearing: az -o tsv appends a newline, and an unstripped
     # secret produces an opaque authentication rejection rather than a parse error.
-    return $value.Trim()
+    return ($value | Out-String).Trim()
 }
 
 $env:DATABRICKS_HOST = Get-VaultSecret "databricks-workspace-url"

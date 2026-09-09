@@ -30,6 +30,12 @@ output "public_proxy_client_id" {
 output "key_vault_id" {
   description = "Key Vault resource id."
   value       = azurerm_key_vault.main.id
+
+  # Anything writing a secret through this id needs the operator's data-plane role,
+  # and Owner does not grant it. Without this, a consumer in another module has no
+  # ordering against the role assignment, so destroy can revoke the role first and
+  # leave the secret unreadable - a 403 on refresh that no longer self-heals.
+  depends_on = [azurerm_role_assignment.deployer_secrets_officer]
 }
 
 output "key_vault_uri" {
