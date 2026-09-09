@@ -81,7 +81,7 @@ a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 59 passed, 12 skipped
+pytest tests/                 # expect 70 passed, 12 skipped
 ```
 
 The skips are the `--live` tests, which need a workspace, and the `--stress`
@@ -179,9 +179,10 @@ Catalog "path not found", since `databricks.yml` defaults
 provisioned the catalog.
 
 Grants are applied by `src/unity_catalog_grants.sql`, which
-`sh/apply_security.py` runs as part of the pipeline. On the Terraform path that
-file is skipped because Terraform owns the access-control plane; here it is the
-only thing that applies grants, so leave `SOVEREIGNSHIELD_SKIP_GRANTS` unset.
+`sh/apply_security.py` runs as part of the pipeline. On the Terraform path,
+Terraform owns the declarative access-control state; the SQL grants remain an
+idempotent equivalent for the script-only path. Here the SQL file is the only
+thing that applies grants, so leave `SOVEREIGNSHIELD_SKIP_GRANTS` unset.
 
 ---
 
@@ -243,6 +244,31 @@ Stage 7. Skip this and the fail-closed default returns zero rows, and the portal
 renders empty for every visitor.
 
 Restart the app afterwards so it picks up the new membership.
+
+The portal has four independent authorization layers. Check all four when a
+persona can load the app but cannot query it: the app's `CAN_USE` ACL, the
+app's `user_api_scopes: ["sql"]`, the SQL warehouse's own `CAN_USE` ACL, and
+the Unity Catalog grants and policies. The warehouse ACL is not implied by
+table `SELECT` or by app access. Grant `CAN_USE` to every persona group on the
+warehouse through **SQL Warehouses -> Permissions**, then verify it with:
+
+```powershell
+databricks warehouses get-permissions <warehouse-id> --output json
+```
+
+If facets load but a researcher search fails, grant `EXECUTE` on the DDM
+function as well as table `SELECT`. Researchers retain published confidential
+rows so the mask must run for them:
+
+```sql
+GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask
+  TO `sg-sovereignshield-researchers`;
+```
+
+The equivalent five-persona grants are already present in
+`src/unity_catalog_grants.sql`; rerun Stage 4 after deploying that change.
+The correct researcher result is all published countries, with `C`/`N` values
+shown as `restricted` and no quarantined rows.
 
 ---
 
@@ -343,7 +369,7 @@ gitignored.
 ### 8.2 Client-side verification
 
 ```powershell
-pytest tests/                    # offline: 59 passed
+pytest tests/                    # offline: 70 passed
 databricks bundle validate -t dev
 ```
 

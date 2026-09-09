@@ -86,7 +86,7 @@ a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 59 passed, 12 skipped
+pytest tests/                 # expect 70 passed, 12 skipped
 ```
 
 The skips are the `--live` tests, which need a workspace, and the `--stress`
@@ -511,6 +511,39 @@ Restart the app afterwards so it picks up the new membership.
 > than one persona in one browser. Real per-app sign-out (`/.auth/logout`) only
 > exists behind Stage 7's Container Apps front door.
 
+> **`databricks.sql.exc.RequestError: Error during request to server` remains
+> after SQL consent and app `CAN_USE` are correct.** The SQL warehouse is a
+> separate securable from both the app and Unity Catalog. Verify its own ACL:
+>
+> ```powershell
+> databricks warehouses get-permissions <warehouse-id> --output json
+> ```
+>
+> Every persona group must have `CAN_USE`. The durable Terraform fix is to set
+> both deferred toggles in `terraform.tfvars` and reconcile them after the
+> account groups and tables exist:
+>
+> ```powershell
+> cd terraform
+> # account_groups_ready = true
+> # grant_tables         = true
+> terraform apply -var-file="terraform.tfvars"
+> cd ..
+> ```
+>
+> Do not diagnose this as a Unity Catalog row-filter failure until the
+> warehouse ACL is present. Admin access can hide this defect because the
+> deploying owner can use the warehouse without a persona grant.
+
+> **The researcher sees populated facets but search fails while submitters
+> work.** Researchers retain published `C`/`N` rows so the column mask can
+> redact their values. The caller therefore needs `EXECUTE` on
+> `fn_ddm_obs_conf_mask`, not only `SELECT` on `agg_sdmx_history`. The pipeline
+> applies this grant from `src/unity_catalog_grants.sql`; redeploy the bundle
+> and rerun the security/pipeline task if the grant is missing. Verify the
+> expected result: all published countries remain visible, restricted values
+> render as `restricted`, and quarantined rows remain absent.
+
 ---
 
 ## Stage 6 — Verify the persona matrix
@@ -609,7 +642,7 @@ You do **not** hand over `terraform.tfvars`, `backend.hcl`, `sh/spn_details`,
 The client runs this inside their own boundary, on their own data:
 
 ```powershell
-pytest tests/                    # offline: 59 passed
+pytest tests/                    # offline: 70 passed
 terraform plan                   # expect no diff against policy objects
 databricks bundle validate -t dev
 ```
