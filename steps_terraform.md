@@ -949,6 +949,34 @@ catalog and holds nothing of yours. Drop it and re-run the apply:
 databricks catalogs delete dbw_sovereignshield --force
 ```
 
+**`cannot configure default credentials` on `databricks_*` reads, while `az` is
+logged in and working.** Not a credential problem. Check the plan for the
+workspace being replaced:
+
+```
+~ workspace_url = "https://adb-..." -> (known after apply)
+```
+
+The Databricks provider takes `azure_workspace_resource_id` from the workspace
+this configuration manages, so during a replacement that id is unknown and the
+provider has no host. It falls back to default auth, finds only `ARM_TENANT_ID`,
+and reports a credentials error for what is really an unknown target. Every
+failure will be a *read* — refreshing resources that already exist.
+
+Anything that replaces the workspace therefore needs two applies. `workspace_name`
+is force-new, so renaming it is the usual trigger:
+
+```powershell
+terraform destroy -target="module.unity_catalog_governance" -target="module.databricks_workspace" -var-file="terraform.tfvars"
+terraform apply -var-file="terraform.tfvars"
+```
+
+The destroy resolves normally because the workspace still exists at that point,
+and the apply has nothing to refresh. Creates tolerate a deferred provider
+configuration; reads do not. Leave the identity module out of the targets —
+recreating the Entra groups would issue new object ids and break the account-level
+group assignments made in Stage 2.
+
 **`Did not find workspace with specified org ID`, on a workspace that exists.**
 A stale `DATABRICKS_HOST` in the shell. The Databricks provider reads its ambient
 environment and that takes precedence over `azure_workspace_resource_id` in

@@ -39,6 +39,13 @@ provider "azuread" {
 # Workspace-scoped Databricks provider. The workspace is created in the same
 # apply, so the resource id is taken from the module output rather than a
 # hardcoded URL.
+#
+# The cost of that convenience is that anything replacing the workspace needs two
+# applies. During the replacement this id is unknown, so the provider cannot be
+# configured, and refreshing the existing databricks_* resources fails with
+# "cannot configure default credentials" - an auth error whose real cause is an
+# unknown host. Destroy the dependent modules first, then apply; creates are fine
+# with a deferred provider config, only reads are not.
 provider "databricks" {
   azure_workspace_resource_id = module.databricks_workspace.workspace_id
 }
