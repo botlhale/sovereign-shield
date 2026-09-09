@@ -918,6 +918,37 @@ the workspace is VNet-injected with private endpoints. This costs less than it
 looks: `shared_access_key_enabled = false` and no anonymous container mean every
 request still needs an Entra token that RBAC allows.
 
+**`cannot create catalog: Catalog 'dbw_sovereignshield' already exists`, on a
+fresh metastore.** Not leftover state. Databricks auto-provisions a default
+catalog for a new workspace, named after the workspace with hyphens converted to
+underscores — so `dbw-sovereignshield` produces `dbw_sovereignshield`, which is
+the `catalog_name` in `terraform.tfvars`.
+
+Whether this bites is a race, which is why a first deployment can succeed and a
+rebuild of the same configuration fail. If the name is already taken when the
+workspace is created, Databricks falls back to appending the org id
+(`dbw_sovereignshield_7405618511341043`) and nothing collides. Tear that catalog
+down and the name is free, so the next workspace claims it first.
+
+Confirm which one you are looking at before deleting anything — the auto-created
+catalog has a `storage_root` under the workspace's own managed storage rather
+than the external location, and is owned by the workspace admins group:
+
+```powershell
+databricks catalogs get dbw_sovereignshield --output json |
+  ConvertFrom-Json | Select-Object name, owner, storage_root
+```
+
+A `storage_root` of `abfss://unity-catalog-storage@dbstorage...` is the platform's
+catalog and holds nothing of yours. Drop it and re-run the apply:
+
+```powershell
+databricks catalogs delete dbw_sovereignshield --force
+```
+
+The durable fix is to set `catalog_name` to something the platform will never
+choose — anything not derived from `workspace_name`.
+
 **`Did not find workspace with specified org ID`, on a workspace that exists.**
 A stale `DATABRICKS_HOST` in the shell. The Databricks provider reads its ambient
 environment and that takes precedence over `azure_workspace_resource_id` in
