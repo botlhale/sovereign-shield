@@ -918,6 +918,26 @@ the workspace is VNet-injected with private endpoints. This costs less than it
 looks: `shared_access_key_enabled = false` and no anonymous container mean every
 request still needs an Entra token that RBAC allows.
 
+**`Did not find workspace with specified org ID`, on a workspace that exists.**
+A stale `DATABRICKS_HOST` in the shell. The Databricks provider reads its ambient
+environment and that takes precedence over `azure_workspace_resource_id` in
+[terraform/providers.tf](terraform/providers.tf), so the provider talks to
+whatever workspace the variable names — and the org ID in the error is the *old*
+workspace's, not the one being built.
+
+This is structural rather than unlucky: Stage 3 dot-sources `pre_auth.ps1`
+specifically to set `DATABRICKS_HOST`, so any Terraform run later in that same
+shell inherits it. After a rebuild it points at a workspace that no longer exists.
+
+```powershell
+Get-ChildItem Env: | Where-Object Name -like "DATABRICKS*"
+Remove-Item Env:DATABRICKS_HOST, Env:DATABRICKS_AUTH_TYPE, Env:DATABRICKS_AZURE_RESOURCE_ID, Env:DATABRICKS_ACCOUNT_ID -ErrorAction SilentlyContinue
+```
+
+Run Terraform in a shell that has never sourced `pre_auth.ps1`, or clear the
+variables first. The provider is fully configured from `providers.tf` and needs
+none of them.
+
 **`terraform destroy` fails with "schema is not empty".** The tables, functions
 and view are still there. `databricks bundle destroy` does not remove them — it
 only removes what the bundle declares, and those objects were created by a job
