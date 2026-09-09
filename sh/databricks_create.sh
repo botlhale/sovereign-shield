@@ -12,7 +12,7 @@ set -euo pipefail
 
 RESOURCE_GROUP="${RESOURCE_GROUP:-rg-sovereignshield}"
 LOCATION="${LOCATION:-canadacentral}"
-WORKSPACE_NAME="${WORKSPACE_NAME:-dbw-sovereignshield}"
+WORKSPACE_NAME="${WORKSPACE_NAME:-dbw-sovshield}"
 SKU="premium"   # Unity Catalog, row filters and column masks are premium-only.
 
 echo "=== 1. Azure Databricks Workspace ($WORKSPACE_NAME) ==="

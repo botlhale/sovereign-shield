@@ -18,7 +18,10 @@ location            = "canadacentral"
 # the group instead of creating it, uses its region rather than `location`, and
 # leaves it in place on destroy.
 create_resource_group = true
-workspace_name      = "dbw-sovereignshield"
+
+# Not "dbw-sovereignshield": Databricks names a workspace's default catalog after
+# the workspace, so that would claim catalog_name below before Terraform could.
+workspace_name = "dbw-sovshield"
 
 catalog_name = "dbw_sovereignshield"
 schema_name  = "sovereign_shield"

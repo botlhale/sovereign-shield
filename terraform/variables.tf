@@ -44,15 +44,30 @@ variable "location" {
 }
 
 variable "workspace_name" {
-  description = "Azure Databricks workspace name."
+  description = <<-EOT
+    Azure Databricks workspace name. Deliberately not the catalog name with hyphens:
+    Databricks auto-provisions a default catalog named after the workspace with
+    hyphens converted to underscores, and it wins the name whenever it gets there
+    first. See the validation on catalog_name.
+  EOT
   type        = string
-  default     = "dbw-sovereignshield"
+  default     = "dbw-sovshield"
 }
 
 variable "catalog_name" {
   description = "Unity Catalog catalog. Must match the literal in unity_catalog_triple_lock.sql."
   type        = string
   default     = "dbw_sovereignshield"
+
+  # Caught here because the runtime symptom is a race, not a constant failure: if
+  # the name is free when the workspace is created the platform takes it and apply
+  # fails, but if something already holds it the platform appends the org id and
+  # the two coexist unnoticed. The same configuration can deploy once and fail on
+  # rebuild, so the check has to be on the names rather than on the outcome.
+  validation {
+    condition     = var.catalog_name != replace(var.workspace_name, "-", "_")
+    error_message = "catalog_name collides with the default catalog Databricks creates for workspace_name (hyphens become underscores). Pick a catalog_name that is not derived from the workspace name."
+  }
 }
 
 variable "schema_name" {

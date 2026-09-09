@@ -37,7 +37,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$AccountId,
     [string]$ResourceGroup = "rg-sovereignshield",
-    [string]$WorkspaceName = "dbw-sovereignshield",
+    [string]$WorkspaceName = "dbw-sovshield",
     [string]$TenantDomain = "13668754CANADAINC.onmicrosoft.com",
     [string]$AppName = ""
 )
