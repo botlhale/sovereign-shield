@@ -35,7 +35,12 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$AccountId,
+    # A GUID, not the workspace's numeric org id. Passing the org id reaches the CLI
+    # as "The accountId could not be retrieved", which reads like an auth failure.
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$')]
+    [string]$AccountId,
+
     [string]$ResourceGroup = "rg-sovereignshield",
     [string]$WorkspaceName = "dbw-sovshield",
     [string]$TenantDomain = "13668754CANADAINC.onmicrosoft.com",

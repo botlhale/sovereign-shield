@@ -295,6 +295,14 @@ The most common cause of "the deploy worked but I see no data".
 ```
 
 Find the account id at `https://accounts.azuredatabricks.net` (top-right menu).
+It is a GUID and it belongs to the Azure tenant, not to any workspace, so it
+survives every teardown and rebuild — record it once.
+
+The easy mistake is passing the workspace's numeric org id, the
+`7405606562483631` in `adb-7405606562483631.11.azuredatabricks.net`. The CLI
+rejects it as `Error: The accountId could not be retrieved`, which reads like a
+permissions problem rather than a wrong argument. The script now checks the shape
+of the value before it calls anything.
 
 It ensures account-level users, service principals and groups exist, fixes
 memberships, and assigns everything to the new workspace (`USER` for groups,
