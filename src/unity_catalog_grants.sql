@@ -43,6 +43,16 @@ GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshiel
 GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-researchers`;
 GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-public`;
 
+-- The researcher tier retains published confidential rows so the column mask
+-- can redact their values. Every principal that can reach the macro table must
+-- therefore be allowed to execute the mask function; otherwise masked SELECTs
+-- fail even though facets and unmasked submitter queries still work.
+GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-admin`;
+GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-submitter-ca`;
+GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-submitter-us`;
+GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-researchers`;
+GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-public`;
+
 -- Intake holds the pre-submission ledger. Submitters traverse it to reach their own
 -- rows; researchers and the public tier are absent, so they cannot see it at all.
 GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_intake TO `sg-sovereignshield-admin`;
