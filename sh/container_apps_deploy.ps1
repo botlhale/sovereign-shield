@@ -53,8 +53,30 @@ $AzureDatabricksResourceId = "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $imageTag = "sovereignshield-portal:$(Get-Date -Format yyyyMMddHHmmss)"
 
+function Test-AzResourceExists {
+    param(
+        [Parameter(Mandatory = $true)][scriptblock]$Command
+    )
+
+    # Azure CLI returns a normal 3/ResourceNotFound response for an absent
+    # resource. PowerShell's ErrorActionPreference turns that expected probe
+    # result into a terminating error unless it is scoped to Continue.
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $Command 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
 Write-Host "==> 1/8 Registering providers and the containerapp extension" -ForegroundColor Cyan
 az extension add --name containerapp --upgrade --only-show-errors | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Azure CLI could not update the 'containerapp' extension. Continuing because Azure CLI may provide it through dynamic extension loading. If a later containerapp command is unavailable, install it with: az extension add --name containerapp --upgrade"
+}
 az provider register --namespace Microsoft.App --wait | Out-Null
 az provider register --namespace Microsoft.OperationalInsights --wait | Out-Null
 
@@ -89,7 +111,7 @@ az acr build `
     --output none
 
 Write-Host "==> 4/8 Container Apps environment" -ForegroundColor Cyan
-if (az containerapp env show --name $EnvironmentName --resource-group $ResourceGroup 2>$null) {
+if (Test-AzResourceExists { az containerapp env show --name $EnvironmentName --resource-group $ResourceGroup --only-show-errors }) {
     Write-Host "    [skip]   Environment $EnvironmentName exists"
 }
 else {
@@ -105,7 +127,7 @@ Write-Host "==> 5/8 Deploying the app with external ingress" -ForegroundColor Cy
 # Ingress is external and unauthenticated by design - this deployment exists to
 # demonstrate the anonymous tier. minReplicas 1 keeps the first visitor off a
 # cold start; the app holds no state, so scaling out is safe.
-if (az containerapp show --name $AppName --resource-group $ResourceGroup 2>$null) {
+if (Test-AzResourceExists { az containerapp show --name $AppName --resource-group $ResourceGroup --only-show-errors }) {
     Write-Host "    [update] App $AppName exists - rolling out the new image" -ForegroundColor Green
     az containerapp update `
         --name $AppName `

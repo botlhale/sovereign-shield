@@ -309,17 +309,18 @@ pytest tests/ --live
 
 ## Stage 7 — Optional: genuinely anonymous access
 
-For the current workspace, run this from the repository root:
+Run this from the repository root, replacing the placeholders with identifiers
+from the current subscription:
 
 ```powershell
 az account show --query "{subscription:id, tenant:tenantId, name:name}" -o table
 
 ./sh/container_apps_deploy.ps1 `
-  -KeyVaultName "kv-sovereignshield-82885" `
-  -DatabricksHost "adb-7405608768978349.9.azuredatabricks.net" `
-  -WarehouseId "c9bb675261de8b09" `
-  -ResourceGroup "rg-sovereignshield" `
-  -Location "canadacentral"
+  -KeyVaultName "<key-vault-name>" `
+  -DatabricksHost "<workspace-url-without-https>" `
+  -WarehouseId "<warehouse-id>" `
+  -ResourceGroup "<resource-group>" `
+  -Location "<azure-region>"
 ```
 
 Leave off `-EnableEntraSignIn` to test genuinely anonymous public access. The
@@ -340,6 +341,12 @@ Idempotent: it discovers an existing `acrsovereignshield*` registry, reuses the
 Container Apps environment, and `update`s the app rather than failing if it
 already exists. The image is always rebuilt, since shipping new code is the point
 of re-running.
+
+If a first run stops after the image build, rerun the same command. The registry
+is retained and discovered automatically. An Azure CLI `containerapp` extension
+update warning is non-fatal when dynamic extension loading is enabled; if a
+later `az containerapp` command is unavailable, install it explicitly with
+`az extension add --name containerapp --upgrade` and rerun.
 
 This is the only way to see a genuinely unauthenticated visitor, since a
 Databricks App always sits behind workspace SSO. Requires

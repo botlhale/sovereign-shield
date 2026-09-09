@@ -589,22 +589,33 @@ is the only way to see a genuinely unauthenticated visitor. Choose **one** of
 the two deployment paths below. They use the same resource names and must not
 both be run against one subscription.
 
-### 7.1 Recommended for this workspace: script deployment
+### 7.1 Recommended: script deployment
 
 ```powershell
 az account show --query "{subscription:id, tenant:tenantId, name:name}" -o table
 
 ./sh/container_apps_deploy.ps1 `
-  -KeyVaultName "kv-sovereignshield-82885" `
-  -DatabricksHost "adb-7405608768978349.9.azuredatabricks.net" `
-  -WarehouseId "c9bb675261de8b09" `
-  -ResourceGroup "rg-sovereignshield" `
-  -Location "canadacentral"
+  -KeyVaultName "<key-vault-name>" `
+  -DatabricksHost "<workspace-url-without-https>" `
+  -WarehouseId "<warehouse-id>" `
+  -ResourceGroup "<resource-group>" `
+  -Location "<azure-region>"
+```
+
+The values are identifiers, not secrets. Resolve them for the current
+subscription rather than copying them into documentation:
+
+```powershell
+az keyvault list --query "[].name" -o table
+az databricks workspace show --name <workspace-name> --resource-group <resource-group> --query workspaceUrl -o tsv
+terraform -chdir=terraform output -raw sql_warehouse_id
 ```
 
 Leave off `-EnableEntraSignIn` for the anonymous public-data test. The script
 builds the image, creates or updates Container Apps, wires Key Vault, and
 prints the portal URL. It is idempotent; rerunning it rolls out a new image.
+If a first run stops after the image build, rerun the same command; its existing
+`acrsovereignshield*` registry is discovered automatically.
 
 Verify the URL printed by the script:
 
