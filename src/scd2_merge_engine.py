@@ -103,12 +103,15 @@ def ingest_submitted_micro(
         )
     segments.columns = DSD_SEGMENTS
 
+    # cycle is the arrival's path under the volume; only its leaf belongs in an identifier.
+    arrival_label = cycle.rstrip("/").split("/")[-1].upper()
+
     ledger = pd.DataFrame(
         {
             # Deterministic from the filing rather than a UUID, so re-running a cycle
             # replays the same identities instead of inventing a new set each time.
             "transaction_id": [
-                f"{cycle.upper()}_{row.L_REP_CTY}_{index:04d}"
+                f"{arrival_label}_{row.L_REP_CTY}_{index:04d}"
                 for index, row in enumerate(segments.itertuples(), start=1)
             ],
             "reporting_country": segments["L_REP_CTY"],
@@ -507,20 +510,23 @@ def run_pipeline(
             f"check SOVEREIGNSHIELD_SUBMISSION_DIR is the same for both tasks."
         )
 
-    # Arrivals are processed in filing order, which the sequence prefix on each
-    # directory encodes. A hub replaying them out of order would expire a live version
-    # against a submission that predates it.
-    cycles = sorted(
-        entry
-        for entry in os.listdir(submission_root)
-        if os.path.isdir(os.path.join(submission_root, entry))
-    )
-    if not cycles:
-        raise FileNotFoundError(f"No submission cycles filed under {submission_root!r}.")
+    # Arrivals are discovered rather than enumerated, so the layout can carry whatever
+    # collection and date hierarchy the filings need. Sorting the full path yields filing
+    # order because every component is zero-padded and ordered coarse to fine:
+    # <family>/<dataset>/<yyyy>/<mm>/<dd>/<NN>_<cycle>. A hub replaying arrivals out of
+    # order would expire a live version against a submission that predates it.
+    arrivals = sorted({
+        os.path.dirname(path)
+        for path in glob.glob(
+            os.path.join(submission_root, "**", "*_submission*.xml"), recursive=True
+        )
+    })
+    if not arrivals:
+        raise FileNotFoundError(f"No submissions filed under {submission_root!r}.")
 
-    for cycle in cycles:
-        cycle_dir = os.path.join(submission_root, cycle)
-        print(f"\n{'=' * 70}\nSubmission cycle: {cycle}\n{'=' * 70}")
+    for cycle_dir in arrivals:
+        cycle = os.path.relpath(cycle_dir, submission_root).replace(os.sep, "/")
+        print(f"\n{'=' * 70}\nSubmission arrival: {cycle}\n{'=' * 70}")
         process_and_publish_macro_batch(
             spark, cycle_dir, date_scope=date_scope, agg_scope=agg_scope, cycle=cycle
         )

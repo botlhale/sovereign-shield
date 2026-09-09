@@ -19,6 +19,16 @@ variables:
     description: Unity Catalog catalog. Must match unity_catalog_triple_lock.sql.
     default: dbw_sovereignshield
 
+  submission_volume:
+    description: >-
+      Governed landing zone for submissions of record. Emitted by
+      `terraform output -raw submission_volume_path`. A Unity Catalog volume rather
+      than node storage, because these files outlive the cluster and are the
+      evidence a filing was received. Readable by the admin persona only: volumes
+      support neither row filters nor column masks, and the XML carries the
+      unmasked values the column mask withholds from every other persona.
+    default: /Volumes/dbw_sovereignshield/sovereign_intake/submissions
+
   schema:
     description: Schema holding the governed tables.
     default: sovereign_shield
@@ -95,17 +105,12 @@ targets:
                 spark_conf:
                   spark.databricks.cluster.profile: singleNode
                   spark.master: local[*, 4]
-                # The submission directory is the contract between tasks 2 and 3. It has to
-                # be somewhere both can reach and one can write: the synced workspace tree is
-                # read-only, and a relative path resolves against whatever each task's working
-                # directory happens to be.
-                #
-                # /tmp rather than /local_disk0, whose root the job process cannot create
-                # under USER_ISOLATION. Both tasks share this job cluster, so they share the
-                # driver's filesystem. A hub receiving real filings would keep these in a
-                # Unity Catalog volume instead, so the submissions of record are governed and
-                # outlive the cluster.
+                # The submission directory is the contract between tasks 2 and 3, and the
+                # archive of what was filed. A Unity Catalog volume rather than a path on the
+                # driver: node storage is not writable at /local_disk0 under USER_ISOLATION,
+                # does not survive the cluster, and would leave the submissions of record
+                # ungoverned in a project whose subject is governed data.
                 spark_env_vars:
-                  SOVEREIGNSHIELD_SUBMISSION_DIR: /tmp/sovereignshield/submissions
+                  SOVEREIGNSHIELD_SUBMISSION_DIR: ${var.submission_volume}
                 azure_attributes:
                   availability: SPOT_WITH_FALLBACK_AZURE # Enforces massive spot discount

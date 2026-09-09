@@ -70,6 +70,39 @@ resource "databricks_schema" "main" {
   force_destroy = false
 }
 
+# ---------------------------------------------------------------------------
+# Submission intake
+# ---------------------------------------------------------------------------
+
+# A separate schema rather than a volume inside sovereign_shield, because the two
+# need opposite access. Every persona holds USE_SCHEMA on the governed schema so
+# that the row filter is what decides visibility; a volume placed there would have
+# only its own grant between every persona and the raw files. Nothing traverses
+# intake except the admin persona, so reaching a submission means clearing two
+# independent gates instead of one.
+resource "databricks_schema" "intake" {
+  catalog_name  = databricks_catalog.main.name
+  name          = var.intake_schema_name
+  comment       = "Submissions of record, as filed. Deliberately has no persona traversal."
+  force_destroy = false
+}
+
+# Volumes carry neither a row filter nor a column mask: READ VOLUME returns whole
+# files to whoever holds it. That makes these files strictly more sensitive than
+# the tables derived from them - the XML carries the unmasked OBS_VALUE for the
+# observations fn_ddm_obs_conf_mask hides, and the micro CSVs carry the
+# bank-level contributions fn_rls_micro_country_lock isolates by jurisdiction.
+# Granting read here to a researcher would hand over exactly what the mask exists
+# to withhold, so the only principal admitted is the one already trusted with
+# unmasked access to everything.
+resource "databricks_volume" "submissions" {
+  catalog_name = databricks_catalog.main.name
+  schema_name  = databricks_schema.intake.name
+  name         = "submissions"
+  volume_type  = "MANAGED"
+  comment      = "SDMx-ML submissions and their accompanying micro-data, partitioned by arrival date."
+}
+
 resource "databricks_grant" "catalog_traversal" {
   for_each = toset(local.traversal_groups)
 
@@ -105,6 +138,25 @@ resource "databricks_grant" "admin_schema_ownership" {
     "CREATE_FUNCTION",
     "USE_SCHEMA",
   ]
+}
+
+# The intake schema and its volume are granted to the admin persona and to nobody
+# else. There is deliberately no loop over persona_group_names here: adding one
+# would be the single change that exposes unmasked observations.
+resource "databricks_grant" "intake_schema_admin" {
+  count = var.account_groups_ready ? 1 : 0
+
+  schema     = "${databricks_catalog.main.name}.${databricks_schema.intake.name}"
+  principal  = var.admin_group
+  privileges = ["USE_SCHEMA", "CREATE_VOLUME"]
+}
+
+resource "databricks_grant" "submissions_volume_admin" {
+  count = var.account_groups_ready ? 1 : 0
+
+  volume     = databricks_volume.submissions.id
+  principal  = var.admin_group
+  privileges = ["READ_VOLUME", "WRITE_VOLUME"]
 }
 
 # ---------------------------------------------------------------------------

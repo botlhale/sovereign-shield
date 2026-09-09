@@ -21,6 +21,11 @@ output "sql_warehouse_id" {
   value       = module.unity_catalog_governance.sql_warehouse_id
 }
 
+output "submission_volume_path" {
+  description = "Governed landing zone for submissions. Must match the bundle's submission_volume variable."
+  value       = module.unity_catalog_governance.submission_volume_path
+}
+
 output "persona_groups" {
   description = "Entra ID groups the Unity Catalog policy functions resolve."
   value       = module.identity.group_names

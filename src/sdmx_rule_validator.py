@@ -328,7 +328,7 @@ class SDMxRuleValidator:
 
         return data[["TIME_SERIES_CODE", "DATE", "AGG_CODE", "OBS_VALUE", "OBS_STATUS", "OBS_CONF"]].reset_index(drop=True)
 
-    def load_submissions(self, directory: str = DATA_DIR, pattern: str = "*_submission_*.xml") -> Dict[str, pd.DataFrame]:
+    def load_submissions(self, directory: str = DATA_DIR, pattern: str = "*_submission*.xml") -> Dict[str, pd.DataFrame]:
         """Discovers and ingests every sovereign SDMx 3.0 XML file in `directory`.
 
         Args:

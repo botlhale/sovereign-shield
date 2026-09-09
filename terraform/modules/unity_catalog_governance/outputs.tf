@@ -8,6 +8,11 @@ output "schema_full_name" {
   value       = "${databricks_catalog.main.name}.${databricks_schema.main.name}"
 }
 
+output "submission_volume_path" {
+  description = "Volume path for SOVEREIGNSHIELD_SUBMISSION_DIR. Readable by the admin persona only."
+  value       = "/Volumes/${databricks_catalog.main.name}/${databricks_schema.intake.name}/${databricks_volume.submissions.name}"
+}
+
 output "sql_warehouse_id" {
   description = "Warehouse id for DATABRICKS_WAREHOUSE_ID and the bundle variable."
   value       = databricks_sql_endpoint.dissemination.id

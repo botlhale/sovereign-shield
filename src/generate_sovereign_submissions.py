@@ -121,6 +121,12 @@ OUTPUT_DIR: str = os.environ.get(
 #: organisation processes one arrival at a time rather than a merged pile of files.
 SUBMISSION_CYCLES: tuple = ("baseline", "revision")
 
+#: Collection hierarchy under the volume. BIS publishes several banking datasets
+#: under International Banking Statistics; naming the family and the dataset keeps
+#: a second collection from landing on top of this one.
+STATISTICAL_FAMILY: str = "IBS"
+DATASET_CODE: str = "LBS"
+
 #: Sovereign sender metadata (SDMx Header `sender`), keyed by lower-case country code.
 SOVEREIGN_SENDERS: Dict[str, Organisation] = {
     "ca": Organisation(id="BOC", name="Bank of Canada"),
@@ -512,7 +518,9 @@ def generate_sdmx_ml(
 
     target_dir = output_dir or OUTPUT_DIR
     os.makedirs(target_dir, exist_ok=True)
-    output_path = os.path.join(target_dir, f"{country_code}_submission_2026_Q1.xml")
+    # The reporting period lives in the observations and the arrival date in the path,
+    # so repeating either in the filename only invites the two to disagree.
+    output_path = os.path.join(target_dir, f"{country_code}_submission.xml")
     with open(output_path, "w", encoding="utf-8") as xml_file:
         xml_file.write(xml_payload)
 
@@ -523,14 +531,28 @@ if __name__ == "__main__":
     print("Fetching live BIS_LBS Data Structure Definition from the BIS REST API...")
     bis_lbs_dsd = fetch_bis_lbs_dsd()
     print(f"Fetched DSD '{bis_lbs_dsd.agency}:{bis_lbs_dsd.id}({bis_lbs_dsd.version})'.")
-    print(f"Submissions will be filed under {OUTPUT_DIR}")
+
+    # Partitioned by the date the filing arrived, not the period it reports. A revision
+    # to 2026-Q1 filed in November is a November arrival, and an auditor asking what was
+    # held on a given date needs the former.
+    arrival = datetime.now(timezone.utc)
+    arrival_root = os.path.join(
+        OUTPUT_DIR,
+        STATISTICAL_FAMILY,
+        DATASET_CODE,
+        arrival.strftime("%Y"),
+        arrival.strftime("%m"),
+        arrival.strftime("%d"),
+    )
+    print(f"Submissions will be filed under {arrival_root}")
 
     submission_summary: List[Dict[str, object]] = []
 
     for sequence, cycle in enumerate(SUBMISSION_CYCLES, start=1):
         # Sequence-prefixed so the receiving side can process arrivals in filing order by
-        # sorting, rather than by knowing what the cycles are called.
-        cycle_dir = os.path.join(OUTPUT_DIR, f"{sequence:02d}_{cycle}")
+        # sorting, rather than by knowing what the cycles are called. Zero-padded because
+        # the whole path is sorted lexically and a tenth filing must not precede a second.
+        cycle_dir = os.path.join(arrival_root, f"{sequence:02d}_{cycle}")
         os.makedirs(cycle_dir, exist_ok=True)
 
         print(f"\n{'#' * 70}\n# Reporting cycle: {cycle}\n{'#' * 70}")
@@ -576,7 +598,7 @@ if __name__ == "__main__":
                     "series_count": len(df_macro),
                     "restricted_series": int((df_macro["OBS_CONF"] == "N").sum()),
                     "output_path": os.path.join(
-                        cycle_dir, f"{country_code}_submission_2026_Q1.xml"
+                        cycle_dir, f"{country_code}_submission.xml"
                     ),
                 }
             )

@@ -8,6 +8,17 @@ variable "schema_name" {
   type        = string
 }
 
+variable "intake_schema_name" {
+  description = <<-EOT
+    Schema holding the submission volume. Separate from schema_name because the
+    two need opposite access: every persona traverses the governed schema so the
+    row filter can decide what a query returns, and nobody but the admin persona
+    traverses intake, whose files are unmasked by construction.
+  EOT
+  type        = string
+  default     = "sovereign_intake"
+}
+
 variable "storage_root" {
   description = "abfss:// managed storage root for the catalog."
   type        = string

@@ -362,6 +362,30 @@ databricks bundle deploy -t dev --var="warehouse_id=<warehouse-id>"
 resolved and the identity it loaded, so a stale URL or an unexpected credential
 is visible immediately rather than surfacing as a deploy failure.
 
+The bundle's `submission_volume` variable must match the volume Terraform built.
+It defaults to `/Volumes/dbw_sovereignshield/sovereign_intake/submissions`; if you
+changed `catalog_name` or `intake_schema_name`, pass it:
+
+```powershell
+terraform -chdir=terraform output -raw submission_volume_path
+databricks bundle deploy -t dev --var="warehouse_id=<id>" --var="submission_volume=<path>"
+```
+
+The reporting task writes submissions there and the receiving task reads them, so
+a mismatch surfaces as "No submission root at ..." in Stage 4 rather than at
+deploy time.
+
+> **The volume is deliberately admin-only.** Unity Catalog volumes support
+> neither row filters nor column masks, so `READ VOLUME` returns whole files.
+> These files are *more* sensitive than the tables built from them: the SDMx-ML
+> carries the unmasked `OBS_VALUE` for every observation `fn_ddm_obs_conf_mask`
+> hides, and the accompanying micro CSVs carry the bank-level contributions
+> `fn_rls_micro_country_lock` isolates by jurisdiction. That is why the volume
+> lives in its own schema with no persona traversal, rather than beside the
+> governed tables where every persona already holds `USE SCHEMA`. Granting a
+> researcher read here would hand over precisely what the mask exists to
+> withhold.
+
 On this path it will report `Identity: Azure CLI user <you>`. That is correct.
 Terraform federates the CI/CD principal to GitHub OIDC and deliberately mints no
 client secret, so there is no deployment credential to load locally — you deploy
@@ -641,8 +665,10 @@ databricks bundle destroy -t dev
 cd terraform
 terraform apply -var="grant_tables=false"
 
-# 4. Everything Terraform owns: gateway, warehouse, catalog, schema, workspace,
-#    storage, Key Vault, service principals, Entra groups.
+# 4. Everything Terraform owns: gateway, warehouse, catalog, schemas, workspace,
+#    storage, Key Vault, service principals, Entra groups. This includes the
+#    submissions volume and everything filed in it - the archive of what was
+#    received is destroyed with it, so copy anything you need first.
 terraform destroy
 cd ..
 
