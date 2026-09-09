@@ -35,6 +35,7 @@ Three synthetic national scenarios are produced for pipeline testing:
 
 from __future__ import annotations
 
+import inspect
 import os
 import uuid
 from datetime import datetime, timezone
@@ -85,9 +86,28 @@ MICRO_COLUMNS: List[str] = ["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE",
 #: Live BIS REST endpoint exposing the BIS_LBS Data Structure Definition (DSD).
 BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all"
 
-#: Repo root, resolved from this file's location so the submission path does not
-#: depend on the process's working directory (a Databricks task sets its own).
-_REPO_ROOT: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def _resolve_repo_root() -> str:
+    """Repo root, independent of the process's working directory.
+
+    Databricks runs a spark_python_task via ``exec(compile(source, filename, 'exec'))``,
+    so ``__file__`` is undefined for an entry point. The compiled code object still
+    carries the real path, which the current frame exposes.
+    """
+    module_file = globals().get("__file__")
+
+    if not module_file:
+        frame = inspect.currentframe()
+        if frame is not None and os.path.sep in frame.f_code.co_filename:
+            module_file = frame.f_code.co_filename
+
+    if not module_file:
+        return os.getcwd()
+
+    return os.path.dirname(os.path.dirname(os.path.abspath(module_file)))
+
+
+_REPO_ROOT: str = _resolve_repo_root()
 
 #: Directory where sovereign SDMx-ML submission files are written. The receiving
 #: side reads the same location, so it is the contract between the two pipeline
