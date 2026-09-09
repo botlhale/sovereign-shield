@@ -630,6 +630,17 @@ Every returned row must have `BATCH_STATUS=PUBLISHED` and `OBS_CONF=F`.
 The script detects the Key Vault authorization mode and uses either the RBAC
 role assignment or the legacy access-policy command, never both.
 
+If the public endpoint reports `invalid_client`, run the public credential
+repair before rerunning the Container Apps script:
+
+```powershell
+bash sh/kv_spn_create.sh
+```
+
+The repair checks both Key Vault and the Entra app. It replaces a stale Key
+Vault secret only when the app has no credential, then the Container Apps
+script refreshes its Key Vault references.
+
 ### 7.2 Terraform-managed alternative
 
 Use this path only if Container Apps must be part of Terraform state. Build and

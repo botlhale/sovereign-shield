@@ -337,6 +337,23 @@ $result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CON
 Every returned observation must be `PUBLISHED` and `F`. This is a separate
 deployment from the Databricks App and does not require app OAuth consent.
 
+If the public endpoint reports `invalid_client`, repair the public proxy
+credential before rerunning Container Apps. A Key Vault secret can outlive its
+Entra app credential, so the provisioning script checks both sides:
+
+```powershell
+bash sh/kv_spn_create.sh
+./sh/container_apps_deploy.ps1 `
+  -KeyVaultName "<key-vault-name>" `
+  -DatabricksHost "<workspace-url-without-https>" `
+  -WarehouseId "<warehouse-id>" `
+  -ResourceGroup "<resource-group>" `
+  -Location "<azure-region>"
+```
+
+The first command mints a replacement only when the Entra app has no
+credential and updates the Key Vault secret. Do not print or copy the secret.
+
 The deployment script detects whether the vault uses Azure RBAC. RBAC vaults
 receive the `Key Vault Secrets User` role only; access-policy vaults receive a
 `set-policy` grant. These mechanisms are mutually exclusive in Azure Key Vault.

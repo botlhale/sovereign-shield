@@ -120,10 +120,15 @@ else
   az ad sp create --id "$PUBLIC_APP_ID" --output none
 fi
 
-if secret_exists "$KEYVAULT_NAME" "public-spn-client-secret"; then
-  echo "[skip]   Public proxy credentials already stored in $KEYVAULT_NAME."
+PUBLIC_CREDENTIAL_COUNT=$(az ad app credential list --id "$PUBLIC_APP_ID" --query "length(@)" -o tsv 2>/dev/null || echo 0)
+if secret_exists "$KEYVAULT_NAME" "public-spn-client-secret" && [ "$PUBLIC_CREDENTIAL_COUNT" -gt 0 ]; then
+  echo "[skip]   Public proxy credentials are stored and the app has a credential."
 else
-  echo "[create] Public proxy credential"
+  if [ "$PUBLIC_CREDENTIAL_COUNT" -eq 0 ]; then
+    echo "[repair] Public proxy app has no Entra credential; minting a replacement."
+  else
+    echo "[create] Public proxy credential"
+  fi
   PUBLIC_SECRET=$(az ad app credential reset --id "$PUBLIC_APP_ID" --append --query password -o tsv)
   az keyvault secret set --vault-name "$KEYVAULT_NAME" --name "public-spn-client-id"     --value "$PUBLIC_APP_ID" --output none
   az keyvault secret set --vault-name "$KEYVAULT_NAME" --name "public-spn-client-secret" --value "$PUBLIC_SECRET" --output none
