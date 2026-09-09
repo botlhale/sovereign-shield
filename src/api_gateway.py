@@ -86,6 +86,11 @@ SOVEREIGN_SENDERS = {
     "submitter-us": ("FRB", "Federal Reserve System"),
 }
 
+
+def _json_records(frame):
+    """Convert pandas missing values to JSON nulls for API responses."""
+    return frame.astype(object).where(frame.notna(), None).to_dict(orient="records")
+
 DEFAULT_SENDER = ("SOVEREIGNSHIELD", "SovereignShield Dissemination Gateway")
 
 app = FastAPI(
@@ -255,6 +260,10 @@ def search(
     series_filter = replace(series_filter, limit=limit)
     frame = _run(series_filter, principal)
     masked = int(frame["OBS_VALUE"].isna().sum()) if "OBS_VALUE" in frame.columns else 0
+    # Databricks SQL NULLs arrive in numeric pandas columns as NaN. Convert to
+    # object dtype before replacing missing values; otherwise pandas preserves
+    # NaN and Starlette rejects the response as non-JSON-compliant.
+    observations = _json_records(frame)
 
     return {
         "access": {
@@ -265,7 +274,7 @@ def search(
         "row_count": int(len(frame)),
         "masked_observations": masked,
         "truncated": len(frame) >= series_filter.limit,
-        "observations": frame.where(frame.notna(), None).to_dict(orient="records"),
+        "observations": observations,
     }
 
 
