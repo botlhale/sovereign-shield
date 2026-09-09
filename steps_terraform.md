@@ -916,6 +916,28 @@ and view are still there. `databricks bundle destroy` does not remove them — i
 only removes what the bundle declares, and those objects were created by a job
 run. Drop them explicitly as in Stage 9.2 step 1, then re-run the destroy.
 
+**"cannot delete external location ... N dependent managed tables"**, with no
+catalog left that could hold them. They are tombstones: Unity Catalog counts
+dropped managed tables as dependents until their undrop retention window expires,
+so the count survives the catalog and accumulates across redeployments.
+
+`force_destroy = true` is set on the external location and storage credential for
+exactly this, but it is **read from state, not from configuration**, so adding it
+mid-teardown does not help the destroy already in progress. Applying it first is
+worse: by that point the Key Vault is gone, and a targeted apply tries to rebuild
+it. Delete the two out of band and let the next refresh notice:
+
+```powershell
+databricks external-locations   delete el-sovereignshield --force
+databricks storage-credentials  delete sc-sovereignshield --force
+```
+
+Safe because the guard that protects live data is upstream and has already run:
+`force_destroy = false` on the catalog and schema is what raises the "schema is
+not empty" error above, so nothing live can remain by the time these are reached.
+A deployment created after this fix carries the flag in state and tears down
+without the manual step.
+
 ---
 
 ## What re-running does
