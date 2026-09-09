@@ -113,6 +113,10 @@ resource "azurerm_container_app" "gateway" {
         value = var.tenant_id
       }
       env {
+        name  = "DATABRICKS_AUTH_TYPE"
+        value = "azure-client-secret"
+      }
+      env {
         name        = "DATABRICKS_CLIENT_ID"
         secret_name = "public-spn-client-id"
       }

@@ -199,6 +199,7 @@ az containerapp update `
         "DATABRICKS_SERVER_HOSTNAME=$DatabricksHost" `
         "DATABRICKS_WAREHOUSE_ID=$WarehouseId" `
         "DATABRICKS_AZURE_TENANT_ID=$tenantId" `
+        "DATABRICKS_AUTH_TYPE=azure-client-secret" `
         "DATABRICKS_CLIENT_ID=secretref:public-spn-client-id" `
         "DATABRICKS_CLIENT_SECRET=secretref:public-spn-client-secret" `
         "SOVEREIGNSHIELD_CATALOG=dbw_sovereignshield" `

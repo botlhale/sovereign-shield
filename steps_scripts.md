@@ -337,6 +337,11 @@ $result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CON
 Every returned observation must be `PUBLISHED` and `F`. This is a separate
 deployment from the Databricks App and does not require app OAuth consent.
 
+The anonymous Container App uses the Azure service-principal credential stored
+in Key Vault. The deployment sets `DATABRICKS_AUTH_TYPE=azure-client-secret`
+and the tenant ID explicitly; do not remove either setting or the SDK may try
+to interpret the same client ID/secret as Databricks OAuth credentials.
+
 If the public endpoint reports `invalid_client`, repair the public proxy
 credential before rerunning Container Apps. A Key Vault secret can outlive its
 Entra app credential, so the provisioning script checks both sides:

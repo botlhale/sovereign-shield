@@ -629,6 +629,9 @@ $result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CON
 Every returned row must have `BATCH_STATUS=PUBLISHED` and `OBS_CONF=F`.
 The script detects the Key Vault authorization mode and uses either the RBAC
 role assignment or the legacy access-policy command, never both.
+The Container App uses Azure service-principal authentication with an explicit
+tenant ID and `DATABRICKS_AUTH_TYPE=azure-client-secret`; this is separate from
+the Databricks App's on-behalf-of OAuth flow.
 
 If the public endpoint reports `invalid_client`, run the public credential
 repair before rerunning the Container Apps script:
