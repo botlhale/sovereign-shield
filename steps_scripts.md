@@ -309,11 +309,32 @@ pytest tests/ --live
 
 ## Stage 7 — Optional: genuinely anonymous access
 
+For the current workspace, run this from the repository root:
+
 ```powershell
-./sh/container_apps_deploy.ps1 -KeyVaultName "<your-kv>" `
-    -DatabricksHost "<workspace-url-without-https>" `
-    -WarehouseId "<warehouse-id>"
+az account show --query "{subscription:id, tenant:tenantId, name:name}" -o table
+
+./sh/container_apps_deploy.ps1 `
+  -KeyVaultName "kv-sovereignshield-82885" `
+  -DatabricksHost "adb-7405608768978349.9.azuredatabricks.net" `
+  -WarehouseId "c9bb675261de8b09" `
+  -ResourceGroup "rg-sovereignshield" `
+  -Location "canadacentral"
 ```
+
+Leave off `-EnableEntraSignIn` to test genuinely anonymous public access. The
+script prints the resulting Container Apps URL. Verify it without a Databricks
+login:
+
+```powershell
+$gatewayUrl = "https://<fqdn-printed-by-the-script>"
+Invoke-RestMethod "$gatewayUrl/api/v1/health"
+$result = Invoke-RestMethod "$gatewayUrl/api/v1/search?limit=500"
+$result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CONF }
+```
+
+Every returned observation must be `PUBLISHED` and `F`. This is a separate
+deployment from the Databricks App and does not require app OAuth consent.
 
 Idempotent: it discovers an existing `acrsovereignshield*` registry, reuses the
 Container Apps environment, and `update`s the app rather than failing if it

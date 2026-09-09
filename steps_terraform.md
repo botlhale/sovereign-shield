@@ -584,10 +584,43 @@ pytest tests/ --live
 ## Stage 7 — Optional: genuinely anonymous access
 
 A Databricks App always sits behind workspace SSO, so its "public" tier is an
-authenticated visitor holding no sovereign entitlement. This is the only way to
-see a genuinely unauthenticated one.
+authenticated visitor holding no sovereign entitlement. Azure Container Apps
+is the only way to see a genuinely unauthenticated visitor. Choose **one** of
+the two deployment paths below. They use the same resource names and must not
+both be run against one subscription.
 
-Build and push the image first, then enable the module:
+### 7.1 Recommended for this workspace: script deployment
+
+```powershell
+az account show --query "{subscription:id, tenant:tenantId, name:name}" -o table
+
+./sh/container_apps_deploy.ps1 `
+  -KeyVaultName "kv-sovereignshield-82885" `
+  -DatabricksHost "adb-7405608768978349.9.azuredatabricks.net" `
+  -WarehouseId "c9bb675261de8b09" `
+  -ResourceGroup "rg-sovereignshield" `
+  -Location "canadacentral"
+```
+
+Leave off `-EnableEntraSignIn` for the anonymous public-data test. The script
+builds the image, creates or updates Container Apps, wires Key Vault, and
+prints the portal URL. It is idempotent; rerunning it rolls out a new image.
+
+Verify the URL printed by the script:
+
+```powershell
+$gatewayUrl = "https://<fqdn-printed-by-the-script>"
+Invoke-RestMethod "$gatewayUrl/api/v1/health"
+$result = Invoke-RestMethod "$gatewayUrl/api/v1/search?limit=500"
+$result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CONF }
+```
+
+Every returned row must have `BATCH_STATUS=PUBLISHED` and `OBS_CONF=F`.
+
+### 7.2 Terraform-managed alternative
+
+Use this path only if Container Apps must be part of Terraform state. Build and
+push the image first, then enable the module:
 
 ```powershell
 # Build and push to a registry Terraform can pull from.
@@ -601,6 +634,10 @@ terraform apply `
 terraform output -raw dissemination_gateway_url
 cd ..
 ```
+
+The Terraform module creates the same named Container Apps resources as the
+script, so do not run this after 7.1 unless existing resources have been
+removed or deliberately imported into Terraform state.
 
 `gateway_image` is validated at plan time when the toggle is on, so a missing
 image fails in seconds rather than after a multi-minute rollout ending in a DNS
