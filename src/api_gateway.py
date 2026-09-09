@@ -155,9 +155,16 @@ def _resolve_identity(token: str) -> Principal:
     try:
         from databricks.sdk import WorkspaceClient
 
-        me = WorkspaceClient(host=host, token=token).current_user.me()
+        # auth_type is pinned rather than left to inference. Databricks Apps injects
+        # DATABRICKS_CLIENT_ID/SECRET for the app's own service-principal identity,
+        # so the ambient environment always has a second viable credential sitting
+        # next to the caller's token. The SDK's unified auth resolver sees both and
+        # raises rather than guessing which one the caller intended - "more than one
+        # authorization method configured" - which this code was swallowing into an
+        # indistinguishable 401 on every call, for every caller, always.
+        me = WorkspaceClient(host=host, token=token, auth_type="pat").current_user.me()
     except Exception as exc:  # noqa: BLE001 - any failure is an auth failure
-        LOGGER.info("Identity resolution rejected a caller token: %s", type(exc).__name__)
+        LOGGER.warning("Identity resolution rejected a caller token: %s: %s", type(exc).__name__, exc)
         raise HTTPException(status_code=401, detail="Invalid or expired access token.") from exc
 
     groups = frozenset(
