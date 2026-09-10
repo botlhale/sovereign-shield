@@ -229,6 +229,11 @@ if ($EnableEntraSignIn) {
             --query appId -o tsv
     }
 
+            # Container Apps Easy Auth uses the hybrid authorization-code + ID-token
+            # callback flow. Without ID-token issuance enabled, the provider can show
+            # the Microsoft sign-in page but rejects the callback with HTTP 401.
+            az ad app update --id $authAppId --enable-id-token-issuance true --output none
+
     # Permission grants target the client service principal, not just the app
     # registration. A newly created app registration has no service principal
     # until this object is created explicitly.

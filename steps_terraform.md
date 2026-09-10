@@ -638,7 +638,8 @@ AzureDatabricks `user_impersonation` delegated permission. The operator must
 have permission to grant consent in the tenant. The script enables
 `AllowAnonymous` but leaves Container Apps token storage disabled because that
 feature requires a Blob SAS secret; the gateway uses the forwarded token
-directly.
+directly. It also enables ID-token issuance on the Entra app registration,
+which is required for the Easy Auth callback.
 
 If the public endpoint reports `invalid_client`, run the public credential
 repair before rerunning the Container Apps script:

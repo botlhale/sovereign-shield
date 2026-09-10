@@ -388,7 +388,8 @@ enable Container Apps token storage: token storage requires a Blob SAS secret,
 while this gateway reads the current forwarded token directly. The identity
 running the script must be allowed to grant tenant-wide consent; otherwise the
 script stops at Stage 8 and Entra sign-in remains unavailable until an
-administrator grants consent.
+administrator grants consent. The script also enables ID-token issuance on the
+Entra app registration, which Easy Auth requires for the callback flow.
 
 > **The one manual step.** The Entra token forwarded by built-in authentication
 > must be issued for the **AzureDatabricks** resource
