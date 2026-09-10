@@ -394,6 +394,23 @@ def whoami(principal: Principal = Depends(current_principal)):
     }
 
 
+@app.get("/api/v1/auth-diagnostics", tags=["service"])
+def auth_diagnostics(request: Request):
+    """Reports trusted platform auth-header presence without exposing values."""
+    trusted_headers = (
+        "X-Forwarded-Access-Token",
+        "X-MS-TOKEN-AAD-ACCESS-TOKEN",
+        "X-MS-TOKEN-AAD-ID-TOKEN",
+        "X-MS-CLIENT-PRINCIPAL",
+        "X-MS-CLIENT-PRINCIPAL-ID",
+        "X-MS-CLIENT-PRINCIPAL-NAME",
+    )
+    return {
+        "headers_present": [name for name in trusted_headers if request.headers.get(name)],
+        "authorization_present": bool(request.headers.get("Authorization")),
+    }
+
+
 @app.get("/api/v1/health", tags=["service"])
 def health(principal: Principal = Depends(current_principal)):
     """Catalog connectivity and structure availability."""
