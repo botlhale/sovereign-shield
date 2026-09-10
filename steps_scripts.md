@@ -341,6 +341,9 @@ The anonymous Container App uses the Azure service-principal credential stored
 in Key Vault. The deployment sets `DATABRICKS_AUTH_TYPE=azure-client-secret`
 and the tenant ID explicitly; do not remove either setting or the SDK may try
 to interpret the same client ID/secret as Databricks OAuth credentials.
+When Entra sign-in is enabled, the script also provisions the separate
+`<token-store-storage-name>` Blob store and enables Easy Auth token storage;
+this is required for `X-MS-TOKEN-AAD-ACCESS-TOKEN` to reach the gateway.
 
 If the public endpoint reports `invalid_client`, repair the public proxy
 credential before rerunning Container Apps. A Key Vault secret can outlive its

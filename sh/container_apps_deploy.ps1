@@ -39,6 +39,7 @@ param(
     [string]$Location = "canadacentral",
     [string]$EnvironmentName = "cae-sovereignshield",
     [string]$AppName = "ca-sovereignshield-portal",
+    [string]$TokenStoreStorageName = "stsovereignshieldauth",
     [string]$RegistryName = "",
     [switch]$EnableEntraSignIn
 )
@@ -315,6 +316,38 @@ if ($EnableEntraSignIn) {
         --resource-group $ResourceGroup `
         --set "identityProviders.azureActiveDirectory.login.loginParameters=$loginParameters" `
         --output none
+
+    # Easy Auth only injects provider access-token headers when its token store
+    # is enabled. Keep that store separate from Unity Catalog storage: it holds
+    # authentication session material, not governed observations.
+    $tokenStorageExists = az storage account show --name $TokenStoreStorageName `
+        --resource-group $ResourceGroup --query name -o tsv 2>$null
+    if (-not $tokenStorageExists) {
+        az storage account create --name $TokenStoreStorageName `
+            --resource-group $ResourceGroup --location $Location `
+            --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 `
+            --allow-blob-public-access false --https-only true --output none
+    }
+    az storage container create --account-name $TokenStoreStorageName `
+        --name easy-auth-tokens --auth-mode login --public-access off --output none
+    $tokenStorageKey = az storage account keys list --account-name $TokenStoreStorageName `
+        --resource-group $ResourceGroup --query "[0].value" -o tsv
+    $tokenExpiry = (Get-Date).ToUniversalTime().AddYears(1).ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $tokenSas = az storage container generate-sas --account-name $TokenStoreStorageName `
+        --account-key $tokenStorageKey --name easy-auth-tokens --permissions racwdl `
+        --expiry $tokenExpiry --https-only -o tsv
+    $tokenSasUrl = "https://$TokenStoreStorageName.blob.core.windows.net/easy-auth-tokens?$tokenSas"
+    $az = (Get-Command az.cmd).Source
+    $tokenSecretArg = "easy-auth-token-sas=$tokenSasUrl"
+    $tokenSecretProcess = Start-Process -FilePath $az -ArgumentList @(
+        "containerapp", "secret", "set", "-n", $AppName, "-g", $ResourceGroup,
+        "--secrets", $tokenSecretArg, "--output", "none"
+    ) -Wait -PassThru -NoNewWindow
+    if ($tokenSecretProcess.ExitCode -ne 0) {
+        throw "Could not store the Easy Auth token-store SAS secret."
+    }
+    az containerapp auth update --name $AppName --resource-group $ResourceGroup `
+        --token-store true --sas-url-secret-name easy-auth-token-sas --output none
 
     # AllowAnonymous is the whole point: an unauthenticated visitor is served
     # the public tier, and /.auth/login/aad elevates them on demand.

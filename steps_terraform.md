@@ -632,6 +632,9 @@ role assignment or the legacy access-policy command, never both.
 The Container App uses Azure service-principal authentication with an explicit
 tenant ID and `DATABRICKS_AUTH_TYPE=azure-client-secret`; this is separate from
 the Databricks App's on-behalf-of OAuth flow.
+The script-managed Entra path uses a separate Blob token store so Easy Auth can
+forward `X-MS-TOKEN-AAD-ACCESS-TOKEN`; it must not reuse the governed Unity
+Catalog storage account.
 
 When `-EnableEntraSignIn` is used, the script sets the Easy Auth provider login
 parameter for the AzureDatabricks scope and grants admin consent for the
