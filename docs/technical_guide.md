@@ -20,7 +20,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pytest tests/ --no-header
 ```
 
-Expect `75 passed, 12 skipped`. The skips are the `--live` tests that need a real
+Expect `77 passed, 12 skipped`. The skips are the `--live` tests that need a real
 workspace and the `--stress` benchmarks that take minutes. If this passes, every
 pass in this guide is available to you offline.
 

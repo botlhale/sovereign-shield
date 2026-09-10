@@ -86,7 +86,7 @@ a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 75 passed, 12 skipped
+pytest tests/                 # expect 77 passed, 12 skipped
 ```
 
 The skips are the `--live` tests, which need a workspace, and the `--stress`
@@ -613,7 +613,7 @@ You do **not** hand over `terraform.tfvars`, `backend.hcl`, `sh/spn_details`,
 The client runs this inside their own boundary, on their own data:
 
 ```powershell
-pytest tests/                    # offline: 75 passed
+pytest tests/                    # offline: 77 passed
 terraform plan                   # expect no diff against policy objects
 databricks bundle validate -t dev
 ```

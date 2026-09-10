@@ -81,7 +81,7 @@ a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 75 passed, 12 skipped
+pytest tests/                 # expect 77 passed, 12 skipped
 ```
 
 The skips are the `--live` tests, which need a workspace, and the `--stress`
@@ -388,7 +388,7 @@ gitignored.
 ### 8.2 Client-side verification
 
 ```powershell
-pytest tests/                    # offline: 75 passed
+pytest tests/                    # offline: 77 passed
 databricks bundle validate -t dev
 ```
 
