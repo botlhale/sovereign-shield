@@ -41,6 +41,18 @@ FILTER_CARDS = [
     ("instrument", "Instrument", "L_INSTR"),
 ]
 
+STATISTIC_CATALOG = {
+    "IBS": {
+        "label": "International Banking Statistics (IBS)",
+        "aggregations": [
+            {"code": "LBSR", "label": "Locational Banking Statistics - Residency", "available": True},
+            {"code": "LBSN", "label": "Locational Banking Statistics - Nationality", "available": False},
+            {"code": "CBSI", "label": "Consolidated Banking Statistics - Immediate Counterparty", "available": False},
+            {"code": "CBSG", "label": "Consolidated Banking Statistics - Guarantor Basis", "available": False},
+        ],
+    },
+}
+
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 def portal(request: Request) -> HTMLResponse:
@@ -49,6 +61,7 @@ def portal(request: Request) -> HTMLResponse:
         "portal.html",
         {
             "filter_cards": FILTER_CARDS,
+            "statistic_catalog": STATISTIC_CATALOG,
             "sign_in_url": SIGN_IN_URL,
             "sign_out_url": SIGN_OUT_URL,
             "dataflow": "BIS:WS_LBS_D_PUB(1.0)",

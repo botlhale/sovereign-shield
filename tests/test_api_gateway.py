@@ -80,3 +80,27 @@ def test_portal_uses_easy_auth_token_for_reads_and_exports(repo_root):
     assert 'authenticatedFetch("/api/v1/facets")' in portal
     assert 'authenticatedFetch("/api/v1/search?" + params.toString())' in portal
     assert "const response = await authenticatedFetch(link.href);" in portal
+
+
+def test_portal_uses_compact_cascading_filters(repo_root):
+    from portal_ui import STATISTIC_CATALOG
+
+    portal = open(repo_root + "/src/templates/portal.html", encoding="utf-8").read()
+
+    assert set(STATISTIC_CATALOG) == {"IBS"}
+    assert [item["code"] for item in STATISTIC_CATALOG["IBS"]["aggregations"]] == [
+        "LBSR", "LBSN", "CBSI", "CBSG"
+    ]
+    assert "select multiple" not in portal
+    assert 'id="statistic-type"' in portal
+    assert 'id="aggregation"' in portal
+    assert 'id="dimension-filters"' in portal
+
+
+def test_portal_keeps_results_and_exports_in_one_desktop_workspace(repo_root):
+    portal = open(repo_root + "/src/templates/portal.html", encoding="utf-8").read()
+
+    assert ".portal-workspace { min-height: 0; flex: 1; width: 100%; }" in portal
+    assert 'class="min-h-0 flex-1 overflow-auto"' in portal
+    assert "sticky top-0" in portal
+    assert 'id="export-sdmx-ml"' in portal
