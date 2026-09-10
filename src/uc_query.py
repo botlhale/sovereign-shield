@@ -265,6 +265,17 @@ def build_facet_sql(dimension: str) -> str:
     )
 
 
+def build_period_facet_sql() -> str:
+    """Build the persona-scoped list of available current reporting periods."""
+    return (
+        f"SELECT DISTINCT DATE AS CODE\n"
+        f"  FROM {HISTORY_TABLE}\n"
+        f" WHERE IS_CURRENT = true\n"
+        f"   AND DATE IS NOT NULL\n"
+        f" ORDER BY CODE"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Backends
 # ---------------------------------------------------------------------------
@@ -458,6 +469,11 @@ class LocalDeltaBackend:
         segment = frame["TIME_SERIES_CODE"].astype(str).str.split(".").str[position]
         return sorted({value for value in segment.dropna().tolist() if value})
 
+    def periods(self, principal: Principal) -> List[str]:
+        frame = self._apply_persona(self._load(), principal)
+        frame = frame[frame["IS_CURRENT"] == True]  # noqa: E712
+        return sorted({str(value) for value in frame["DATE"].dropna().tolist() if value})
+
     @staticmethod
     def _apply_persona(frame: pd.DataFrame, principal: Principal) -> pd.DataFrame:
         """Mirrors fn_rls_multi_persona_lock and fn_ddm_obs_conf_mask."""
@@ -549,6 +565,14 @@ class CatalogGateway:
             else:
                 raise QueryError("No data backend is configured.")
         return result
+
+    def periods(self, principal: Principal) -> List[str]:
+        if self.databricks is not None:
+            frame = self.databricks.query(build_period_facet_sql(), {}, principal)
+            return [code for code in frame["CODE"].tolist() if code]
+        if self.local is not None:
+            return self.local.periods(principal)
+        raise QueryError("No data backend is configured.")
 
     def health(self, principal: Principal) -> Dict[str, Any]:
         status: Dict[str, Any] = {"backend": self.mode, "table": HISTORY_TABLE}

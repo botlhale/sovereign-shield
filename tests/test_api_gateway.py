@@ -92,9 +92,16 @@ def test_portal_uses_compact_cascading_filters(repo_root):
         "LBSR", "LBSN", "CBSI", "CBSG"
     ]
     assert "select multiple" not in portal
+    assert 'id="apply"' not in portal
     assert 'id="statistic-type"' in portal
     assert 'id="aggregation"' in portal
     assert 'id="dimension-filters"' in portal
+    assert 'data-filter-menu="{{ name }}"' in portal
+    assert 'input.type = "checkbox"' in portal
+    assert 'id="reference-period"' in portal
+    assert "payload.reference_periods" in portal
+    assert "scheduleSearch();" in portal
+    assert "const sequence = ++searchSequence;" in portal
 
 
 def test_portal_keeps_results_and_exports_in_one_desktop_workspace(repo_root):

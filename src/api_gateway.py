@@ -334,6 +334,7 @@ def facets(principal: Principal = Depends(current_principal)):
     """Distinct code values for the filter cards, scoped to what the caller may see."""
     try:
         values = gateway.facets(sorted(set(FILTER_DIMENSIONS.values())), principal)
+        periods = gateway.periods(principal)
     except QueryError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
@@ -342,6 +343,7 @@ def facets(principal: Principal = Depends(current_principal)):
 
     return {
         "dimensions": {name: values.get(dim, []) for name, dim in FILTER_DIMENSIONS.items()},
+        "reference_periods": periods,
         "segments": DIMENSION_SEGMENTS,
     }
 
