@@ -637,7 +637,7 @@ forward `X-MS-TOKEN-AAD-ACCESS-TOKEN`; it must not reuse the governed Unity
 Catalog storage account.
 
 When `-EnableEntraSignIn` is used, the script sets the Easy Auth provider login
-parameter for the AzureDatabricks scope and grants admin consent for the
+parameter for `openid profile offline_access` plus the AzureDatabricks scope and grants admin consent for the
 `user_impersonation` delegated permission. The operator must
 have permission to grant consent in the tenant. The script enables
 `AllowAnonymous` but leaves Container Apps token storage disabled because that

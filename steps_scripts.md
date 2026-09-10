@@ -387,7 +387,7 @@ anonymous tier, so signed-in visitors elevate to their real persona.
 
 The deployment declares the AzureDatabricks `user_impersonation` permission and
 sets the Easy Auth provider login parameter to
-`scope=openid profile 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/user_impersonation`,
+`scope=openid profile offline_access 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/user_impersonation`,
 grants admin consent automatically, and enables `AllowAnonymous`. It does not
 enable Container Apps token storage: token storage requires a Blob SAS secret,
 while this gateway reads the current forwarded token directly. The identity

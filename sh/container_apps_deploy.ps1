@@ -310,7 +310,7 @@ if ($EnableEntraSignIn) {
     # Easy Auth does not expose this OAuth request parameter on the provider's
     # Basics screen. Store it under the provider login configuration so the
     # forwarded token is issued for AzureDatabricks as well as OpenID Connect.
-    $loginParameters = '["scope=openid profile ' + $AzureDatabricksResourceId + '/user_impersonation"]'
+    $loginParameters = '["scope=openid profile offline_access ' + $AzureDatabricksResourceId + '/user_impersonation"]'
     az containerapp auth update `
         --name $AppName `
         --resource-group $ResourceGroup `
