@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pandas as pd
 from starlette.requests import Request
 
-from api_gateway import _easy_auth_access_token, _easy_auth_identities, _json_records
+from api_gateway import _easy_auth_access_token, _easy_auth_identities, _extract_token, _json_records
 
 
 def test_masked_numeric_values_are_json_nulls():
@@ -51,3 +51,32 @@ def test_easy_auth_identities_never_return_non_object_entries(monkeypatch):
 
     with patch("urllib.request.urlopen", return_value=response):
         assert _easy_auth_identities(request) == [{"id_token": "present"}]
+
+
+def test_browser_bearer_token_precedes_server_side_easy_auth_lookup():
+    request = Request({
+        "type": "http",
+        "scheme": "https",
+        "server": ("portal.example", 443),
+        "path": "/api/v1/whoami",
+        "headers": [
+            (b"authorization", b"Bearer browser-token"),
+            (b"x-ms-client-principal", b"trusted-principal"),
+        ],
+    })
+
+    with patch("api_gateway._easy_auth_access_token") as token_lookup:
+        assert _extract_token(request) == "browser-token"
+
+    token_lookup.assert_not_called()
+
+
+def test_portal_uses_easy_auth_token_for_reads_and_exports(repo_root):
+    portal = open(repo_root + "/src/templates/portal.html", encoding="utf-8").read()
+
+    assert 'fetch("/.auth/me", { credentials: "same-origin" })' in portal
+    assert 'Authorization: "Bearer " + easyAuthAccessToken' in portal
+    assert 'authenticatedFetch("/api/v1/whoami")' in portal
+    assert 'authenticatedFetch("/api/v1/facets")' in portal
+    assert 'authenticatedFetch("/api/v1/search?" + params.toString())' in portal
+    assert "const response = await authenticatedFetch(link.href);" in portal

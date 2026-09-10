@@ -636,9 +636,11 @@ The script-managed Entra path uses a separate Blob token store so Easy Auth can
 forward `X-MS-TOKEN-AAD-ACCESS-TOKEN`; it must not reuse the governed Unity
 Catalog storage account. The script restarts the active revision after changing
 the token-store secret so the running app receives the new value.
-If Container Apps injects only trusted principal headers on a request, the
-gateway retrieves the provider token from `/.auth/me` using the same Easy Auth
-session cookie. The token is neither returned to the browser nor logged.
+Container Apps may inject only trusted principal headers and strip its session
+cookie before forwarding. The portal therefore calls same-origin `/.auth/me`
+in the browser and keeps the provider token in memory only, attaching it as a
+bearer token to reads and exports. It is never persisted, logged, or added to a
+URL.
 
 When `-EnableEntraSignIn` is used, the script sets the Easy Auth provider login
 parameter for `openid profile offline_access` plus the AzureDatabricks scope and grants admin consent for the

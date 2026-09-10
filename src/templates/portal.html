@@ -181,6 +181,7 @@
   const summary = document.getElementById("result-summary");
   const maskingNote = document.getElementById("masking-note");
   const errorBox = document.getElementById("error");
+  let easyAuthAccessToken = null;
 
   const EXPORTS = {
     "export-sdmx-ml": "/api/v1/export/sdmx-ml",
@@ -188,6 +189,27 @@
     "export-sdmx-csv": "/api/v1/export/csv?format=sdmx",
     "export-tidy-csv": "/api/v1/export/csv?format=tidy",
   };
+
+  async function loadEasyAuthAccessToken() {
+    const response = await fetch("/.auth/me", { credentials: "same-origin" });
+    if (!response.ok) return;
+    const identities = await response.json().catch(() => []);
+    const identity = Array.isArray(identities)
+      ? identities.find((candidate) => candidate && candidate.access_token)
+      : null;
+    easyAuthAccessToken = identity ? identity.access_token : null;
+  }
+
+  function authenticatedFetch(url, options) {
+    const requestOptions = { ...(options || {}) };
+    if (easyAuthAccessToken) {
+      requestOptions.headers = {
+        ...(requestOptions.headers || {}),
+        Authorization: "Bearer " + easyAuthAccessToken,
+      };
+    }
+    return fetch(url, requestOptions);
+  }
 
   function showError(message) {
     errorBox.textContent = message;
@@ -272,7 +294,7 @@
   }
 
   async function loadIdentity() {
-    const response = await fetch("/api/v1/whoami");
+    const response = await authenticatedFetch("/api/v1/whoami");
     if (!response.ok) throw new Error("Could not resolve the security context.");
     const identity = await response.json();
 
@@ -295,7 +317,7 @@
   }
 
   async function loadFacets() {
-    const response = await fetch("/api/v1/facets");
+    const response = await authenticatedFetch("/api/v1/facets");
     if (!response.ok) {
       throw new Error("Filter values are unavailable: " + (await response.text()));
     }
@@ -318,7 +340,7 @@
     if (quarantine && quarantine.checked) params.append("include_quarantined", "true");
     params.append("limit", "500");
 
-    const response = await fetch("/api/v1/search?" + params.toString());
+    const response = await authenticatedFetch("/api/v1/search?" + params.toString());
     if (!response.ok) {
       const detail = await response.json().catch(() => ({ detail: response.statusText }));
       showError(detail.detail || "The query could not be completed.");
@@ -352,9 +374,32 @@
   });
   selects.forEach((select) => select.addEventListener("change", refreshExportLinks));
   [dateFrom, dateTo].forEach((input) => input.addEventListener("input", refreshExportLinks));
+  Object.keys(EXPORTS).forEach((id) => {
+    document.getElementById(id).addEventListener("click", async (event) => {
+      if (!easyAuthAccessToken) return;
+      event.preventDefault();
+      clearError();
+      const link = event.currentTarget;
+      const response = await authenticatedFetch(link.href);
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({ detail: response.statusText }));
+        showError(detail.detail || "The export could not be completed.");
+        return;
+      }
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const download = document.createElement("a");
+      download.href = objectUrl;
+      download.download = match ? match[1] : "sovereignshield-export";
+      download.click();
+      URL.revokeObjectURL(objectUrl);
+    });
+  });
 
   (async () => {
     try {
+      await loadEasyAuthAccessToken();
       await loadIdentity();
       await loadFacets();
       await runSearch();

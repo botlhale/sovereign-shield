@@ -135,6 +135,11 @@ def _extract_token(request: Request) -> Optional[str]:
         if forwarded:
             return forwarded.strip()
 
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, credential = authorization.partition(" ")
+    if scheme.lower() == "bearer" and credential.strip():
+        return credential.strip()
+
     # Container Apps always injects trusted identity headers after Easy Auth
     # login, but provider tokens are retrieved through /.auth/me when the Blob
     # token store is enabled rather than injected on every request.
@@ -143,10 +148,6 @@ def _extract_token(request: Request) -> Optional[str]:
         if stored_token:
             return stored_token
 
-    authorization = request.headers.get("Authorization", "")
-    scheme, _, credential = authorization.partition(" ")
-    if scheme.lower() == "bearer" and credential.strip():
-        return credential.strip()
     return None
 
 
