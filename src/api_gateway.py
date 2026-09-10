@@ -150,17 +150,17 @@ def _extract_token(request: Request) -> Optional[str]:
     return None
 
 
-def _easy_auth_access_token(request: Request) -> Optional[str]:
-    """Read the signed-in user's provider token from the Easy Auth token store."""
+def _easy_auth_identities(request: Request) -> List[Dict[str, Any]]:
+    """Read signed-in identities from the Easy Auth token store."""
     cookie = request.headers.get("cookie")
     if not cookie:
-        return None
+        return []
 
     external_url = os.getenv("SOVEREIGNSHIELD_EXTERNAL_URL", "").rstrip("/")
     if not external_url:
         host = request.url.hostname or ""
         if not host.endswith(".azurecontainerapps.io"):
-            return None
+            return []
         external_url = f"https://{host}"
 
     token_request = urllib.request.Request(
@@ -172,10 +172,18 @@ def _easy_auth_access_token(request: Request) -> Optional[str]:
             identities = json.load(response)
     except Exception as exc:  # noqa: BLE001 - authentication falls back closed
         LOGGER.warning("Easy Auth token-store lookup failed: %s", type(exc).__name__)
-        return None
+        return []
 
-    for identity in identities if isinstance(identities, list) else []:
-        access_token = identity.get("access_token") if isinstance(identity, dict) else None
+    return [identity for identity in identities if isinstance(identity, dict)] \
+        if isinstance(identities, list) else []
+
+
+def _easy_auth_access_token(request: Request) -> Optional[str]:
+    """Read the signed-in user's provider token from the Easy Auth token store."""
+    identities = _easy_auth_identities(request)
+
+    for identity in identities:
+        access_token = identity.get("access_token")
         if access_token:
             return str(access_token).strip()
     return None
@@ -446,9 +454,13 @@ def auth_diagnostics(request: Request):
         "X-MS-CLIENT-PRINCIPAL-ID",
         "X-MS-CLIENT-PRINCIPAL-NAME",
     )
+    identities = _easy_auth_identities(request) if request.headers.get("X-MS-CLIENT-PRINCIPAL") else []
     return {
         "headers_present": [name for name in trusted_headers if request.headers.get(name)],
         "authorization_present": bool(request.headers.get("Authorization")),
+        "easy_auth_identity_count": len(identities),
+        "easy_auth_access_token_present": any(bool(identity.get("access_token")) for identity in identities),
+        "easy_auth_id_token_present": any(bool(identity.get("id_token")) for identity in identities),
     }
 
 
