@@ -635,7 +635,10 @@ the Databricks App's on-behalf-of OAuth flow.
 
 When `-EnableEntraSignIn` is used, the script also grants admin consent for the
 AzureDatabricks `user_impersonation` delegated permission. The operator must
-have permission to grant consent in the tenant.
+have permission to grant consent in the tenant. The script enables
+`AllowAnonymous` but leaves Container Apps token storage disabled because that
+feature requires a Blob SAS secret; the gateway uses the forwarded token
+directly.
 
 If the public endpoint reports `invalid_client`, run the public credential
 repair before rerunning the Container Apps script:

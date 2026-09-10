@@ -307,7 +307,6 @@ if ($EnableEntraSignIn) {
         --name $AppName `
         --resource-group $ResourceGroup `
         --unauthenticated-client-action AllowAnonymous `
-        --enable-token-store true `
         --output none
 
     Write-Host ""
