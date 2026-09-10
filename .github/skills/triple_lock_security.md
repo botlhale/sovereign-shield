@@ -32,7 +32,9 @@ The pipeline identity is subject to the same row filter as every other principal
 
 To eliminate the anti-pattern of granting Metastore Admin privileges to the CI/CD Service Principal, dynamic catalog creation (`CREATE CATALOG`) is strictly prohibited.
 
-* **Mandate:** All assets are deployed into the pre-provisioned workspace catalog: `dbw_sovereignshield.sovereign_shield`.
+* **Mandate:** Assets are deployed into the pre-provisioned catalog across
+    `sovereign_shield` (macro history), `sovereign_intake` (micro ledger), and
+    `sovereign_submissions` (admin-only filing volume).
 
 ### 3. Dynamic OS-Level Path Resolution
 
@@ -65,7 +67,9 @@ The security architecture operates in three distinct layers, bound together by s
 
 `unity_catalog_triple_lock.sql` executes as the **first task of every pipeline run**, so its correctness constraints are unusually strict.
 
-* **Never drop state.** The script contains no `DROP TABLE` or `DROP VIEW` statements. An earlier revision dropped `agg_sdmx_history` on each run, which erased the entire SCD2 lineage every execution and presented as "all records show `IS_CURRENT = false`". Only `CREATE TABLE IF NOT EXISTS` and `CREATE OR REPLACE VIEW` are permitted.
+* **Never drop state.** The script contains no `DROP TABLE` or `DROP VIEW`
+    statements. Only `CREATE TABLE IF NOT EXISTS` and `CREATE OR REPLACE VIEW`
+    are permitted.
 * **Create before binding.** Unity Catalog requires target tables to physically exist before security policies bind to them; `ALTER TABLE ... SET ROW FILTER` on a missing table raises `TABLE_OR_VIEW_NOT_FOUND`.
 * **Detach → replace → re-attach.** `CREATE OR REPLACE FUNCTION` fails while the function is bound to a live row filter or column mask. The script therefore drops the filters and masks first (§1), redefines the functions, recreates the tables, then re-attaches (§7).
 * **Selective failure tolerance.** Statements that legitimately fail on one lifecycle path but not the other — detaching a filter on a table that does not yet exist, re-attaching one that is already bound — carry the marker below. The marker must be the *entire* comment on the preceding line; any other failure aborts the deployment rather than leaving the platform half-secured.
@@ -75,7 +79,8 @@ The security architecture operates in three distinct layers, bound together by s
 ALTER TABLE agg_sdmx_history DROP ROW FILTER;
 ```
 
-The script currently parses to **29 statements, 6 of which are tolerated**.
+The policy script currently parses to **20 statements**. Access grants are a
+separate **30-statement** script.
 
 ### Lock 1: Row-Level Security (RLS)
 
@@ -98,16 +103,17 @@ Protects market dominance and strictly confidential reporting metrics while main
 
 ### Lock 3: The Quarantine View
 
-Secures the "Quarterly Quarantine" by abstracting raw historical tables away from public researchers.
+Provides a uniform published-only surface for BI clients.
 
-* **Mechanism:** Researchers are only granted `SELECT` access to a hardened view (`v_agg_sdmx_published`).
+* **Mechanism:** `v_agg_sdmx_published` exposes only current published rows.
 * **Integrity Gate:** `WHERE BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true`. Rejected batches are written as audit-only rows with `IS_CURRENT = false`, so they fail both predicates and remain invisible.
+* **Per-caller portal path:** The gateway queries `agg_sdmx_history` directly so
+    Unity Catalog evaluates group membership for the caller; RLS and DDM remain
+    attached to that table.
 
 ---
 
-## 🤖 CI/CD Implicit Ownership (Zero-Trust IAM)
-
-Previous iterations of this pipeline utilized explicit `ALTER OWNER TO spn-sovereignshield-cicd` statements. This has been deprecated in favor of Unity Catalog's native Identity and Access Management (IAM) behaviors.
+## 🤖 CI/CD Ownership (Zero-Trust IAM)
 
 * **The Zero-Trust Principle:** By strictly orchestrating all deployments through Azure DevOps/GitHub Actions via Databricks Asset Bundles, the executing **Service Principal implicitly and automatically assumes ownership** of all created schemas, tables, views, and functions.
 * **Result:** Direct production governance and mutation capabilities are completely stripped from individual human developers.

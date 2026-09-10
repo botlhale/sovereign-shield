@@ -96,7 +96,7 @@ The validator therefore applies its verdict atomically, grouping by `(L_REP_CTY,
 
 | Batch outcome | `QUALITY_STATUS` | `BATCH_STATUS` | `FAILED_RULE_ID` |
 | --- | --- | --- | --- |
-| Any record in the country-quarter fails | `FAIL` on **every** row | `QUARANTINE` | Sorted union of every violated check code |
+| Any record in the country-quarter fails | `FAIL` on **every** row | `QUARANTINE` | Violated check codes on offending observations; `NULL` on unaffected rows |
 | All records pass | `PASS` | `PUBLISHED` | `NULL` |
 
 There is no manual approval step and no `UNDER_REVIEW` state. The validator is the single source of truth for these three columns, and no downstream stage overrides them.

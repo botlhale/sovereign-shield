@@ -4,7 +4,9 @@
 
 This matrix documents the **operational capabilities the platform actually implements**, each mapped to the artifact that enforces it. It is the authoritative index for agents and reviewers: every row below corresponds to code in this repository, not to aspirational scope.
 
-**Namespace:** `dbw_sovereignshield.sovereign_shield` · **Runtime:** Databricks 18.x LTS · **Standard:** SDMx 3.0 / BIS LBS
+**Namespaces:** `sovereign_shield` (published macro history), `sovereign_intake`
+(domestic micro ledger), `sovereign_submissions` (admin-only filing volume) ·
+**Runtime:** Databricks 18.x LTS · **Standard:** SDMx 3.0 / BIS LBS
 
 ![Policy as a Metastore Object — promotion plane, the Terraform/pipeline ownership boundary, a data plane with quarantine isolation, and a consumption band, all resolving into a Unity Catalog enforcement point that maps five personas ending in "no group — zero rows, fails closed".](../../docs/sovereign-shield_technical_vision.jpg)
 
@@ -53,7 +55,7 @@ Every row in the sections below corresponds to code in this repository, not to a
 | **Rule coverage** | `LBS_CC01`–`LBS_CC03` (no colon) and `LBS_CC:04`–`LBS_CC:21` (with colon); the inconsistent source formatting is preserved verbatim, since normalizing it would silently drop rules |
 | **Check semantics** | Purely arithmetic reconciliation: an aggregate code must equal the sum of its component codes on the same dimension, within `1e-4` |
 | **Wildcard handling** | The code `ISO` matches any value on its dimension — making `L_CP_COUNTRY` unsuitable for scenario isolation, as `LBS_CC:11`–`:21` target it with `ISO` |
-| **Atomic verdict** | Grouped by `(L_REP_CTY, DATE)`: any single failure sets `QUALITY_STATUS = FAIL`, `BATCH_STATUS = QUARANTINE`, and a `FAILED_RULE_ID` union across **every** row of that country-quarter |
+| **Atomic verdict** | Grouped by `(L_REP_CTY, DATE)`: any failure sets `QUALITY_STATUS = FAIL` and `BATCH_STATUS = QUARANTINE` on every row; `FAILED_RULE_ID` is populated only on observations that break a check |
 | **Failure isolation** | Quarantine is scoped per jurisdiction — one country's break never blocks another's publication in the same run |
 | **Arity guard** | Segment counts are verified per row before splitting; a ragged split would pad short keys and shift every subsequent dimension, misaligning the whole batch |
 | **Normalization** | All dimension values `strip().upper()`-ed on both sides of every comparison |
@@ -117,7 +119,7 @@ The governing principle: **validation failure degrades to stale data, never to m
 | Capability | Implementation |
 | --- | --- |
 | Declarative deployment | Databricks Asset Bundles; three ordered tasks with security provisioned **before** any data is written |
-| Secret management | Azure Key Vault (`kv-sovereignshield-28083`); no credential literal in git, config, or disk |
+| Secret management | Azure Key Vault discovered by resource prefix; no credential literal in tracked source or configuration |
 | Session auth | **Dot-sourced** `pre_auth.ps1` — child-process invocation would discard the variables on return |
 | Credential rotation | `kv_spn_remediation.sh` deletes the app registration, mints fresh credentials, and overwrites stored secrets |
 | Compute topology | Single Node (`num_workers: 0`, `ResourceClass: SingleNode`, `spark.master: local[*, 4]`) on `Standard_DS3_v2` |

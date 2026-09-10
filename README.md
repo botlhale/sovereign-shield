@@ -42,7 +42,9 @@ The validation rulebook is treated as **metadata, not code** — an approach the
 
 ![Policy as a Metastore Object — four horizontal bands. A promotion plane runs pull request to offline tests to review to merge to a short-lived OIDC token. An ownership boundary splits Terraform (infrastructure and access) from the pipeline (data and policy) either side of a divider reading "one writer per object". A data plane routes validated submissions to a history table and failures to an audit-only quarantine, with the prior published record staying live. A consumption band shows the dissemination gateway choosing an identity but never choosing rows. All four connect into a policy enforcement point in Unity Catalog resolving five personas, ending with "no group — zero rows, fails closed".](docs/sovereign-shield_technical_vision.jpg)
 
-Credentials never leave Azure Key Vault as literals, compute is ephemeral and single-node, and every consumer is resolved to an Entra ID security group at query time by Unity Catalog.
+Service credentials are resolved from Azure Key Vault rather than tracked as
+literals, compute is ephemeral and single-node, and every consumer is resolved
+to an Entra ID security group at query time by Unity Catalog.
 
 ```mermaid
 flowchart TB
@@ -52,8 +54,9 @@ flowchart TB
     end
 
     subgraph AZURE["☁️ Azure Control Plane"]
-        KV["🔐 Azure Key Vault<br/>kv-sovereignshield-28083"]
-        SPN["🤖 Service Principal<br/>spn-sovereignshield-cicd"]
+        KV["🔐 Azure Key Vault<br/>environment-specific name"]
+        SPN["🤖 Pipeline Service Principal<br/>spn-sovereignshield-cicd"]
+        PUBLICSPN["🌐 Public Proxy Service Principal<br/>spn-sovereignshield-public"]
         ENTRA["👥 Microsoft Entra ID<br/>Security Groups"]
     end
 
@@ -65,13 +68,16 @@ flowchart TB
         T3["3 - scd2_merge_engine.py"]
     end
 
-    subgraph UC["🛡️ Unity Catalog - dbw_sovereignshield.sovereign_shield"]
-        MICRO["lbs_micro_transactions<br/>RLS: fn_rls_micro_country_lock"]
-        MACRO["agg_sdmx_history<br/>RLS: fn_rls_multi_persona_lock<br/>DDM: fn_ddm_obs_conf_mask"]
-        VIEW["v_agg_sdmx_published<br/>PUBLISHED + IS_CURRENT"]
+    subgraph UC["🛡️ Unity Catalog - dbw_sovereignshield"]
+        MICRO["sovereign_intake.lbs_micro_transactions<br/>RLS: fn_rls_micro_country_lock"]
+        MACRO["sovereign_shield.agg_sdmx_history<br/>RLS: fn_rls_multi_persona_lock<br/>DDM: fn_ddm_obs_conf_mask"]
+        VIEW["sovereign_shield.v_agg_sdmx_published<br/>PUBLISHED + IS_CURRENT"]
+        VOLUME["sovereign_submissions.submissions<br/>admin-only volume"]
     end
 
-    subgraph PORTAL["🌐 Databricks App - sovereignshield-portal"]
+    subgraph PORTAL["🌐 Serving Plane"]
+        DBAPP["Databricks App<br/>workspace SSO + OBO"]
+        ACA["Azure Container Apps<br/>anonymous + optional Easy Auth"]
         API["api_gateway.py<br/>FastAPI /api/v1"]
         UI["portal_ui.py<br/>BIS-style filter dashboard"]
         EXP["sdmx_ml_exporter.py<br/>SDMX-ML 3.0 / JSON / CSV"]
@@ -90,8 +96,14 @@ flowchart TB
     CLI -->|OAuth M2M| DAB
     SPN -->|executes as implicit owner| DAB
     DAB --> COMPUTE
-    DAB --> PORTAL
-    COMPUTE --> T1 --> T2 --> T3
+    DAB --> DBAPP
+    DBAPP --> API
+    ACA --> API
+    PUBLICSPN -->|anonymous Azure auth| API
+    ENTRA -->|OBO or Easy Auth| API
+    COMPUTE --> T1 --> T2
+    T2 -->|file submissions| VOLUME
+    VOLUME --> T3
     T1 -->|DDL + policy binding| UC
     T3 -->|append ledger| MICRO
     T3 -->|SCD2 MERGE| MACRO
@@ -150,7 +162,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pytest tests/ --no-header
 ```
 
-Expect **59 passed, 12 skipped**. The skips are the `--live` tests that need a real
+Expect **75 passed, 12 skipped**. The skips are the `--live` tests that need a real
 workspace and the `--stress` benchmarks that take minutes.
 
 ```powershell
@@ -220,9 +232,15 @@ terraform init -backend-config="backend.hcl"
 terraform apply
 ```
 
-One apply provisions the Entra persona groups, both service principals, the GitHub OIDC federated credentials, Key Vault, the Databricks workspace, the access connector and storage credential, the catalog and schema, the serverless SQL warehouse, and the Container Apps dissemination gateway.
+The staged Terraform path provisions Entra identities, Key Vault, the Databricks
+workspace, Unity Catalog storage, three schemas, the submissions volume, and the
+SQL warehouse. Container Apps is optional and enabled only after its image exists.
 
-**There is no variable that can carry a credential**, and that is enforced rather than asserted: `tests/test_secret_decoupling.py` fails the build if a secret-shaped Terraform variable is ever declared, or if any module output exposes a `.value`. Only *pointers* are permitted — `public_client_secret_id` holds a Key Vault resource id, never a secret.
+**There is no Terraform variable that carries a credential**, and that is
+enforced rather than asserted: `tests/test_secret_decoupling.py` fails the build
+if a secret-shaped Terraform variable is declared, or if a module output exposes
+a `.value`. Only pointers are permitted — `public_client_secret_id` holds a Key
+Vault resource id, never a secret.
 
 Credentials reach their consumers three ways, none of which is a literal:
 
@@ -441,7 +459,9 @@ security mode and defines the sizing envelope — see
 ## 🔑 Operational Prerequisites
 
 1. **SPN group membership** — add `spn-sovereignshield-cicd` to `sg-sovereignshield-admin`. Object ownership does not exempt a principal from a row filter; without this the merge engine reads an empty target and silently duplicates history.
-2. **Key Vault access** — the deploying identity needs `get` on secrets in `kv-sovereignshield-28083`. The vault was created with `--enable-rbac-authorization false`, so access is granted via **access policies**, not Azure RBAC role assignments.
+2. **Key Vault access** — the deploying identity needs secret access on the
+    environment's discovered vault. The deployment detects whether the vault uses
+    Azure RBAC or legacy access policies and applies only the matching mechanism.
 3. **Session authentication** — always **dot-source** the loader (`. .\sh\pre_auth.ps1`). Running it as a child process sets the variables in a scope that is discarded on return.
 4. **Credential hygiene** — no credential exists in the repository, and `tests/test_secret_decoupling.py` enforces that on every commit. Terraform rotates the dissemination proxy credential automatically every 90 days via `time_rotating`; `sh/kv_spn_remediation.sh` performs a deliberate, immediate rotation of the CI/CD principal when you need one.
 5. **Entra ID groups** — `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-<cc>`, `sg-sovereignshield-researchers`, and `sg-sovereignshield-public` must exist before the Triple-Lock DDL runs; the security functions resolve membership at query time via `is_account_group_member`. `terraform/modules/identity` provisions them, and `sh/databricks_account_setup.ps1` mirrors them into the Databricks **account** — account scope is what `is_account_group_member` reads, and workspace-scoped groups of the same name will never match.

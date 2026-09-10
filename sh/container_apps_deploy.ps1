@@ -39,7 +39,7 @@ param(
     [string]$Location = "canadacentral",
     [string]$EnvironmentName = "cae-sovereignshield",
     [string]$AppName = "ca-sovereignshield-portal",
-    [string]$TokenStoreStorageName = "stsovereignshieldauth",
+    [string]$TokenStoreStorageName = "",
     [string]$RegistryName = "",
     [switch]$EnableEntraSignIn
 )
@@ -323,6 +323,13 @@ if ($EnableEntraSignIn) {
     # Easy Auth only injects provider access-token headers when its token store
     # is enabled. Keep that store separate from Unity Catalog storage: it holds
     # authentication session material, not governed observations.
+    if (-not $TokenStoreStorageName) {
+        $TokenStoreStorageName = az storage account list --resource-group $ResourceGroup `
+            --query "[?starts_with(name, 'stsovereignshieldauth')].name | [0]" -o tsv
+    }
+    if (-not $TokenStoreStorageName) {
+        $TokenStoreStorageName = "stsovereignshieldauth$((Get-Random -Maximum 1000).ToString('000'))"
+    }
     $tokenStorageExists = az storage account show --name $TokenStoreStorageName `
         --resource-group $ResourceGroup --query name -o tsv 2>$null
     if (-not $tokenStorageExists) {

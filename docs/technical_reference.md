@@ -120,14 +120,15 @@ Four implementation details are load-bearing:
 
 `fn_ddm_obs_conf_mask(obs_val DOUBLE, obs_conf STRING, time_series_code STRING)` is bound via `USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`, letting the mask branch on *different* columns than the one it redacts. Observations flagged Confidential (`C`) or Non-publishable (`N`) resolve to `NULL` for unprivileged readers.
 
-* **Why the key is an input.** Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells — a Bank of Canada analyst reading Federal Reserve confidential positions. The mask therefore repeats the segment-9 test rather than trusting the group name alone. An early draft of this function omitted that check; it was caught during development on synthetic data, only because the test fixture spans more than one jurisdiction.
+* **Why the key is an input.** Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells. The mask therefore repeats the segment-9 test, and the fixture includes restricted rows in multiple jurisdictions.
 * **Why `NULL` and not `'xxx'`:** a masking function must return the column's own type, and `OBS_VALUE` is a `DOUBLE`. A string sentinel is not representable.
 * **Privilege ordering:** administrators and the owning submitter are evaluated *before* the confidentiality branch, so an entitled reader always sees the true value.
 * **Structural density preserved:** the row still exists with all its dimensions intact, so researcher joins and dimensional counts remain correct — only the metric is withheld. The portal surfaces this explicitly, reporting how many values a query had withheld rather than silently returning blanks.
 
 ### Lock 3 — Quarantine view isolation (integrity)
 
-Researchers hold **no grant on the base tables**. Their sole entry point is `v_agg_sdmx_published`, which gates on both publication state and temporal currency:
+The published view provides a uniform BI surface and gates on both publication
+state and temporal currency:
 
 ```sql
 CREATE OR REPLACE VIEW v_agg_sdmx_published AS
@@ -182,10 +183,11 @@ Replay is safe: a `left_anti` join on natural key + `version_hash` prevents a re
 
 | Cycle | CA | US | GB |
 | --- | --- | --- | --- |
-| `baseline` | 9 rows `PUBLISHED` | 3 `PUBLISHED` | 3 `PUBLISHED` |
-| `revision` | 9 rows `QUARANTINE` (`LBS_CC01`, `LBS_CC:04`) | 3 `PUBLISHED` | 3 `PUBLISHED` |
+| `baseline` | 4 rows `PUBLISHED` | 4 rows `PUBLISHED` | 14 rows `PUBLISHED` |
+| `revision` | 4 rows `QUARANTINE` (`LBS_CC01`) | 4 rows `QUARANTINE` (`LBS_CC01`) | 14 rows `QUARANTINE` (`LBS_CC02`, `LBS_CC:04`) |
 
-After both cycles, Canada's baseline observation remains active and unmodified, and `v_agg_sdmx_published` continues to serve 15 rows.
+After both cycles, all 22 baseline observations remain active and unmodified;
+the 22 revision observations remain audit-only quarantine rows.
 
 ---
 
@@ -212,11 +214,12 @@ The locks above are only interesting if something actually exercises them from o
 
 **The gateway chooses an identity. It never chooses rows.** There is no persona branch anywhere in the serving code: the SQL it builds is deliberately naive about confidentiality and lifecycle state, and Unity Catalog narrows the result. If the gateway were compromised outright, the metastore would still refuse to hand a quarantined or confidential observation to an unentitled caller.
 
-| Caller | Identity used | How it arrives |
+| Caller | Identity used | Carrier |
 | --- | --- | --- |
 | Signed-in workspace user | Their own OAuth token | `X-Forwarded-Access-Token`, injected by the Databricks Apps runtime |
 | Direct API client | Their own OAuth token | `Authorization: Bearer` |
-| Anonymous visitor | `spn-sovereignshield-public` | The app's own service principal credentials |
+| Signed-in Container Apps visitor | Their own OAuth token | Browser reads same-origin `/.auth/me`, retains the token in memory, and sends `Authorization: Bearer` |
+| Anonymous Container Apps visitor | `spn-sovereignshield-public` | Azure client-secret authentication from Key Vault references |
 
 Token validation is delegated rather than reimplemented: the gateway resolves the token against the workspace SCIM `me` endpoint, so an expired, revoked, or forged token fails there. No JWT signature verification is hand-rolled, and the token itself is never cached — only a SHA-256 digest of it, keyed to a short-lived identity lookup.
 
@@ -231,6 +234,7 @@ Token validation is delegated rather than reimplemented: the gateway resolves th
 | `GET /api/v1/export/csv` | SDMX-CSV 2.0.0, or `?format=tidy` for a plain analyst CSV |
 | `GET /api/v1/whoami` | The security context the portal banner renders |
 | `GET /api/v1/health` | Catalog connectivity, backend mode, and structure availability |
+| `GET /api/v1/auth-diagnostics` | Presence-only Easy Auth diagnostics; never returns token or claim values |
 
 Every caller-supplied value is bound as a query parameter, and code values are additionally constrained to `[A-Za-z0-9_]{1,12}` before they reach the warehouse — parameter binding already prevents injection, the pattern check keeps malformed input from being blamed on the metastore.
 
@@ -263,7 +267,10 @@ The app's own service principal must be a member of `sg-sovereignshield-public`.
 
 A Databricks App always sits behind workspace SSO. Its "public" tier is therefore an *authenticated visitor holding no sovereign entitlement* — which proves the persona matrix, but not the anonymous case that a real dissemination portal has to survive.
 
-`terraform/modules/dissemination_gateway` closes that gap by running the **same image** on Azure Container Apps with external ingress and no login:
+Azure Container Apps closes that gap by running the same image with external
+ingress. The Terraform module provisions anonymous access. The script path also
+supports optional Easy Auth sign-in. Choose one owner for the deployment because
+both paths use the same resource names.
 
 ```powershell
 cd terraform
@@ -277,7 +284,7 @@ The module uses a **user-assigned** managed identity rather than system-assigned
 
 ```powershell
 ./sh/container_apps_deploy.ps1 -KeyVaultName <vault-name> `
-    -DatabricksHost adb-<workspace-id>.8.azuredatabricks.net `
+    -DatabricksHost <workspace-url-without-https> `
     -WarehouseId <sql-warehouse-id>
 ```
 
@@ -285,12 +292,15 @@ Nothing about the security model changes — only who can knock. The row filter 
 
 | Concern | How the deployment handles it |
 | --- | --- |
-| Credentials | Key Vault references (`keyvaultref:...,identityref:system`) resolved by the platform at start-up. No secret value is passed on a command line, written to a file, or echoed. |
+| Credentials | Public proxy credentials use Key Vault references. The Easy Auth SAS is generated transiently, stored as a Container App secret through a Windows-safe quoted handoff, and never written to tracked files or logs. |
 | Image build | `az acr build` — built in Azure, so no local Docker daemon and no image pushed from a workstation |
 | Container privileges | Runs as an unprivileged UID with only the four serving modules and the template directory copied in. The ingestion job, the synthetic data, and the BIS rulebook workbook are not in the serving path and are not in the image. |
-| Elevated personas | `-EnableEntraSignIn` adds Container Apps built-in authentication with `--unauthenticated-client-action AllowAnonymous`, so anonymous visitors are served the public tier and `/.auth/login/aad` elevates on demand. The forwarded `X-MS-TOKEN-AAD-ACCESS-TOKEN` is a carrier the gateway already understands. |
+| Elevated personas | `-EnableEntraSignIn` configures Easy Auth with `AllowAnonymous`, ID-token issuance, admin consent, and `openid profile offline_access AzureDatabricks/user_impersonation`. A Blob-backed token store retains provider tokens. The browser reads same-origin `/.auth/me`, keeps the access token in memory, and attaches it to API requests. |
+| Token-store integrity | A dedicated storage account holds Easy Auth session material. The Windows script preserves the complete SAS through a quoted environment-variable handoff, validates `se`, `sp`, `spr`, `sv`, `sr`, and `sig`, and restarts the active revision after secret updates. |
 
-> **The one manual step.** The Entra token forwarded by built-in authentication must be issued for the **AzureDatabricks** resource (`2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`), which means adding `scope=openid profile 2ff814a6-.../user_impersonation` to the login parameters. Miss it and every signed-in visitor silently stays on the public tier — the failure is invisible, because falling back to the public persona is exactly what the gateway is supposed to do when it has no usable token. The script prints the instruction rather than pretending the CLI covers it.
+The script configures the Entra application, client service principal, delegated
+permission, admin consent, redirect URI, login parameters, token store, and
+revision restart. No portal-only authentication step is required.
 
 The deployment finishes by printing the check worth running first:
 

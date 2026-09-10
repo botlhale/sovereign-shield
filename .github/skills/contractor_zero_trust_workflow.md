@@ -149,9 +149,10 @@ The guarantee is structural rather than aspirational:
   into `az keyvault secret set` — never echoed, never written to disk.
 * `pre_auth.ps1` hydrates process-scoped environment variables at run time and
   **discovers** the vault by prefix rather than hardcoding its name.
-* Container Apps resolves credentials through
-  `keyvaultref:...,identityref:system` — the platform injects them, no value
-  passes on a command line.
+* Container Apps resolves the public proxy credential through
+  `keyvaultref:...,identityref:system`. The script-generated Easy Auth SAS is
+  transient, stored as a Container App secret, and never written to tracked
+  source or logs.
 * Databricks Apps injects its own managed service principal's credentials into
   the runtime; nothing is stored in the repository.
 

@@ -24,8 +24,9 @@ Token carriers, in precedence order:
 
 * ``X-Forwarded-Access-Token`` - injected by the Databricks Apps runtime for the
   signed-in user (on-behalf-of).
-* ``X-MS-TOKEN-AAD-ACCESS-TOKEN`` - injected by Azure Container Apps built-in
-  authentication.
+* ``X-MS-TOKEN-AAD-ACCESS-TOKEN`` - used when Azure Container Apps injects it.
+    Otherwise the portal reads same-origin ``/.auth/me`` and sends the provider
+    token as an in-memory bearer token.
 * ``Authorization: Bearer`` - a direct API client.
 
 Credentials are never read from a literal. The app's own identity arrives as

@@ -86,7 +86,7 @@ a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 70 passed, 12 skipped
+pytest tests/                 # expect 75 passed, 12 skipped
 ```
 
 The skips are the `--live` tests, which need a workspace, and the `--stress`
@@ -438,111 +438,21 @@ Re-running the same script with `-AppName` resolves the app's managed service
 principal and adds it to `sg-sovereignshield-public`, skipping everything it
 already did.
 
-**Why a second identity:** Databricks Apps mints its *own* managed service
-principal and injects those credentials as `DATABRICKS_CLIENT_ID`/`SECRET`.
-That — not the Entra `spn-sovereignshield-public` — is what anonymous requests
-actually run as. The Entra one is only used by the Container Apps deployment in
-Stage 7. Skip this and the fail-closed default returns zero rows, and the portal
-renders empty for every visitor.
+The Databricks App uses its managed service principal for the public tier and
+the viewer's `X-Forwarded-Access-Token` for signed-in queries. The bundle
+declares `user_api_scopes: ["sql"]`, app `CAN_USE` permissions, and the warehouse
+resource. Terraform grants warehouse `CAN_USE`, catalog/schema traversal and
+table privileges to every persona; `unity_catalog_grants.sql` grants `EXECUTE`
+on the mask function. Verify the live state:
 
-Restart the app afterwards so it picks up the new membership.
+```powershell
+databricks apps get sovereignshield-portal --output json
+databricks apps get-permissions sovereignshield-portal --output json
+databricks warehouses get-permissions <warehouse-id> --output json
+```
 
-> **On-behalf-of-user SQL queries fail with a bare `"Error during request to
-> server"`, even after `whoami` correctly resolves your identity.** The forwarded
-> caller token (`X-Forwarded-Access-Token`) defaults to two identity-only scopes
-> — `iam.current-user:read`, `iam.access-control:read`. Neither covers opening a
-> SQL warehouse session as the caller, which is what every `/api/v1/facets` or
-> `/api/v1/export/*` call needs.
->
-> The fix is `user_api_scopes: ["sql"]` on the app resource in
-> [databricks.yml](databricks.yml) — a `databricks bundle deploy` away, not a
-> click in the UI. Two things that look plausible and are not:
-> - `user_authorization` in `app.yaml` — the correct-sounding key, wrong file and
->   wrong name. Deploys cleanly, has no effect at all; `databricks apps get`
->   afterwards shows the same two default scopes.
-> - The same field passed directly to `databricks apps update --json` — rejected
->   as `unknown field: user_authorization`. Confirms it isn't a syntax problem;
->   the field doesn't exist under that name anywhere in this API. Also: that
->   command is **not** a partial patch despite its per-field flags — a JSON body
->   containing only one field silently dropped this app's `resources` block and
->   `description` on the live app. Recovered with a plain `bundle deploy`, which
->   reconciles both from this file. Use `apps create-update APP_NAME UPDATE_MASK`
->   for a true field-mask patch if you ever need one outside the bundle.
->
-> Verify with `databricks apps get sovereignshield-portal` and look for `"sql"`
-> in `effective_user_api_scopes` — not just that the deploy succeeded.
->
-> Each visitor consents to the scope once, and can't revoke it themselves; an
-> admin can pre-consent on their behalf. A workspace-wide allowlist
-> (**Settings → Development → Restrict OAuth scopes for apps**) can block a scope
-> even from an app that requests it.
-
-> **`Permission Required — You don't have access to the app"`, for any persona
-> other than the one who deployed it.** A third, separate authorization layer
-> from the two above — this is workspace-level "can this identity open the app
-> at all," decided before the request reaches `api_gateway.py`, which is why it
-> never shows up in the app's own logs no matter how long you search them.
->
-> Deploying an app grants the deployer `CAN_MANAGE` and nobody else anything.
-> Every persona group needs `CAN_USE` declared explicitly, as `permissions` on
-> the app resource in [databricks.yml](databricks.yml):
->
-> ```yaml
-> permissions:
->   - group_name: "sg-sovereignshield-admin"
->     level: "CAN_MANAGE"
->   - group_name: "sg-sovereignshield-researchers"
->     level: "CAN_USE"
->   # ... one entry per persona group
-> ```
->
-> This is admission, not entitlement — the same split as the SQL grants.
-> `CAN_USE` only lets a group load the app; Unity Catalog's row filter and
-> column mask still decide what that session can see once inside. Verify with
-> `databricks apps get-permissions sovereignshield-portal` and confirm every
-> persona group appears with `CAN_USE`, rather than trusting that the deploy
-> succeeded.
->
-> **"Sign out" appears to do nothing.** It isn't broken — a Databricks App has
-> no session of its own to end. The workspace SSO session lives at the browser's
-> Azure AD scope, which no app-level route can clear; `SOVEREIGNSHIELD_SIGNOUT_URL`
-> is `/` on this path for exactly that reason. A fresh incognito window per
-> persona, which is what you're already doing, is the correct way to test more
-> than one persona in one browser. Real per-app sign-out (`/.auth/logout`) only
-> exists behind Stage 7's Container Apps front door.
-
-> **`databricks.sql.exc.RequestError: Error during request to server` remains
-> after SQL consent and app `CAN_USE` are correct.** The SQL warehouse is a
-> separate securable from both the app and Unity Catalog. Verify its own ACL:
->
-> ```powershell
-> databricks warehouses get-permissions <warehouse-id> --output json
-> ```
->
-> Every persona group must have `CAN_USE`. The durable Terraform fix is to set
-> both deferred toggles in `terraform.tfvars` and reconcile them after the
-> account groups and tables exist:
->
-> ```powershell
-> cd terraform
-> # account_groups_ready = true
-> # grant_tables         = true
-> terraform apply -var-file="terraform.tfvars"
-> cd ..
-> ```
->
-> Do not diagnose this as a Unity Catalog row-filter failure until the
-> warehouse ACL is present. Admin access can hide this defect because the
-> deploying owner can use the warehouse without a persona grant.
-
-> **The researcher sees populated facets but search fails while submitters
-> work.** Researchers retain published `C`/`N` rows so the column mask can
-> redact their values. The caller therefore needs `EXECUTE` on
-> `fn_ddm_obs_conf_mask`, not only `SELECT` on `agg_sdmx_history`. The pipeline
-> applies this grant from `src/unity_catalog_grants.sql`; redeploy the bundle
-> and rerun the security/pipeline task if the grant is missing. Verify the
-> expected result: all published countries remain visible, restricted values
-> render as `restricted`, and quarantined rows remain absent.
+The Databricks App uses workspace SSO, so use a fresh private browser session
+when switching test personas. Container Apps provides explicit per-app sign-out.
 
 ---
 
@@ -552,10 +462,11 @@ Open the app URL from `databricks apps get`. What to check, in order:
 
 | Sign in as | Expected badge | Expected data |
 |---|---|---|
-| `econ_researcher` | Researcher (Published Series, Confidential Values Masked) | All countries; some values show `restricted`, and the header reports a withheld count |
-| `boc_analyst` | Bank of Canada Analyst (Full Sovereign Access) | CA rows in full incl. confidential values; other countries only `PUBLISHED`+`F`. The amber "Include my quarantined batches" card appears |
-| `fed_analyst` | Federal Reserve Analyst | Mirror image — **US confidential values visible, CA confidential values masked**. This is the cross-sovereign leak the mask exists to prevent; verify it explicitly |
-| `admin_lead` | Platform Administrator | Everything, including quarantined batches |
+| Public | Public (Free to Publish Only) | 13 current `PUBLISHED/F` rows |
+| `econ_researcher` | Researcher (Published Series, Confidential Values Masked) | 22 published rows; 9 values show `restricted` |
+| `boc_analyst` | Bank of Canada Analyst (Full Sovereign Access) | 14 rows; CA confidential values visible; foreign data public-only |
+| `fed_analyst` | Federal Reserve Analyst (Full Sovereign Access) | 17 rows; US confidential values visible; foreign data public-only |
+| `admin_lead` | Platform Administrator (All Jurisdictions) | 22 published rows unmasked; quarantine available on request |
 
 Then click **Export SDMX-ML 3.0**. The download is round-tripped through the
 SDMx reader before it's returned, so a 422 means the payload failed validation
@@ -617,6 +528,12 @@ prints the portal URL. It is idempotent; rerunning it rolls out a new image.
 If a first run stops after the image build, rerun the same command; its existing
 `acrsovereignshield*` registry is discovered automatically.
 
+Add `-EnableEntraSignIn` to support authenticated personas on the same public
+URL. The script configures `AllowAnonymous`, Entra consent and scopes, the
+separate Blob token store, Windows-safe SAS storage and validation, browser
+same-origin `/.auth/me` retrieval, bearer-token API calls, and revision restart.
+No portal-only authentication step remains.
+
 Verify the URL printed by the script:
 
 ```powershell
@@ -627,47 +544,17 @@ $result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CON
 ```
 
 Every returned row must have `BATCH_STATUS=PUBLISHED` and `OBS_CONF=F`.
-The script detects the Key Vault authorization mode and uses either the RBAC
-role assignment or the legacy access-policy command, never both.
-The Container App uses Azure service-principal authentication with an explicit
-tenant ID and `DATABRICKS_AUTH_TYPE=azure-client-secret`; this is separate from
-the Databricks App's on-behalf-of OAuth flow.
-The script-managed Entra path uses a separate Blob token store so Easy Auth can
-forward `X-MS-TOKEN-AAD-ACCESS-TOKEN`; it must not reuse the governed Unity
-Catalog storage account. The script restarts the active revision after changing
-the token-store secret so the running app receives the new value.
-It also validates the complete SAS after storage because Windows `az.cmd`
-otherwise splits an unprotected query string at `&` and silently truncates it.
-Container Apps may inject only trusted principal headers and strip its session
-cookie before forwarding. The portal therefore calls same-origin `/.auth/me`
-in the browser and keeps the provider token in memory only, attaching it as a
-bearer token to reads and exports. It is never persisted, logged, or added to a
-URL.
-
-When `-EnableEntraSignIn` is used, the script sets the Easy Auth provider login
-parameter for `openid profile offline_access` plus the AzureDatabricks scope and grants admin consent for the
-`user_impersonation` delegated permission. The operator must
-have permission to grant consent in the tenant. The script enables
-`AllowAnonymous` but leaves Container Apps token storage disabled because that
-feature requires a Blob SAS secret; the gateway uses the forwarded token
-directly. It also enables ID-token issuance on the Entra app registration,
-which is required for the Easy Auth callback.
-
-If the public endpoint reports `invalid_client`, run the public credential
-repair before rerunning the Container Apps script:
-
-```powershell
-bash sh/kv_spn_create.sh
-```
-
-The repair checks both Key Vault and the Entra app. It replaces a stale Key
-Vault secret only when the app has no credential, then the Container Apps
-script refreshes its Key Vault references.
+The Container App uses Azure service-principal authentication for anonymous SQL
+queries. Signed-in requests use the viewer's token. `/.auth/logout` returns the
+browser to the public tier. The Databricks App may remain stopped because the
+Container App connects directly to the workspace SQL warehouse.
 
 ### 7.2 Terraform-managed alternative
 
 Use this path only if Container Apps must be part of Terraform state. Build and
-push the image first, then enable the module:
+push the image first, then enable the module. This module provisions the
+anonymous public tier; use 7.1 when the same endpoint must also support signed-in
+personas.
 
 ```powershell
 # Build and push to a registry Terraform can pull from.
@@ -726,7 +613,7 @@ You do **not** hand over `terraform.tfvars`, `backend.hcl`, `sh/spn_details`,
 The client runs this inside their own boundary, on their own data:
 
 ```powershell
-pytest tests/                    # offline: 70 passed
+pytest tests/                    # offline: 75 passed
 terraform plan                   # expect no diff against policy objects
 databricks bundle validate -t dev
 ```

@@ -1,36 +1,17 @@
 """Sovereign-isolated synthetic micro-data generation and SDMx 3.0 XML submission.
 
-This module models a "Sovereign Isolation" architecture in which each
-reporting country's bank-level submissions live in their own micro-data
-table (e.g. ``dbw_sovereignshield.sovereign_shield.lbs_micro_transactions_ca``,
-``_us``, and ``_gb``), are aggregated locally into SDMx 3.0 macro time series,
-and are serialized into official SDMx 3.0 XML (ML) submission files using the
-live Data Structure Definition (DSD) fetched from the BIS REST API.
+This module models a "Sovereign Isolation" architecture in which each reporting
+country aggregates its own bank-level micro-data before filing. Synthetic
+per-country micro CSVs and SDMx 3.0 XML submissions are written to the governed
+submissions volume using the live Data Structure Definition (DSD) fetched from
+the BIS REST API.
 
-Three synthetic national scenarios are produced for pipeline testing:
-
-* Canada (``CA``): a clean submission whose currency-type components
-  (Domestic + Foreign + Unallocated) mathematically reconcile with the
-  ``TO1.A`` aggregate per the ``LBS_CC01`` check in ``checks_lbs.xls``, and
-  whose contributions are spread across three banks so none dominates.
-* United States (``US``): a dirty submission whose components do NOT
-  reconcile with the ``TO1.A`` aggregate (``LBS_CC01`` failure), and where a
-  single bank contributes more than the dominance threshold of the
-  aggregate, triggering restricted confidentiality.
-* United Kingdom (``GB``): three isolated, deliberately corrupted reconciliation
-  groups to exercise the quarantine path end-to-end, each using only real,
-  permitted BIS codes (no fabricated placeholders) and genuinely detected by
-  ``SDMxRuleValidator``:
-
-  1. Cross-check aggregation mismatch (``LBS_CC01``): Domestic + Foreign +
-     Unallocated currency components deliberately do not sum to the ``TO1.A``
-     aggregate.
-  2. Currency breakdown mismatch (``LBS_CC02``): a net negative ``EUR:F`` leg
-     among the 5 mandatory currencies breaks the ``TO1.F`` reconciliation.
-     Negative observations are valid SDMx data; the failure is the broken
-     cross-check, not the sign.
-  3. Sector cross-check violation (``LBS_CC:04``): Banks (``B``) + Non-bank
-     (``N``) deliberately do not sum to the ``All sectors (A)`` aggregate.
+The baseline cycle produces 22 clean macro observations: 4 CA, 4 US and 14 GB.
+The revision re-reports the same keys and quarantines each country atomically:
+CA and US each break ``LBS_CC01``; GB breaks ``LBS_CC02`` and ``LBS_CC:04``.
+Only the four offending observations carry a ``FAILED_RULE_ID``; every row in
+its country-quarter carries the quarantine verdict. Confidentiality is
+independent of quality, so both cycles retain free and restricted observations.
 """
 
 from __future__ import annotations
@@ -205,8 +186,7 @@ def _make_micro_rows(
 def generate_micro_transactions(cycle: str = "baseline") -> Dict[str, pd.DataFrame]:
     """Generates synthetic, sovereign-isolated bank-level LBS micro-data per country.
 
-    Models three separate national micro-data tables:
-    ``dbw_sovereignshield.sovereign_shield.lbs_micro_transactions_ca``, ``_us``, and ``_gb``.
+    Models three separate national micro-data frames for CA, US and GB.
 
     Confidentiality and quality are orthogonal, and the two cycles keep them
     visibly separate. Confidentiality is the *reporting* country's decision, taken

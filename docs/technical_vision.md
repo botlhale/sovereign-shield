@@ -69,7 +69,7 @@ grain rather than a collection, because the engine is domain-agnostic.
 | `OBS_STATUS` | SDMx observation status |
 | `OBS_CONF` | `F` free to publish, `C` confidential, `N` not for publication |
 | `QUALITY_STATUS` | `PASS` / `FAIL`, assigned atomically per batch |
-| `FAILED_RULE_ID` | Sorted union of violated check codes |
+| `FAILED_RULE_ID` | Violated check codes on offending observations; `NULL` on unaffected rows in the same quarantined batch |
 | `BATCH_STATUS` | `PUBLISHED` / `QUARANTINE` |
 | `version_hash` | Payload fingerprint driving SCD2 change detection |
 | `VALID_FROM` / `VALID_TO` / `IS_CURRENT` | SCD2 interval |
@@ -119,7 +119,7 @@ that identity may see*. No persona branch exists anywhere in the serving code.
 | Caller | Runs as | Carrier |
 | --- | --- | --- |
 | Signed-in workspace user | Their own token | `X-Forwarded-Access-Token` |
-| Container Apps visitor | Their own token | `X-MS-TOKEN-AAD-ACCESS-TOKEN` |
+| Signed-in Container Apps visitor | Their own token | Browser calls same-origin `/.auth/me`, keeps the token in memory, and sends `Authorization: Bearer` |
 | Direct API client | Their own token | `Authorization: Bearer` |
 | Anonymous visitor | `spn-sovereignshield-public` | The app's own service principal |
 

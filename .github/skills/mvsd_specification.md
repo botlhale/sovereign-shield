@@ -174,8 +174,8 @@ stresses the state machine:
 
 | Cycle | CA | US | GB |
 | --- | --- | --- | --- |
-| `baseline` | 9 rows `PUBLISHED` | 3 `PUBLISHED` | 3 `PUBLISHED` |
-| `revision` | 9 rows `QUARANTINE` | 3 `PUBLISHED` | 3 `PUBLISHED` |
+| `baseline` | 4 rows `PUBLISHED` | 4 rows `PUBLISHED` | 14 rows `PUBLISHED` |
+| `revision` | 4 rows `QUARANTINE` (`LBS_CC01`) | 4 rows `QUARANTINE` (`LBS_CC01`) | 14 rows `QUARANTINE` (`LBS_CC02`, `LBS_CC:04`) |
 
 The assertion that matters: after both cycles Canada's *baseline* observation is
 still `IS_CURRENT = true`. A rejected revision must degrade to **stale data,
@@ -185,19 +185,19 @@ never to missing data**.
 > never exercises expiry, so it cannot detect the failure mode where a
 > quarantined revision retires the prior published record.
 
-### 5.4 Deliberately malformed records
+### 5.4 Deliberate reconciliation failures
 
-Because the realistic corpus cannot trigger a reconciliation check (§3), the MVSD
-carries an **isolated, explicitly commented** group of rows whose sole purpose is
-to fail:
+The revision uses valid BIS codes but changes arithmetic relationships so the
+runtime workbook rules detect genuine reconciliation failures:
 
 | Scenario | Mechanism | Expected rule |
 | --- | --- | --- |
-| Aggregate ≠ Σ components | Negative amount injected into one component | `LBS_CC01` |
-| Component hidden from the check | Sector code relabelled to `INVALID_SEC` so `_filter_rows` no longer matches it, while the aggregate still assumes it | `LBS_CC:04` |
-| Ragged key | A `TIME_SERIES_CODE` with ≠ 11 segments | Arity guard, before any rule runs |
+| CA aggregate ≠ currency-type components | Domestic leg revised; aggregate unchanged | `LBS_CC01` |
+| US aggregate ≠ currency-type components | Aggregate revised; components unchanged | `LBS_CC01` |
+| GB currency breakdown mismatch | Mandatory-currency components do not reconcile | `LBS_CC02` |
+| GB sector breakdown mismatch | Banks + non-bank do not equal all sectors | `LBS_CC:04` |
 
-Two constraints on injected rows, both learned the hard way:
+Two constraints keep failure groups isolated:
 
 * The injected group's **full context tuple** must be disjoint from every
   realistic row. A realistic row sharing all dimensions except the one under
@@ -213,8 +213,8 @@ Both terminal states must be present, since the quarantine gate is a
 result-set-level control and cannot be tested from one state alone:
 
 * `BATCH_STATUS = 'PUBLISHED'`, `QUALITY_STATUS = 'PASS'`, `FAILED_RULE_ID` null
-* `BATCH_STATUS = 'QUARANTINE'`, `QUALITY_STATUS = 'FAIL'`, `FAILED_RULE_ID` a
-  comma-joined sorted union of violated codes across the whole country-quarter
+* `BATCH_STATUS = 'QUARANTINE'`, `QUALITY_STATUS = 'FAIL'` on every row, with
+  `FAILED_RULE_ID` populated only on observations that violated a check
 
 ---
 

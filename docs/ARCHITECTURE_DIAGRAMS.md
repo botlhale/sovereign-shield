@@ -37,7 +37,7 @@ graph TD
     end
 
     subgraph SEC["🔐 Secrets & Identity"]
-        KV["Azure Key Vault<br/><b>kv-sovereignshield-28083</b><br/><i>spn-client-id · spn-client-secret<br/>spn-tenant-id · databricks-workspace-url</i>"]
+        KV["Azure Key Vault<br/><i>spn-client-id · spn-client-secret<br/>spn-tenant-id · databricks-workspace-url</i>"]
         SPN["Service Principal<br/><b>spn-sovereignshield-cicd</b><br/><i>implicit owner of all assets</i>"]
     end
 
@@ -213,7 +213,7 @@ sequenceDiagram
     RES->>VIEW: SELECT
     VIEW-->>RES: ✅ CA baseline visible
 
-    Note over SUB,VIEW: CYCLE 2 — REVISION (breaks two cross-checks)
+    Note over SUB,VIEW: CYCLE 2 — REVISION (all jurisdictions fail independently)
 
     SUB->>GEN: Resubmit CA 2026-Q1 with revised figures
     GEN->>ENG: SDMx 3.0 batch
@@ -221,10 +221,9 @@ sequenceDiagram
     VAL->>VAL: Evaluate aggregate vs components, tolerance 1e-4
 
     rect rgb(60, 20, 20)
-        Note over VAL: ❌ LBS_CC01 — CAD components do not reconcile
-        Note over VAL: ❌ LBS_CC:04 — CHF sector breakdown mismatch
+        Note over VAL: CA · LBS_CC01<br/>US · LBS_CC01<br/>GB · LBS_CC02, LBS_CC:04
         VAL->>VAL: Group by (L_REP_CTY, DATE) and apply verdict atomically
-        VAL-->>ENG: FAIL — all 9 CA rows QUARANTINE<br/>FAILED_RULE_ID = LBS_CC01, LBS_CC:04
+        VAL-->>ENG: FAIL — 22 revision rows QUARANTINE<br/>4 offending observations attributed
     end
 
     ENG->>ENG: Split incoming batch on BATCH_STATUS
@@ -358,7 +357,9 @@ graph LR
 
 Copy these verbatim into Midjourney v6, DALL·E 3, or an equivalent generator. Both are written for **16:9 slide placement** with deliberate negative space for overlaid titles.
 
-> For **Gemini** or **Microsoft 365 Copilot**, prefer the purpose-built one-shot prompts in [slt_image_prompt.md](docs/slt_image_prompt.md) and [architects_image_prompt.md](docs/architects_image_prompt.md). Those name real technology logos inline and render the SDMx submission context explicitly; the two prompts below are logo-free and text-light, tuned for generators that garble both.
+> Image-generation guidance is consolidated in [image_prompts.md](image_prompts.md).
+> The two prompts below are logo-free and text-light, tuned for generators that
+> garble labels.
 
 ### Prompt 1 — Dark Mode Isometric Tech Diagram
 

@@ -6,7 +6,9 @@
 
 Entitlement is resolved at query time by **Unity Catalog** against **Entra ID** group membership. Because policy is attached to the table object rather than to the query, it applies identically through PySpark, a SQL warehouse, Power BI, an ad-hoc JDBC session, or the public REST gateway. No code path can omit it.
 
-**Namespace:** `dbw_sovereignshield.sovereign_shield`
+**Namespaces:** `sovereign_shield` for macro history, `sovereign_intake` for the
+country-filtered micro ledger, and `sovereign_submissions` for the admin-only
+filing volume.
 
 ---
 
@@ -25,12 +27,14 @@ The single exception is `LocalDeltaBackend` in `src/uc_query.py`, a development 
 ### 0. Execution identity — CI/CD service principal
 
 * **Principal:** `spn-sovereignshield-cicd`
-* **Role:** pipeline orchestrator and implicit owner of every created object.
+* **Role:** pipeline orchestrator and owner of data/policy objects when deployed by automation.
 * **Mandatory membership:** `sg-sovereignshield-admin`.
 
 > Ownership does **not** exempt a principal from a row filter. The SCD2 engine reads the history table to locate records it must expire; if the filter hid those rows the merge would see an empty target, treat every incoming row as new, and silently duplicate history without ever closing prior versions. No exception is raised — only the lineage is corrupted.
 
-No human developer holds DDL rights in production. All structural change passes through version control and is deployed by this identity.
+Production structural change passes through version control and the pipeline
+identity. A local reference deployment may instead be owned by the interactive
+deployer.
 
 ### 1. Anonymous public consumer
 
@@ -40,7 +44,13 @@ No human developer holds DDL rights in production. All structural change passes 
 
 The public tier is an **explicit group, not the absence of one**. The row filter fails closed, so "unauthenticated" cannot be a fall-through case; it would return zero rows. The dissemination gateway's proxy principal is a member of this group, which makes the anonymous entitlement auditable in Entra ID like any other.
 
-> On Databricks Apps this persona is an authenticated workspace visitor holding no sovereign entitlement, because a Databricks App always sits behind SSO. Genuinely anonymous access is demonstrated by the Azure Container Apps deployment, which fronts the same image with external ingress.
+> A Databricks App always sits behind workspace SSO. Genuinely anonymous access
+> uses Azure Container Apps, whose public service principal authenticates to the
+> SQL warehouse with Azure client-secret authentication. Optional Entra sign-in
+> uses Easy Auth with `AllowAnonymous`, a Blob-backed token store, and the scopes
+> `openid profile offline_access AzureDatabricks/user_impersonation`. The portal
+> reads `/.auth/me` same-origin, holds the provider token in memory only, and
+> sends it as `Authorization: Bearer` on persona-sensitive API requests.
 
 ### 2. Authenticated researcher
 
@@ -143,13 +153,8 @@ END;
 
 Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is. Any submitter membership would then unmask every jurisdiction's restricted cells — a Bank of Canada analyst reading Federal Reserve confidential positions. The mask therefore repeats the segment-9 test rather than trusting the group name alone.
 
-> **Provenance.** This was a genuine defect in an early draft of the mask in this
-> repository — not a hypothetical, and not something that ever reached a
-> deployment. It was written, then caught during development on synthetic data by
-> the multi-jurisdiction fixture and a mutation check on the test that was
-> supposed to cover it. That is the reason §5.2 of the MVSD specification requires
-> confidential rows in more than one jurisdiction: a single-country corpus cannot
-> detect it, and the first test written for it passed against the broken mask.
+The MVSD therefore includes confidential rows in more than one jurisdiction; a
+single-country corpus cannot verify cross-sovereign masking.
 
 ### A note on views
 
@@ -167,6 +172,16 @@ A Unity Catalog view resolves group membership against the **view owner**, not t
 | Submitter `<cc>` | `sg-sovereignshield-submitter-<cc>` | Own segment 9 in full; foreign `PUBLISHED` + `F` | Raw for own; masked for foreign | Own country only | Own only |
 | Admin / auditor | `sg-sovereignshield-admin` | `1 = 1` | Raw | Yes | Yes |
 | *(no membership)* | — | **None** | — | No | No |
+
+### Deployed synthetic fixture
+
+| Persona | Published rows | Masked values | Expected scope |
+| --- | ---: | ---: | --- |
+| Public | 13 | 0 | `PUBLISHED` and `OBS_CONF = 'F'` |
+| Submitter CA | 14 | 0 | CA in full; foreign public rows |
+| Submitter US | 17 | 0 | US in full; foreign public rows |
+| Researcher | 22 | 9 | All published rows; `C`/`N` values masked |
+| Admin | 22 | 0 | All published rows unmasked; quarantine available on request |
 
 ---
 

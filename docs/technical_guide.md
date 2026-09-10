@@ -20,7 +20,7 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pytest tests/ --no-header
 ```
 
-Expect `59 passed, 12 skipped`. The skips are the `--live` tests that need a real
+Expect `75 passed, 12 skipped`. The skips are the `--live` tests that need a real
 workspace and the `--stress` benchmarks that take minutes. If this passes, every
 pass in this guide is available to you offline.
 
@@ -64,7 +64,7 @@ Understand what is being asserted before you look at how it is implemented.
 | [README.md § Executive Summary](../README.md) | The three obligations — sovereignty, confidentiality, integrity — and why they conflict |
 | [docs/executive_vision.md](executive_vision.md) | The non-technical framing |
 | [docs/ARCHITECTURE_DIAGRAMS.md § 1.1 System Component Architecture](ARCHITECTURE_DIAGRAMS.md) | A renderable diagram of the whole system |
-| [docs/LINKEDIN_POST.md](LINKEDIN_POST.md) | The condensed argument, including the defect that motivated the test design |
+| [docs/LINKEDIN_POST.md](LINKEDIN_POST.md) | The condensed architectural argument |
 
 **Question to leave with:** what would "the application is trusted to follow the
 rules" look like, and what specifically goes wrong with it?
@@ -82,7 +82,7 @@ you know what segment 9 is.
 | [.github/skills/mvsd_specification.md](../.github/skills/mvsd_specification.md) | The Minimal Viable Synthetic Dataset — what the fixture must contain and why |
 | [.github/skills/sdmx_lbs_validation.md](../.github/skills/sdmx_lbs_validation.md) | SDMX 3.0 and the BIS LBS structure in brief |
 | [data/ca_submission_2026_Q1.xml](../data/ca_submission_2026_Q1.xml) | An actual submission. Read one. |
-| [src/generate_sovereign_submissions.py](../src/generate_sovereign_submissions.py) | Docstring first — it explains the CA (clean), US (dirty), GB (three corrupted groups) scenarios |
+| [src/generate_sovereign_submissions.py](../src/generate_sovereign_submissions.py) | Docstring first — it defines the clean baseline and the CA/US/GB revision failures |
 
 **Key detail:** `TIME_SERIES_CODE` is a dot-separated SDMX key. Segment 9 is the
 reporting country. Segment 9 is the entire basis of sovereign isolation, so it is

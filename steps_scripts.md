@@ -81,7 +81,7 @@ a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 70 passed, 12 skipped
+pytest tests/                 # expect 75 passed, 12 skipped
 ```
 
 The skips are the `--live` tests, which need a workspace, and the `--stress`
@@ -278,10 +278,11 @@ Open the app URL from `databricks apps get`. What to check, in order:
 
 | Sign in as | Expected badge | Expected data |
 |---|---|---|
-| `econ_researcher` | Researcher (Published Series, Confidential Values Masked) | All countries; some values show `restricted`, and the header reports a withheld count |
-| `boc_analyst` | Bank of Canada Analyst (Full Sovereign Access) | CA rows in full incl. confidential values; other countries only `PUBLISHED`+`F`. The amber "Include my quarantined batches" card appears |
-| `fed_analyst` | Federal Reserve Analyst | Mirror image — **US confidential values visible, CA confidential values masked**. This is the cross-sovereign leak the mask exists to prevent; verify it explicitly |
-| `admin_lead` | Platform Administrator | Everything, including quarantined batches |
+| Public | Public (Free to Publish Only) | 13 current `PUBLISHED/F` rows |
+| `econ_researcher` | Researcher (Published Series, Confidential Values Masked) | 22 published rows; 9 values show `restricted` |
+| `boc_analyst` | Bank of Canada Analyst (Full Sovereign Access) | 14 rows; CA confidential values visible; foreign data public-only |
+| `fed_analyst` | Federal Reserve Analyst (Full Sovereign Access) | 17 rows; US confidential values visible; foreign data public-only |
+| `admin_lead` | Platform Administrator (All Jurisdictions) | 22 published rows unmasked; quarantine available on request |
 
 Then click **Export SDMX-ML 3.0**. The download is round-tripped through the
 SDMx reader before it's returned, so a 422 means the payload failed validation
@@ -309,8 +310,11 @@ pytest tests/ --live
 
 ## Stage 7 — Optional: genuinely anonymous access
 
-Run this from the repository root, replacing the placeholders with identifiers
-from the current subscription:
+Azure Container Apps serves the same portal independently of the Databricks App.
+Anonymous requests run through `spn-sovereignshield-public`; optional Entra sign-in
+passes the selected user's Databricks token to the API.
+
+Run from the repository root:
 
 ```powershell
 az account show --query "{subscription:id, tenant:tenantId, name:name}" -o table
@@ -323,9 +327,22 @@ az account show --query "{subscription:id, tenant:tenantId, name:name}" -o table
   -Location "<azure-region>"
 ```
 
-Leave off `-EnableEntraSignIn` to test genuinely anonymous public access. The
-script prints the resulting Container Apps URL. Verify it without a Databricks
-login:
+Add `-EnableEntraSignIn` to support both anonymous access and signed-in personas.
+The script configures:
+
+- external ingress with `AllowAnonymous`;
+- the public proxy's Key Vault credentials and Azure client-secret SQL authentication;
+- the Entra app, client service principal, redirect URI, ID-token issuance, delegated permission and admin consent;
+- `openid profile offline_access AzureDatabricks/user_impersonation` login scopes;
+- a separate Blob-backed Easy Auth token store;
+- browser-only `/.auth/me` token retrieval for API reads and exports; and
+- an active-revision restart after secret changes.
+
+The token-store SAS is passed through a quoted environment variable on Windows
+and validated after storage. Provider tokens remain in browser memory and are
+never written to HTML, local storage, logs, or URLs.
+
+Verify anonymous access without signing in:
 
 ```powershell
 $gatewayUrl = "https://<fqdn-printed-by-the-script>"
@@ -334,86 +351,9 @@ $result = Invoke-RestMethod "$gatewayUrl/api/v1/search?limit=500"
 $result.observations | ForEach-Object { "{0} {1}" -f $_.BATCH_STATUS, $_.OBS_CONF }
 ```
 
-Every returned observation must be `PUBLISHED` and `F`. This is a separate
-deployment from the Databricks App and does not require app OAuth consent.
-
-The anonymous Container App uses the Azure service-principal credential stored
-in Key Vault. The deployment sets `DATABRICKS_AUTH_TYPE=azure-client-secret`
-and the tenant ID explicitly; do not remove either setting or the SDK may try
-to interpret the same client ID/secret as Databricks OAuth credentials.
-When Entra sign-in is enabled, the script also provisions the separate
-`<token-store-storage-name>` Blob store and enables Easy Auth token storage;
-this is required for `X-MS-TOKEN-AAD-ACCESS-TOKEN` to reach the gateway.
-It restarts the active revision after updating the SAS secret because Container
-Apps does not reload changed secret values into an existing revision.
-On Windows, the script passes the SAS through a quoted environment variable:
-passing it directly to the `az.cmd` wrapper splits at `&` and silently stores a
-truncated, unusable secret. The script validates all SAS fields before enabling
-the token store.
-Container Apps may inject only the trusted `X-MS-CLIENT-PRINCIPAL*` headers on
-the application request and strip its session cookie before forwarding. The
-portal therefore calls same-origin `/.auth/me` in the browser and keeps the
-provider access token in memory only, attaching it as a bearer token to reads
-and exports. It is never placed in HTML, local storage, logs, or URLs.
-
-If the public endpoint reports `invalid_client`, repair the public proxy
-credential before rerunning Container Apps. A Key Vault secret can outlive its
-Entra app credential, so the provisioning script checks both sides:
-
-```powershell
-bash sh/kv_spn_create.sh
-./sh/container_apps_deploy.ps1 `
-  -KeyVaultName "<key-vault-name>" `
-  -DatabricksHost "<workspace-url-without-https>" `
-  -WarehouseId "<warehouse-id>" `
-  -ResourceGroup "<resource-group>" `
-  -Location "<azure-region>"
-```
-
-The first command mints a replacement only when the Entra app has no
-credential and updates the Key Vault secret. Do not print or copy the secret.
-
-The deployment script detects whether the vault uses Azure RBAC. RBAC vaults
-receive the `Key Vault Secrets User` role only; access-policy vaults receive a
-`set-policy` grant. These mechanisms are mutually exclusive in Azure Key Vault.
-
-Idempotent: it discovers an existing `acrsovereignshield*` registry, reuses the
-Container Apps environment, and `update`s the app rather than failing if it
-already exists. The image is always rebuilt, since shipping new code is the point
-of re-running.
-
-If a first run stops after the image build, rerun the same command. The registry
-is retained and discovered automatically. An Azure CLI `containerapp` extension
-update warning is non-fatal when dynamic extension loading is enabled; if a
-later `az containerapp` command is unavailable, install it explicitly with
-`az extension add --name containerapp --upgrade` and rerun.
-
-This is the only way to see a genuinely unauthenticated visitor, since a
-Databricks App always sits behind workspace SSO. Requires
-`spn-sovereignshield-public` in the Databricks account and in
-`sg-sovereignshield-public` — handled by Stage 2.
-
-Add `-EnableEntraSignIn` to layer Container Apps built-in authentication over the
-anonymous tier, so signed-in visitors elevate to their real persona.
-
-The deployment declares the AzureDatabricks `user_impersonation` permission and
-sets the Easy Auth provider login parameter to
-`scope=openid profile offline_access 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/user_impersonation`,
-grants admin consent automatically, and enables `AllowAnonymous`. It does not
-enable Container Apps token storage: token storage requires a Blob SAS secret,
-while this gateway reads the current forwarded token directly. The identity
-running the script must be allowed to grant tenant-wide consent; otherwise the
-script stops at Stage 8 and Entra sign-in remains unavailable until an
-administrator grants consent. The script also enables ID-token issuance on the
-Entra app registration, which Easy Auth requires for the callback flow.
-
-> **The one manual step.** The Entra token forwarded by built-in authentication
-> must be issued for the **AzureDatabricks** resource
-> (`2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`), which means adding
-> `scope=openid profile 2ff814a6-.../user_impersonation` to the login parameters.
-> Miss it and every signed-in visitor silently stays on the public tier — the
-> failure is invisible, because falling back to the public persona is exactly
-> what the gateway does when it has no usable token.
+Every anonymous row must be `PUBLISHED` and `F`. With Entra enabled, verify the
+same persona matrix as Stage 6. `/.auth/logout?post_logout_redirect_uri=/`
+clears the Easy Auth session and returns the browser to the public tier.
 
 Verify the anonymous tier is genuinely fail-closed. Every observation returned
 must carry `BATCH_STATUS=PUBLISHED` and `OBS_CONF=F`:
@@ -448,7 +388,7 @@ gitignored.
 ### 8.2 Client-side verification
 
 ```powershell
-pytest tests/                    # offline: 70 passed
+pytest tests/                    # offline: 75 passed
 databricks bundle validate -t dev
 ```
 
