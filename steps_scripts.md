@@ -346,6 +346,10 @@ When Entra sign-in is enabled, the script also provisions the separate
 this is required for `X-MS-TOKEN-AAD-ACCESS-TOKEN` to reach the gateway.
 It restarts the active revision after updating the SAS secret because Container
 Apps does not reload changed secret values into an existing revision.
+On Windows, the script passes the SAS through a quoted environment variable:
+passing it directly to the `az.cmd` wrapper splits at `&` and silently stores a
+truncated, unusable secret. The script validates all SAS fields before enabling
+the token store.
 Container Apps may inject only the trusted `X-MS-CLIENT-PRINCIPAL*` headers on
 the application request and strip its session cookie before forwarding. The
 portal therefore calls same-origin `/.auth/me` in the browser and keeps the

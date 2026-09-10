@@ -340,14 +340,29 @@ if ($EnableEntraSignIn) {
         --account-key $tokenStorageKey --name easy-auth-tokens --permissions racwdl `
         --expiry $tokenExpiry --https-only -o tsv
     $tokenSasUrl = "https://$TokenStoreStorageName.blob.core.windows.net/easy-auth-tokens?$tokenSas"
-    $az = (Get-Command az.cmd).Source
-    $tokenSecretArg = "easy-auth-token-sas=$tokenSasUrl"
-    $tokenSecretProcess = Start-Process -FilePath $az -ArgumentList @(
-        "containerapp", "secret", "set", "-n", $AppName, "-g", $ResourceGroup,
-        "--secrets", $tokenSecretArg, "--output", "none"
-    ) -Wait -PassThru -NoNewWindow
-    if ($tokenSecretProcess.ExitCode -ne 0) {
-        throw "Could not store the Easy Auth token-store SAS secret."
+    # az.cmd is a cmd.exe wrapper. Passing a SAS URL directly through its
+    # argument list splits on '&' and silently stores only the first parameter.
+    # Expanding the value from an environment variable inside a quoted cmd.exe
+    # argument preserves the complete query string.
+    $env:EASY_AUTH_SECRET = "easy-auth-token-sas=$tokenSasUrl"
+    try {
+        $secretCommand = "az.cmd containerapp secret set -n `"$AppName`" -g `"$ResourceGroup`" --secrets `"%EASY_AUTH_SECRET%`" --output none"
+        cmd.exe /d /s /c $secretCommand
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not store the Easy Auth token-store SAS secret."
+        }
+    }
+    finally {
+        Remove-Item Env:EASY_AUTH_SECRET -ErrorAction SilentlyContinue
+    }
+
+    $storedTokenSas = az containerapp secret list --name $AppName `
+        --resource-group $ResourceGroup --show-values `
+        --query "[?name=='easy-auth-token-sas'].value | [0]" -o tsv
+    foreach ($requiredPart in @("se=", "sp=", "spr=", "sv=", "sr=", "sig=")) {
+        if (-not $storedTokenSas.Contains($requiredPart)) {
+            throw "Easy Auth token-store SAS secret is incomplete (missing $requiredPart)."
+        }
     }
     az containerapp auth update --name $AppName --resource-group $ResourceGroup `
         --token-store true --sas-url-secret-name easy-auth-token-sas --output none

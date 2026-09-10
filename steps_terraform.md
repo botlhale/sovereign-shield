@@ -636,6 +636,8 @@ The script-managed Entra path uses a separate Blob token store so Easy Auth can
 forward `X-MS-TOKEN-AAD-ACCESS-TOKEN`; it must not reuse the governed Unity
 Catalog storage account. The script restarts the active revision after changing
 the token-store secret so the running app receives the new value.
+It also validates the complete SAS after storage because Windows `az.cmd`
+otherwise splits an unprotected query string at `&` and silently truncates it.
 Container Apps may inject only trusted principal headers and strip its session
 cookie before forwarding. The portal therefore calls same-origin `/.auth/me`
 in the browser and keeps the provider token in memory only, attaching it as a
