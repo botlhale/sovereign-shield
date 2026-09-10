@@ -43,10 +43,12 @@ Container Apps - see ``terraform/modules/dissemination_gateway`` or
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import sys
 import time
+import urllib.request
 from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
@@ -133,10 +135,49 @@ def _extract_token(request: Request) -> Optional[str]:
         if forwarded:
             return forwarded.strip()
 
+    # Container Apps always injects trusted identity headers after Easy Auth
+    # login, but provider tokens are retrieved through /.auth/me when the Blob
+    # token store is enabled rather than injected on every request.
+    if request.headers.get("X-MS-CLIENT-PRINCIPAL"):
+        stored_token = _easy_auth_access_token(request)
+        if stored_token:
+            return stored_token
+
     authorization = request.headers.get("Authorization", "")
     scheme, _, credential = authorization.partition(" ")
     if scheme.lower() == "bearer" and credential.strip():
         return credential.strip()
+    return None
+
+
+def _easy_auth_access_token(request: Request) -> Optional[str]:
+    """Read the signed-in user's provider token from the Easy Auth token store."""
+    cookie = request.headers.get("cookie")
+    if not cookie:
+        return None
+
+    external_url = os.getenv("SOVEREIGNSHIELD_EXTERNAL_URL", "").rstrip("/")
+    if not external_url:
+        host = request.url.hostname or ""
+        if not host.endswith(".azurecontainerapps.io"):
+            return None
+        external_url = f"https://{host}"
+
+    token_request = urllib.request.Request(
+        f"{external_url}/.auth/me",
+        headers={"Cookie": cookie, "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(token_request, timeout=5) as response:
+            identities = json.load(response)
+    except Exception as exc:  # noqa: BLE001 - authentication falls back closed
+        LOGGER.warning("Easy Auth token-store lookup failed: %s", type(exc).__name__)
+        return None
+
+    for identity in identities if isinstance(identities, list) else []:
+        access_token = identity.get("access_token") if isinstance(identity, dict) else None
+        if access_token:
+            return str(access_token).strip()
     return None
 
 

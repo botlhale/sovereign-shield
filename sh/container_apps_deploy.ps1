@@ -210,6 +210,9 @@ az containerapp update `
 $fqdn = az containerapp show --name $AppName --resource-group $ResourceGroup `
     --query properties.configuration.ingress.fqdn -o tsv
 
+az containerapp update --name $AppName --resource-group $ResourceGroup `
+    --set-env-vars "SOVEREIGNSHIELD_EXTERNAL_URL=https://$fqdn" --output none
+
 if ($EnableEntraSignIn) {
     Write-Host "==> 8/8 Enabling Entra ID sign-in alongside anonymous access" -ForegroundColor Cyan
 

@@ -346,6 +346,10 @@ When Entra sign-in is enabled, the script also provisions the separate
 this is required for `X-MS-TOKEN-AAD-ACCESS-TOKEN` to reach the gateway.
 It restarts the active revision after updating the SAS secret because Container
 Apps does not reload changed secret values into an existing revision.
+Container Apps may inject only the trusted `X-MS-CLIENT-PRINCIPAL*` headers on
+the application request. In that case the gateway retrieves the provider access
+token from `/.auth/me` with the same Easy Auth session cookie; it never trusts a
+caller-supplied identity header and never logs the token.
 
 If the public endpoint reports `invalid_client`, repair the public proxy
 credential before rerunning Container Apps. A Key Vault secret can outlive its
