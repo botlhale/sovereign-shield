@@ -306,6 +306,16 @@ if ($EnableEntraSignIn) {
         --tenant-id (az account show --query tenantId -o tsv) `
         --yes --output none
 
+    # Easy Auth does not expose this OAuth request parameter on the provider's
+    # Basics screen. Store it under the provider login configuration so the
+    # forwarded token is issued for AzureDatabricks as well as OpenID Connect.
+    $loginParameters = '["scope=openid profile ' + $AzureDatabricksResourceId + '/user_impersonation"]'
+    az containerapp auth update `
+        --name $AppName `
+        --resource-group $ResourceGroup `
+        --set "identityProviders.azureActiveDirectory.login.loginParameters=$loginParameters" `
+        --output none
+
     # AllowAnonymous is the whole point: an unauthenticated visitor is served
     # the public tier, and /.auth/login/aad elevates them on demand.
     az containerapp auth update `
