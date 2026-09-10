@@ -357,6 +357,14 @@ if ($EnableEntraSignIn) {
         --unauthenticated-client-action AllowAnonymous `
         --output none
 
+    # Container Apps does not restart a running revision when a secret value
+    # changes. Without this restart, Easy Auth is configured to use the token
+    # store but the active revision still has the previous secret snapshot.
+    $activeRevision = az containerapp show --name $AppName --resource-group $ResourceGroup `
+        --query properties.latestRevisionName -o tsv
+    az containerapp revision restart --name $AppName --resource-group $ResourceGroup `
+        --revision $activeRevision --output none
+
     Write-Host ""
     Write-Host "Manual step: add the Databricks scope to the login request." -ForegroundColor Yellow
     Write-Host "  Entra portal > App registrations > app-sovereignshield-portal > Authentication"

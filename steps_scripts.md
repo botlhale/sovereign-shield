@@ -344,6 +344,8 @@ to interpret the same client ID/secret as Databricks OAuth credentials.
 When Entra sign-in is enabled, the script also provisions the separate
 `<token-store-storage-name>` Blob store and enables Easy Auth token storage;
 this is required for `X-MS-TOKEN-AAD-ACCESS-TOKEN` to reach the gateway.
+It restarts the active revision after updating the SAS secret because Container
+Apps does not reload changed secret values into an existing revision.
 
 If the public endpoint reports `invalid_client`, repair the public proxy
 credential before rerunning Container Apps. A Key Vault secret can outlive its
