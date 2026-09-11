@@ -12,16 +12,19 @@ Copilot, DALL·E or Midjourney. No compositing.
 
 ## Attribution constraints
 
-Both prompts forbid vendor logos, national flags and identifiable institutional
-buildings, and both mandate an on-image caption stating synthetic data and
-non-affiliation.
+The executive and technical concept prompts forbid vendor logos. The deployment
+lifecycle prompt may use accurate vendor logos because its architect audience
+benefits from rapid visual identification of concrete deployed resources. All three
+prompts forbid national flags and identifiable institutional buildings. They
+also require an on-image caption stating synthetic data and non-affiliation.
 
 | Constraint | Reason |
 | --- | --- |
-| Vendors as typeset text only | Naming a product to describe what was used is nominative use. A reproduced brand mark implies partnership or endorsement |
+| Executive and technical prompts: vendors as typeset text only | These conceptual images should not imply partnership or endorsement |
+| Deployment lifecycle prompt: accurate vendor logos permitted | Logos identify the actual resource owner or technology provider; they do not indicate sponsorship, certification or endorsement |
 | No flags, no bank facades | They read as *"this is a real central bank system"* |
 | Caption inside the image | It survives being screenshotted out of the deck |
-| Nothing logo-shaped requested | Image models render trademarks inaccurately, which is worse than omitting them |
+| No invented or approximate marks | An inaccurate logo or hybrid product mark is worse than a neutral resource glyph |
 
 Not legal advice. Route external material through whoever normally reviews it.
 
@@ -36,10 +39,11 @@ Not legal advice. Route external material through whoever normally reviews it.
 > `sh/sovereignshield_up.ps1` creates those prerequisites.
 
 > **Render acceptance gate.** Reject a generated image if it omits any of the
-> five persona badges (including Administrator), reproduces or approximates a
-> vendor logo, invents a product or acronym, misspells an exact label, or makes
-> the one-time bootstrap appear to be part of the one-command wrapper. A
-> technically incomplete render is not suitable as operational documentation.
+> five persona badges (including Administrator), assigns a vendor logo to the
+> wrong resource, materially alters a logo, invents a product or acronym,
+> misspells an exact label, or makes the one-time bootstrap appear to be part of
+> the one-command wrapper. A technically incomplete render is not suitable as
+> operational documentation.
 
 ```text
 Create a comprehensive, polished 16:9 enterprise architecture infographic titled:
@@ -66,8 +70,13 @@ VISUAL STYLE:
 - Flat vector components, subtle shadows, square or 6px-radius containers.
 - No decorative gradients, orbs, stock people, national flags or institutional
   buildings.
-- Technology names may be written as text. Do not reproduce vendor logos or
-  imply endorsement.
+- Use accurate official vendor or open-source project logos beside resources
+  where they improve rapid architectural recognition. A logo means only that
+  the named resource belongs to or is supplied by that vendor; it must not imply
+  sponsorship, certification, partnership or endorsement.
+- Pair every logo with its typeset technology or resource name. If an exact logo
+  cannot be rendered faithfully, use a neutral geometric resource glyph instead
+  of approximating or mutating the mark.
 
 LAYOUT:
 
@@ -243,6 +252,10 @@ SIDE LEGEND — "OWNERSHIP"
 - Unity Catalog: query-time enforcement
 - Client administrators: account identities, approvals and final ownership
 
+Add this exact note below the ownership legend:
+"Vendor logos identify technologies and resource ownership only; they do not
+indicate sponsorship, certification, partnership or endorsement."
+
 SIDE LEGEND — "SECURITY INVARIANTS"
 - USER_ISOLATION compute
 - No credential literals in tracked source or Terraform variables
@@ -264,9 +277,10 @@ OUTPUT REQUIREMENTS:
   applies as explicit gates, not as one monolithic apply.
 - Make the sequential story dominant and the technology inventory secondary.
 - Do not invent products, steps, timings or data flows beyond those specified.
-- Use generic geometric resource glyphs with typeset technology names only.
-  Reject the render if any Microsoft, Azure, Databricks, GitHub, Python,
-  Terraform, FastAPI or other vendor/project logo is reproduced or approximated.
+- Vendor and project logos are permitted only when they accurately identify a
+  technology or deployed resource used in that stage. Pair each with a typeset
+  name. Never invent, hybridize, distort or use a logo decoratively. If exact
+  rendering is uncertain, substitute a neutral geometric resource glyph.
 - Preserve these exact spellings everywhere: "SDMx", "SDMx-ML", "pysdmx",
   "BIS LBS DSD", "checks_lbs.xls", "Easy Auth", "Entra ID" and
   "AzureDatabricks/user_impersonation". Do not abbreviate, mutate or invent
