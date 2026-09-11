@@ -432,6 +432,7 @@ Routed by what you are trying to establish.
 | **Checking SDMx conformance** (statistical audit) | [SDMx LBS validation](.github/skills/sdmx_lbs_validation.md) | [MVSD specification](.github/skills/mvsd_specification.md) |
 | **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Image prompts](docs/image_prompts.md) |
 | **Presenting it** | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) | [Executive vision](docs/executive_vision.md) · [Public write-up](docs/LINKEDIN_POST.md) |
+| **Running it end to end** | [One-command operations](docs/AUTOMATION_RUNBOOK.md) | [Terraform runbook](steps_terraform.md) |
 
 ---
 
@@ -519,3 +520,4 @@ checklist.
 | [docs/image_prompts.md](docs/image_prompts.md) | The prompts that generate the two rendered diagrams |
 | [docs/LINKEDIN_POST.md](docs/LINKEDIN_POST.md) | Public write-up, primary and long-form versions |
 | [docs/PERSONA_DEMO_SCRIPT.md](docs/PERSONA_DEMO_SCRIPT.md) | 3–5 minute persona-led product demonstration and recording plan |
+| [docs/AUTOMATION_RUNBOOK.md](docs/AUTOMATION_RUNBOOK.md) | Resumable one-command setup, pause and ordered workload teardown |

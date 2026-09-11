@@ -10,6 +10,9 @@ Following the imperative script path instead? [steps_scripts.md](steps_scripts.m
 They are alternatives, not a sequence. Running both against one subscription
 creates resources Terraform did not create and then has to adopt.
 
+To execute this runbook as one resumable command, use
+[docs/AUTOMATION_RUNBOOK.md](docs/AUTOMATION_RUNBOOK.md).
+
 Everything here is idempotent. `terraform apply` converges, and re-running is the
 normal way to move forward after a partial failure. Credentials are the one thing
 never recreated silently: if a service principal exists and its secret is already

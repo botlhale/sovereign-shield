@@ -8,6 +8,7 @@ Copilot, DALL·E or Midjourney. No compositing.
 | --- | --- | --- |
 | [Executive](#executive-prompt) | `sovereign-shield_executive.jpg` | SLT, board, non-technical sponsors |
 | [Technical](#technical-prompt) | `sovereign-shield_technical_vision.jpg` | Architects, security advisors, review boards |
+| [Terraform deployment lifecycle](#terraform-deployment-lifecycle-prompt) | `sovereign-shield_deployment_lifecycle.jpg` | Enterprise architects, platform engineers, delivery leads |
 
 ## Attribution constraints
 
@@ -23,6 +24,226 @@ non-affiliation.
 | Nothing logo-shaped requested | Image models render trademarks inaccurately, which is worse than omitting them |
 
 Not legal advice. Route external material through whoever normally reviews it.
+
+---
+
+## Terraform deployment lifecycle prompt
+
+```text
+Create a comprehensive, polished 16:9 enterprise architecture infographic titled:
+
+"SovereignShield — From Empty Subscription to Governed Statistical Portal"
+
+SUBTITLE:
+"Terraform deployment lifecycle · SDMx 3.0 ingestion · persona-aware dissemination · client handover"
+
+AUDIENCE:
+Seasoned Enterprise Data Architects, cloud platform architects, security
+architects and technical delivery leads. The image must communicate the full
+resource and technology sequence in under 60 seconds of scanning.
+
+VISUAL STYLE:
+- Premium enterprise architecture board, precise and restrained.
+- White or very pale grey background, deep navy headings, teal for successful
+  data flow, Azure blue for cloud resources, amber for deferred gates, muted red
+  only for quarantine.
+- Use a left-to-right numbered lifecycle with nine sequential stages connected
+  by one strong horizontal path. Use swimlanes to show where work runs.
+- Compact, information-dense, readable at 4K and when reduced to a LinkedIn
+  carousel slide.
+- Flat vector components, subtle shadows, square or 6px-radius containers.
+- No decorative gradients, orbs, stock people, national flags or institutional
+  buildings.
+- Technology names may be written as text. Do not reproduce vendor logos or
+  imply endorsement.
+
+LAYOUT:
+
+Top band — "OPERATOR & AUTOMATION"
+Show a Windows workstation, PowerShell 5.1, Azure CLI, Databricks CLI,
+Terraform, Python/pytest and Git. Show GitHub Actions with OIDC as an optional
+promotion path, visually distinct from local interactive deployment.
+
+Middle band — "AZURE & DATABRICKS CONTROL PLANE"
+Show Azure Subscription, Resource Groups, Azure Storage remote Terraform state,
+Microsoft Entra ID, Azure Key Vault, Azure Databricks workspace, access
+connector, Unity Catalog, serverless SQL warehouse, Azure Container Registry,
+Azure Container Apps and its separate Easy Auth token-store Blob container.
+
+Lower band — "DATA, POLICY & CONSUMPTION"
+Show governed SDMx-ML 3.0 submissions, pysdmx, BIS LBS DSD, checks_lbs.xls,
+PySpark validation, Delta Lake SCD Type 2 history, Unity Catalog row filters,
+column masks, quarantine, Databricks App and the public Container Apps portal.
+
+SEQUENTIAL STAGES — render each as a numbered vertical milestone with a short
+title, commands/actions, resources produced, and approximate elapsed time:
+
+0. LOCAL & STATE BOOTSTRAP — approximately 3–8 minutes, first run only
+   Actions:
+   - az login and subscription selection
+   - register Microsoft.Databricks, Microsoft.App,
+     Microsoft.OperationalInsights, Microsoft.KeyVault,
+     Microsoft.Storage and Microsoft.ManagedIdentity
+   - install dependencies and run offline tests
+   - create remote Terraform state resource group, storage account and tfstate
+     container using Entra/RBAC authentication
+   Technologies: PowerShell, Azure CLI, Python, pytest, Azure Storage, RBAC
+   Gate: prerequisites valid; remote state reachable
+
+1. TERRAFORM FOUNDATION — approximately 8–20 minutes
+   Actions:
+   - terraform init, validate, plan, apply
+   - first-pass toggles remain false: account_groups_ready, grant_tables,
+     deploy_dissemination_gateway
+   Resources:
+   - Entra persona groups and service principals
+   - GitHub OIDC federation
+   - Key Vault
+   - Azure Databricks Premium workspace
+   - Unity Catalog storage account, access connector, storage credential and
+     external location
+   - catalog dbw_sovereignshield
+   - schemas sovereign_shield, sovereign_intake, sovereign_submissions
+   - admin-only managed submissions volume
+   - serverless SQL warehouse and cluster policy
+   Technologies: Terraform, azurerm, azuread, Databricks provider, Key Vault,
+   ADLS Gen2, Unity Catalog
+   Gate: infrastructure outputs available
+
+2. DATABRICKS ACCOUNT WIRING — approximately 2–5 minutes
+   Actions:
+   - synchronize Entra users, service principals and five account groups
+   - assign groups and pipeline principal to workspace
+   - re-apply Terraform with account_groups_ready=true
+   Resources/permissions:
+   - admin, submitter-ca, submitter-us, researchers, public
+   - catalog/schema traversal and SQL warehouse CAN_USE
+   Technologies: Databricks Account SCIM, Entra ID, Terraform grants
+   Gate: is_account_group_member can resolve every persona
+
+3. ASSET BUNDLE DEPLOYMENT — approximately 1–3 minutes
+   Actions:
+   - dot-source pre_auth.ps1
+   - databricks bundle validate and deploy
+   Resources:
+   - three-task ingestion job
+   - Databricks App definition
+   - synchronized source and requirements
+   Technologies: Databricks Asset Bundles, PowerShell, Azure CLI authentication
+   Gate: job and app resources deployed
+
+4. SDMx PIPELINE & POLICY PLANE — approximately 8–15 minutes including cluster start
+   Show three ordered tasks:
+   1) apply_security.py — idempotent DDL, policy UDFs, row filter, column mask
+   2) generate_sovereign_submissions.py — synthetic sovereign microdata,
+      pysdmx SDMx-ML 3.0 filings into the governed volume
+   3) scd2_merge_engine.py — parse, validate checks_lbs.xls, atomic
+      country-period verdict, Delta SCD2 merge
+   Outcomes:
+   - 22 clean baseline observations remain current and published
+   - 22 revision observations are audit-only quarantine rows
+   - prior accepted state remains live
+   Technologies: Databricks Runtime 18.x, PySpark, Delta Lake, pysdmx,
+   SDMx 3.0, BIS LBS DSD, checks_lbs.xls
+   Gate: published and quarantine states verified
+
+5. TABLE & FUNCTION GRANTS — approximately 1–3 minutes
+   Actions:
+   - terraform apply with grant_tables=true
+   - grant SELECT on governed history and micro ledger by persona
+   - grant EXECUTE on dynamic masking function
+   Technologies: Terraform additive databricks_grant resources, Unity Catalog
+   Gate: tables and policy functions reachable by intended identities
+
+6. DATABRICKS APP — approximately 2–5 minutes
+   Actions:
+   - deploy/start sovereignshield-portal
+   - add app-managed service principal to public group
+   - request SQL user API scope
+   - apply app CAN_USE and warehouse CAN_USE permissions
+   Runtime identity:
+   - signed-in user via X-Forwarded-Access-Token / on-behalf-of SQL
+   - app service principal for public-tier fallback
+   Technologies: Databricks Apps, FastAPI, Databricks SQL, OAuth
+   Gate: app RUNNING; persona views resolve correctly
+
+7. PUBLIC CONTAINER APPS GATEWAY — approximately 8–18 minutes
+   Actions:
+   - build image remotely with az acr build
+   - deploy Azure Container Apps with external ingress
+   - Key Vault references for the public proxy credential
+   - Azure client-secret authentication to Databricks SQL
+   - optional Entra Easy Auth with AllowAnonymous
+   - delegated AzureDatabricks user_impersonation consent
+   - login scopes: openid, profile, offline_access
+   - separate Blob-backed Easy Auth token store
+   - browser reads same-origin /.auth/me, keeps token in memory, sends
+     Authorization: Bearer to API calls
+   - restart active revision after secret updates
+   Technologies: Azure Container Registry, Azure Container Apps, Easy Auth,
+   Entra ID, Key Vault, Blob Storage, FastAPI
+   Gate: anonymous public access plus optional signed-in persona elevation
+
+8. PERSONA VERIFICATION & HANDOVER — approximately 5–10 minutes
+   Render five compact result badges:
+   - Public: 13 PUBLISHED/F observations
+   - Researcher: 22 published observations, 9 values masked
+   - Bank of Canada analyst: 14 observations, own restricted values visible
+   - Federal Reserve analyst: 17 observations, own restricted values visible
+   - Administrator: 22 published unmasked; 44 when quarantine is included
+   Actions:
+   - test dynamic multi-select filters and persona-scoped facets
+   - test SDMX-ML, SDMX-JSON, SDMX-CSV and tidy CSV exports
+   - verify no-group identity returns zero rows
+   - hand over repository, Terraform examples, bundle, skills, runbooks,
+     architecture diagrams and whitepaper — never tfvars, backend.hcl, state or
+     credentials
+   Technologies: Unity Catalog RLS/DDM, FastAPI portal, SDMx exports, Git
+   Gate: client acceptance and controlled builder revocation
+
+FINAL HANDOVER PANEL — far right
+Show a shielded repository package crossing into a client-owned boundary.
+Labels:
+- "Specification in"
+- "Synthetic proof"
+- "Client-owned deployment"
+- "Builder access revoked"
+- "No production data transferred"
+
+BOTTOM TIMELINE:
+Show approximate elapsed time under each stage and a total first-run range of
+approximately 30–70 minutes, with a note:
+"Cloud provisioning, cluster start, RBAC propagation and ACR build times vary by
+region, quota and first-run extension installation. Re-runs are materially faster."
+
+SIDE LEGEND — "OWNERSHIP"
+- Terraform: infrastructure and access-control plane
+- Databricks Asset Bundles + SQL: data and policy plane
+- Unity Catalog: query-time enforcement
+- Client administrators: account identities, approvals and final ownership
+
+SIDE LEGEND — "SECURITY INVARIANTS"
+- USER_ISOLATION compute
+- No credential literals in tracked source or Terraform variables
+- Public is an explicit identity, not a fall-through
+- No recognised group = zero rows
+- Quarantined revision never replaces published state
+- One writer per object
+
+FOOTER:
+"Approximate timings for an evaluation deployment · Independent reference
+architecture · Synthetic data · Not affiliated with or endorsed by any central
+bank, international organisation or technology vendor"
+
+OUTPUT REQUIREMENTS:
+- 3840×2160 landscape.
+- Every stage number, duration, command family, technology and gate must be
+  readable and correctly spelled.
+- Use arrows only for real dependencies; show the three deferred Terraform
+  applies as explicit gates, not as one monolithic apply.
+- Make the sequential story dominant and the technology inventory secondary.
+- Do not invent products, steps, timings or data flows beyond those specified.
+```
 
 ---
 

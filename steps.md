@@ -16,6 +16,10 @@ Two provisioning paths are supported. They are **alternatives, not a sequence**.
 
 **→ [steps_scripts.md](steps_scripts.md)** — the quickstart.
 
+**→ [One-command operations](docs/AUTOMATION_RUNBOOK.md)** — orchestrates the
+Terraform path from existing local configuration, with resumable setup and
+ordered pause/teardown commands.
+
 Running both against one subscription is the one combination to avoid: the
 scripts create resources Terraform did not create, and Terraform then has to
 adopt them. If you started with the scripts and want to move to Terraform, set
