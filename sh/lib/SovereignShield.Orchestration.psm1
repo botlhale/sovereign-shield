@@ -34,8 +34,20 @@ function Invoke-SovereignShieldNative {
     )
 
     Write-Host "    > $FilePath $($Arguments -join ' ')" -ForegroundColor DarkGray
-    & $FilePath @Arguments
-    $exitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    if ($AllowFailure) { $ErrorActionPreference = "Continue" }
+    try {
+        & $FilePath @Arguments
+        $exitCode = $LASTEXITCODE
+    }
+    catch {
+        if (-not $AllowFailure) { throw }
+        Write-Warning $_.Exception.Message
+        $exitCode = 1
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         throw "Command failed with exit code ${exitCode}: $FilePath $($Arguments -join ' ')"
     }

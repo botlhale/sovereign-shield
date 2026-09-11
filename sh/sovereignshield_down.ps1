@@ -49,8 +49,8 @@ try {
     }
     Invoke-SovereignShieldNative -FilePath "az" -Arguments @("account", "show", "--output", "none") | Out-Null
 
-    $workspaceHost = (& az databricks workspace show --name $WorkspaceName `
-        --resource-group $ResourceGroup --query workspaceUrl -o tsv 2>$null | Out-String).Trim()
+    $workspaceHost = (& az databricks workspace list --resource-group $ResourceGroup `
+        --query "[?name=='$WorkspaceName'].workspaceUrl | [0]" -o tsv | Out-String).Trim()
     if ($workspaceHost) { Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost }
 
     if ($Mode -eq "Pause") {
@@ -76,43 +76,55 @@ try {
         throw "Workload teardown is destructive. Re-run with -ConfirmWorkloadDestruction or preview with -WhatIf."
     }
 
-    if (-not $workspaceHost) {
-        throw "Workspace '$WorkspaceName' was not found. Run sh/terraform_reconcile.ps1 before teardown if state and Azure have drifted."
-    }
+    $state = & $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" state list 2>$null
+    if ($LASTEXITCODE -ne 0) { throw "Terraform state could not be read." }
+    $catalogManagedByTerraform = [bool]($state | Select-String "databricks_catalog\.main")
 
-    if ($PSCmdlet.ShouldProcess("Unity Catalog data and policy objects", "Delete in dependency order")) {
-        $published = "dbw_sovereignshield.sovereign_shield"
-        $intake = "dbw_sovereignshield.sovereign_intake"
-        foreach ($object in @(
-            @{ Kind = "tables"; Name = "$published.v_agg_sdmx_published" },
-            @{ Kind = "tables"; Name = "$published.agg_sdmx_history" },
-            @{ Kind = "tables"; Name = "$intake.lbs_micro_transactions" },
-            @{ Kind = "functions"; Name = "$published.fn_ddm_obs_conf_mask" },
-            @{ Kind = "functions"; Name = "$published.fn_rls_multi_persona_lock" },
-            @{ Kind = "functions"; Name = "$intake.fn_rls_micro_country_lock" }
-        )) {
-            Invoke-SovereignShieldNative -FilePath "databricks" `
-                -Arguments @($object.Kind, "delete", $object.Name) -AllowFailure | Out-Null
+    if ($workspaceHost -and $catalogManagedByTerraform -and $PSCmdlet.ShouldProcess("Unity Catalog data and policy objects", "Discover and delete in dependency order")) {
+        $catalogName = "dbw_sovereignshield"
+        $schemaNames = @("sovereign_shield", "sovereign_intake", "sovereign_submissions")
+        $catalogJson = & databricks catalogs list --output json 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "Could not list catalogs`n$($catalogJson | Out-String)" }
+        $catalogNames = @($catalogJson | Out-String | ConvertFrom-Json | ForEach-Object { $_.name })
+
+        if ($catalogNames -contains $catalogName) {
+            $schemaJson = & databricks schemas list $catalogName --output json 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not list schemas in $catalogName`n$($schemaJson | Out-String)"
+            }
+            $existingSchemaNames = @($schemaJson | Out-String | ConvertFrom-Json | ForEach-Object { $_.name })
+
+            # Discover live objects instead of assuming the schema encoded in DDL.
+            # Tables and views must go first because they can bind policy functions.
+            foreach ($kind in @("tables", "functions")) {
+                foreach ($schemaName in @($schemaNames | Where-Object { $existingSchemaNames -contains $_ })) {
+                    $json = & databricks $kind list $catalogName $schemaName --output json 2>&1
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Could not list $kind in $catalogName.$schemaName`n$($json | Out-String)"
+                    }
+
+                    $parsedObjects = $json | Out-String | ConvertFrom-Json
+                    $objects = if ($null -eq $parsedObjects) { @() } else { @($parsedObjects) }
+                    foreach ($object in $objects) {
+                        if (-not $object.PSObject.Properties["full_name"]) { continue }
+                        Write-Host "Deleting Unity Catalog $($kind.TrimEnd('s')) $($object.full_name)" -ForegroundColor DarkGray
+                        Invoke-SovereignShieldNative -FilePath "databricks" `
+                            -Arguments @($kind, "delete", $object.full_name) | Out-Null
+                    }
+                }
+            }
         }
     }
 
-    if ($PSCmdlet.ShouldProcess("Databricks bundle resources", "Destroy job, app and uploaded files")) {
+    if ($workspaceHost -and $PSCmdlet.ShouldProcess("Databricks bundle resources", "Destroy job, app and uploaded files")) {
         Invoke-SovereignShieldNative -FilePath "databricks" `
             -Arguments @("bundle", "destroy", "-t", $Target, "--auto-approve") -AllowFailure | Out-Null
     }
 
-    $state = & $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" state list 2>$null
-    if ($LASTEXITCODE -ne 0) { throw "Terraform state could not be read." }
     $gatewayManagedByTerraform = [bool]($state | Select-String "module.dissemination_gateway")
 
     if ($gatewayManagedByTerraform) {
-        if ($PSCmdlet.ShouldProcess("Terraform-managed dissemination gateway", "Disable gateway module")) {
-            Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
-                -VarFile $TerraformVarFile -Variables @(
-                    "account_groups_ready=true", "grant_tables=false",
-                    "deploy_dissemination_gateway=false"
-                )
-        }
+        Write-Host "Terraform-managed dissemination gateway will be removed by terraform destroy." -ForegroundColor DarkGray
     }
     else {
         if ($PSCmdlet.ShouldProcess("Script-managed Container Apps gateway", "Delete app, environment, registry and token store")) {
@@ -148,14 +160,6 @@ try {
         }
     }
 
-    if ($PSCmdlet.ShouldProcess("Terraform table grants", "Remove before dropping tables and catalog")) {
-        Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
-            -VarFile $TerraformVarFile -Variables @(
-                "account_groups_ready=true", "grant_tables=false",
-                "deploy_dissemination_gateway=false"
-            )
-    }
-
     if ($PSCmdlet.ShouldProcess("Terraform-managed SovereignShield workload", "Destroy")) {
         Invoke-SovereignShieldTerraform -Terraform $terraform -RepoRoot $repoRoot -Arguments @(
             "destroy", "-input=false", "-auto-approve", "-var-file=$TerraformVarFile",
@@ -164,9 +168,34 @@ try {
         ) | Out-Null
     }
 
+    # Azure can orphan the workspace diagnostic resource after deleting the
+    # Databricks workspace and its managed resource group. The generated name
+    # is scoped to this workload resource group and has no Terraform owner.
+    $diagnosticPrefix = "workspace-$($ResourceGroup -replace '[^A-Za-z0-9]', '')"
+    $orphanedDiagnostics = @(& az resource list --resource-group $ResourceGroup `
+        --resource-type "Microsoft.OperationalInsights/workspaces" `
+        --query "[?starts_with(name, '$diagnosticPrefix')].id" -o tsv)
+    foreach ($resourceId in $orphanedDiagnostics) {
+        if ($resourceId -and $PSCmdlet.ShouldProcess($resourceId, "Delete orphaned Databricks diagnostic workspace")) {
+            Invoke-SovereignShieldNative -FilePath "az" `
+                -Arguments @("resource", "delete", "--ids", $resourceId) | Out-Null
+        }
+    }
+
     if ($WhatIfPreference) {
         Write-Host "`nWorkload teardown preview complete; no resources were changed." -ForegroundColor Green
         return
+    }
+
+    $remainingState = @(& $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" state list 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "Terraform state could not be verified after destroy." }
+    if ($remainingState.Count -gt 0) {
+        throw "Workload teardown left Terraform state entries behind:`n  $($remainingState -join "`n  ")"
+    }
+
+    $remainingResources = @(& az resource list --resource-group $ResourceGroup --query "[].id" -o tsv)
+    if ($remainingResources.Count -gt 0) {
+        throw "Workload teardown left Azure resources behind:`n  $($remainingResources -join "`n  ")"
     }
 
     Write-Host "`nWorkload teardown complete." -ForegroundColor Green

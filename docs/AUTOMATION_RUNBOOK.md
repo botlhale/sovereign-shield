@@ -108,13 +108,15 @@ Execute it:
 The script performs these operations in order:
 
 1. Capture workspace authentication before Key Vault or workspace deletion.
-2. Drop the published view, policy-bound tables and policy functions in
-   dependency order.
+2. Discover and drop live views/tables before policy functions across every
+  project schema, rather than relying on fixed object locations.
 3. Destroy Databricks bundle resources.
 4. Disable and delete the Container Apps gateway through its owning path.
-5. Remove table grants from Terraform state and the live metastore.
-6. Destroy Terraform-managed workload resources.
-7. Report the resources intentionally preserved.
+5. Destroy the remaining Terraform-managed workload directly without an
+  intermediate apply that could recreate resources after a partial failure.
+6. Remove any orphaned Databricks diagnostic Log Analytics workspace.
+7. Fail if any Azure workload resource or Terraform state entry remains.
+8. Report the resources intentionally preserved.
 
 The default workload teardown preserves:
 
@@ -129,6 +131,8 @@ never deleted by the orchestration script.
 
 - Workload teardown requires `-ConfirmWorkloadDestruction`.
 - `-WhatIf` performs discovery and state inspection but no deletion.
+- Re-running after a partial destroy is supported; absent workspaces, catalogs,
+  schemas and gateways are treated as already complete.
 - Do not interrupt `terraform destroy` or Container Apps environment deletion.
 - Copy required submission files before teardown; the managed volume is deleted.
 - The scripts do not bootstrap the Terraform backend, create human users, handle
