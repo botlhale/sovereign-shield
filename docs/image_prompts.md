@@ -1,7 +1,7 @@
 # Image Prompts
 
-The two prompts that produce the rendered diagrams committed in this repository.
-Both are self-contained and one-shot: paste whole into Gemini, Microsoft 365
+The three prompts that produce the rendered diagrams committed in this repository.
+All are self-contained and one-shot: paste whole into Gemini, Microsoft 365
 Copilot, DALL·E or Midjourney. No compositing.
 
 | Prompt | Renders | Audience |
@@ -28,6 +28,18 @@ Not legal advice. Route external material through whoever normally reviews it.
 ---
 
 ## Terraform deployment lifecycle prompt
+
+> **Scope boundary.** This diagram covers the complete manual Terraform runbook,
+> including the one-time state bootstrap. The one-command wrapper begins only
+> after the remote backend, local configuration, Python environment and four
+> client-owned Entra users exist. Do not imply that
+> `sh/sovereignshield_up.ps1` creates those prerequisites.
+
+> **Render acceptance gate.** Reject a generated image if it omits any of the
+> five persona badges (including Administrator), reproduces or approximates a
+> vendor logo, invents a product or acronym, misspells an exact label, or makes
+> the one-time bootstrap appear to be part of the one-command wrapper. A
+> technically incomplete render is not suitable as operational documentation.
 
 ```text
 Create a comprehensive, polished 16:9 enterprise architecture infographic titled:
@@ -64,6 +76,10 @@ Show a Windows workstation, PowerShell 5.1, Azure CLI, Databricks CLI,
 Terraform, Python/pytest and Git. Show GitHub Actions with OIDC as an optional
 promotion path, visually distinct from local interactive deployment.
 
+Add a compact scope banner above stage 0 with this exact text:
+"FULL MANUAL RUNBOOK SHOWN · ONE-COMMAND SETUP STARTS AFTER BACKEND, CONFIG,
+PYTHON ENVIRONMENT AND CLIENT-OWNED ENTRA USERS EXIST"
+
 Middle band — "AZURE & DATABRICKS CONTROL PLANE"
 Show Azure Subscription, Resource Groups, Azure Storage remote Terraform state,
 Microsoft Entra ID, Azure Key Vault, Azure Databricks workspace, access
@@ -87,6 +103,8 @@ title, commands/actions, resources produced, and approximate elapsed time:
    - install dependencies and run offline tests
    - create remote Terraform state resource group, storage account and tfstate
      container using Entra/RBAC authentication
+   - confirm four client-owned Entra users already exist; do not depict the
+     deployment creating human users
    Technologies: PowerShell, Azure CLI, Python, pytest, Azure Storage, RBAC
    Gate: prerequisites valid; remote state reachable
 
@@ -123,7 +141,9 @@ title, commands/actions, resources produced, and approximate elapsed time:
 
 3. ASSET BUNDLE DEPLOYMENT — approximately 1–3 minutes
    Actions:
-   - dot-source pre_auth.ps1
+  - authenticate the Databricks CLI through the active Azure CLI session
+  - show pre_auth.ps1 only as a separate manual-runbook credential hydration
+    path, never as an action performed by sovereignshield_up.ps1
    - databricks bundle validate and deploy
    Resources:
    - three-task ingestion job
@@ -185,7 +205,8 @@ title, commands/actions, resources produced, and approximate elapsed time:
    Gate: anonymous public access plus optional signed-in persona elevation
 
 8. PERSONA VERIFICATION & HANDOVER — approximately 5–10 minutes
-   Render five compact result badges:
+  Render exactly five compact result badges. The Administrator badge is
+  mandatory and must not be dropped to save space:
    - Public: 13 PUBLISHED/F observations
    - Researcher: 22 published observations, 9 values masked
    - Bank of Canada analyst: 14 observations, own restricted values visible
@@ -243,6 +264,13 @@ OUTPUT REQUIREMENTS:
   applies as explicit gates, not as one monolithic apply.
 - Make the sequential story dominant and the technology inventory secondary.
 - Do not invent products, steps, timings or data flows beyond those specified.
+- Use generic geometric resource glyphs with typeset technology names only.
+  Reject the render if any Microsoft, Azure, Databricks, GitHub, Python,
+  Terraform, FastAPI or other vendor/project logo is reproduced or approximated.
+- Preserve these exact spellings everywhere: "SDMx", "SDMx-ML", "pysdmx",
+  "BIS LBS DSD", "checks_lbs.xls", "Easy Auth", "Entra ID" and
+  "AzureDatabricks/user_impersonation". Do not abbreviate, mutate or invent
+  adjacent labels.
 ```
 
 ---
