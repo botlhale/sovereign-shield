@@ -3,6 +3,9 @@
 Two copy-paste-ready LinkedIn posts and one follow-up, plus the reasoning behind
 naming the actual technology stack.
 
+For a short product video built around the public, researcher, reporting-authority
+and administrator views, use [PERSONA_DEMO_SCRIPT.md](PERSONA_DEMO_SCRIPT.md).
+
 * [Naming the stack — what is safe and what is not](#naming-the-stack)
 * [Primary post — The Contractor Dilemma](#primary-post--the-contractor-dilemma) (featured, feed-friendly)
 * [Long-form post — The Architecture](#long-form-post--the-architecture) (SLT-lead, for a considered read)
