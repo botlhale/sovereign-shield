@@ -433,6 +433,7 @@ Routed by what you are trying to establish.
 | **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Image prompts](docs/image_prompts.md) |
 | **Presenting it** | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) | [Executive vision](docs/executive_vision.md) · [Public write-up](docs/LINKEDIN_POST.md) |
 | **Running it end to end** | [One-command operations](docs/AUTOMATION_RUNBOOK.md) | [Terraform runbook](steps_terraform.md) |
+| **Explaining deployed resources** | [Resource provenance](docs/RESOURCE_PROVENANCE.md) | [Technical reference](docs/technical_reference.md) |
 
 ---
 
@@ -521,3 +522,4 @@ checklist.
 | [docs/LINKEDIN_POST.md](docs/LINKEDIN_POST.md) | Public write-up, primary and long-form versions |
 | [docs/PERSONA_DEMO_SCRIPT.md](docs/PERSONA_DEMO_SCRIPT.md) | 3–5 minute persona-led product demonstration and recording plan |
 | [docs/AUTOMATION_RUNBOOK.md](docs/AUTOMATION_RUNBOOK.md) | Resumable one-command setup, pause and ordered workload teardown |
+| [docs/RESOURCE_PROVENANCE.md](docs/RESOURCE_PROVENANCE.md) | Systems-architect map of resource purpose, creator, deployment stage, reuse and teardown owner |

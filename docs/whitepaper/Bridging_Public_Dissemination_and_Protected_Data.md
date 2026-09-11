@@ -6,6 +6,7 @@
 **Role:** Enterprise Data Platform Architect  
 **Classification:** Public Reference Architecture  
 **Standards:** SDMx 3.0 | BIS Locational Banking Statistics (LBS) | Azure Databricks Unity Catalog  
+**Implementation status:** End-to-end reference deployment validated with synthetic data
 
 ---
 
@@ -27,7 +28,7 @@ Modernizing legacy statistical platforms to hyperscaler lakehouses typically sta
 
 To resolve this bottleneck, I architected **Sovereign Shield**—an independent, open-source reference implementation combining **SDMx 3.0** open statistical standards with **Azure Databricks Unity Catalog**. 
 
-Sovereign Shield demonstrates an end-to-end operating model where external engineering talent delivers audit-grade security controls, dynamic masking, and temporal merges against an authentic Minimal Viable Synthetic Dataset (MVSD). Deployment to the sovereign production plane is executed entirely through air-gapped CI/CD pipelines backed by Entra ID Workload Identity Federation—guaranteeing that zero contractor credentials touch production data.
+Sovereign Shield demonstrates an end-to-end operating model where external engineering talent can deliver security controls, dynamic masking, and temporal merges against an authentic Minimal Viable Synthetic Dataset (MVSD). Promotion can use GitHub Actions with Entra ID Workload Identity Federation, while the evaluation deployment uses an authenticated operator and the same declarative Terraform and Asset Bundle definitions. The repository contains no credential literals; an institution still owns the administrative process that decides who may deploy and who may join each data-access group.
 
 ---
 
@@ -44,9 +45,12 @@ Rather than fragmenting data into separate physical databases for public and int
 
 
 ### The Perimeter Identity Problem
-Databricks Apps enforce mandatory Entra ID Single Sign-On (SSO), making an anonymous, public-facing dissemination tier impossible to host natively inside the workspace. To bridge this boundary securely, I designed the **Public Dissemination Gateway & Multi-Tenant Consumer Tier**:
-* **The Public Ingestion Route:** Unauthenticated researchers query the gateway via lightweight APIs, interacting with published, non-confidential observations (`OBS_CONF = 'F'`) served through high-concurrency Databricks SQL Serverless Warehouses.
-* **The Member/Researcher Route:** Authenticated users pass OAuth2/JWT tokens through the gateway. Unity Catalog intercepts the session, dynamically evaluating user claims against session attributes and returning granular data without risk of cross-tenant leakage.
+Databricks Apps enforce workspace sign-in, so they cannot by themselves provide a genuinely anonymous public endpoint. Sovereign Shield therefore deploys the same FastAPI portal through two hosts:
+
+* **Databricks App:** signed-in workspace users query with an on-behalf-of SQL token. The caller's Databricks account-group memberships reach Unity Catalog unchanged.
+* **Azure Container Apps gateway:** anonymous requests query as `spn-sovereignshield-public`, an explicit service principal that belongs only to `sg-sovereignshield-public`. Optional Entra Easy Auth uses `AllowAnonymous`; after sign-in, the browser forwards the caller's Azure Databricks access token to the same API instead of using the public proxy identity.
+
+The gateway chooses an identity, never rows. Unity Catalog applies `is_account_group_member()` at query time and returns only the rows and values allowed for that identity. The portal can export the governed result as SDMx-ML 3.0, SDMx-JSON 2.0.0, SDMx-CSV 2.0.0, or tidy CSV.
 
 ---
 
@@ -67,8 +71,8 @@ At the core of the data plane sits the **Triple-Lock Governance Architecture**, 
 ### The Persona Matrix
 I established four entitled enterprise roles, mapped to Entra ID Security Groups and enforced at runtime — plus a fifth case that matters more than any of them:
 
-1. **Anonymous Public Consumer (`sg-sovereignshield-public`):**  
-   Access is restricted strictly to published observations explicitly marked free for publication (`OBS_CONF = 'F'`). All confidential rows are filtered out before the scan returns.
+1. **Public Consumer (`sg-sovereignshield-public`):**
+  The anonymous browser is not itself a Databricks identity; the Container Apps gateway maps it to the dedicated public service principal. Access is restricted strictly to published observations explicitly marked free for publication (`OBS_CONF = 'F'`). Confidential rows are excluded from the query result by Unity Catalog.
 2. **Authenticated Researcher (`sg-sovereignshield-researchers`):**  
    Access extends across all published macro-aggregates. However, any record where `OBS_CONF` is `C` or `N` has its `OBS_VALUE` dynamically replaced with `NULL` — the universal statistical standard for redacted observations.
 3. **Regional Reporting Submitter (`sg-sovereignshield-submitter-{cty}`):**  
@@ -139,6 +143,24 @@ RETURN
 
 Two details carry disproportionate weight. `try_element_at` is used instead of `element_at` because under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`, which would abort every query against the table if a malformed key were ever persisted; the `coalesce` turns the resulting `NULL` into `FALSE`, so a malformed row is invisible rather than universally visible. And the mask re-checks segment 9 rather than trusting the group name — an earlier draft of this function omitted that check, and the resulting cross-sovereign exposure is undetectable against a single-jurisdiction test corpus.
 
+Memberships compose additively. A principal who is both a submitter and a researcher receives the union of the matching row entitlements, while the mask still reveals restricted values only for the principal's own jurisdiction. This is why the functions use independent `OR` branches rather than a first-match `CASE` expression.
+
+### Demonstrated Persona Outcomes
+
+The screenshots below are from one deployed synthetic fixture, not design mock-ups. Every persona queries the same governed history table through the same API.
+
+![Public portal showing 13 published, free-to-publish observations](../../demo/public_view.png)
+
+*Figure 3 — Anonymous public access resolves to the explicit public proxy identity and returns 13 published, free-to-publish observations.*
+
+![Researcher portal showing 22 published observations with nine masked values](../../demo/researcher_view.png)
+
+*Figure 4 — The researcher receives all 22 published series, while Unity Catalog masks nine restricted values.*
+
+![Administrator portal showing published and quarantined revisions](../../demo/admin_view_with_quarantine_data.png)
+
+*Figure 5 — The administrator can include quarantine and inspect all 44 published and audit-only rows without changing what downstream personas receive.*
+
 ---
 
 <div style="page-break-after: always;"></div>
@@ -151,9 +173,9 @@ To prevent declarative state drift and pipeline locks, I enforced a strict archi
 ![Separation of Concerns](../separation_of_concerns.png)
 
 
-* **Terraform owns the Infrastructure Control Plane:** Metastore bindings, catalogs, schemas, storage credentials, external locations, SQL warehouses, Azure Key Vault, and broad identity grants (`USE CATALOG`, `USE SCHEMA`). Terraform never manages table-level row filters or column masks.
+* **Terraform owns the Infrastructure Control Plane:** Entra groups and deployment identities, Azure resources, the Databricks workspace, Unity Catalog storage credentials and external locations, catalogs, schemas, SQL warehouses, and grants. The workspace resolves its existing regional metastore attachment through the Databricks provider; this configuration does not create or bind an account-level metastore. Terraform never manages table DDL, row-filter bindings, or column-mask bindings.
 * **Databricks Asset Bundles (DABs) & SQL own the Data & Policy Plane:** Table DDL, policy UDF logic, row filter attachments (`SET ROW FILTER`), and column mask attachments (`SET MASK`) are version-controlled alongside pipeline logic in `unity_catalog_triple_lock.sql`.
-* **Zero-Secret Decoupling:** The codebase contains zero client secrets, tokens, or private keys. GitHub Actions authenticates to Azure Entra ID using **OpenID Connect (OIDC)** and Workload Identity Federation. At runtime, Databricks accesses external keys through Azure Key Vault-backed secret scopes.
+* **Zero-Secret Source:** The tracked codebase contains no client secrets, tokens, private keys, Terraform variable values, backend configuration, or state. GitHub Actions can authenticate through **OpenID Connect (OIDC)** and Workload Identity Federation. Local orchestration uses the operator's active Azure CLI session. Key Vault holds the public proxy credential and workspace URL; the Container App uses a managed identity to resolve Key Vault references, while the Databricks secret scope stores only a pointer to the vault.
 
 ---
 
@@ -162,6 +184,22 @@ To prevent declarative state drift and pipeline locks, I enforced a strict archi
 ## 5. Temporal Integrity & SDMx Compliance
 
 Statistical reporting data is non-destructive; retrospective revisions are common as member institutions re-evaluate balance sheet exposure. A robust platform must maintain a complete historical audit trail without breaking downstream analytics.
+
+### Three Data Zones, Three Sensitivity Boundaries
+
+The catalog is divided by what each object represents and who can safely
+traverse it:
+
+| Schema | Contents | Access boundary |
+| --- | --- | --- |
+| `sovereign_submissions` | Governed volume containing SDMx-ML filings and accompanying synthetic micro files | Administrator only; volumes cannot carry row filters or column masks |
+| `sovereign_intake` | Institution-level transaction ledger before aggregation and confidentiality decisions | Administrator plus reporting submitters; `fn_rls_micro_country_lock` restricts each submitter to its own country |
+| `sovereign_shield` | Macro SCD2 history, policy functions, and published view | All recognised personas can traverse; multi-column RLS and DDM determine rows and values |
+
+This separation prevents a broad schema grant intended for disseminated
+aggregates from accidentally making raw files or institution-identifying rows
+reachable. The public portal and researcher persona never receive access to the
+submission volume or micro ledger.
 
 
 ![SCD2 Merge](../scd2.png)
@@ -193,6 +231,12 @@ Hiring organizations do not need to share internal records to initiate developme
 2. The mock generator (`src/generate_sovereign_submissions.py`) produces an authentic synthetic fixture exercising all security branches: multiple jurisdictions, free-to-publish and confidential observations, and a revision cycle whose figures break named checks in the published BIS workbook. The corrupted submissions use only real, permitted codelist values — the failures are genuine arithmetic inconsistencies a validator detects, not malformed records a parser would reject, because a fixture that fails at parse time never reaches the controls it is meant to test.
 3. External contractors build and validate all SQL, PySpark, and Terraform logic against the MVSD using local test harnesses.
 
+### Reproducible Deployment and Teardown
+
+After the one-time remote-state backend and local configuration are prepared, `sh/sovereignshield_up.ps1` executes the validated sequence from Terraform foundation through Databricks account wiring, Asset Bundle deployment, ingestion, grants, both portal hosts, and readiness checks. Stages can be bounded or resumed after a cloud timeout. `sh/sovereignshield_down.ps1` deletes tables and policy functions before the schemas that contain them, destroys bundle and Azure resources through their owning paths, removes orphaned diagnostics, and verifies both empty Terraform state and an empty workload resource group. The backend and account-level identity records are deliberately retained for reliable reconstruction.
+
+The reason each Azure and Databricks object exists, who creates it, and whether it is reused or deleted is documented in the [Systems Architect Resource Provenance Guide](../RESOURCE_PROVENANCE.md). The command sequence and recovery controls are in the [One-Command Operations Runbook](../AUTOMATION_RUNBOOK.md).
+
 ### Cluster Sizing & Enterprise Scale
 
 Single-node compute is a **cost choice, not an architectural constraint**. Row filters and column masks are evaluated inside the query engine, so the security model behaves identically at any cluster size.
@@ -204,10 +248,14 @@ Single-node compute is a **cost choice, not an architectural constraint**. Row f
 
 > **Measurement note.** The published figures are the corpus shape and the linearity assertion, both reproducible offline. Latency under concurrent multi-user load on production-sized hardware has not been benchmarked here, and is not claimed.
 
+### What This Reference Architecture Does Not Prove
+
+The deployment uses synthetic data and is not a production accreditation. It does not replace institutional threat modelling, privacy impact assessment, records-retention policy, penetration testing, disaster-recovery exercises, private-network design, or formal validation by the standards owner. It demonstrates that sovereignty, confidentiality, quality quarantine, and temporal continuity can be implemented and tested as platform-enforced constraints, with evidence that can be reproduced before production data is introduced.
+
 ---
 
 <div style="page-break-after: always;"></div>
 
 ## Conclusion
 
-Sovereign Shield resolves the fundamental trade-off between open data dissemination and sovereign microdata protection. By establishing a decoupled Dissemination Gateway, enforcing Triple-Lock access controls in Unity Catalog, and operationalizing an air-gapped synthetic delivery model, institutions can modernize their data platforms with external talent while maintaining complete mathematical and regulatory certainty over their sensitive assets.
+Sovereign Shield provides a concrete way to manage the trade-off between open data dissemination and sovereign microdata protection. A decoupled dissemination gateway selects an identity, Unity Catalog enforces the resulting entitlement, the SDMx rule engine makes acceptance reproducible, and SCD2 preserves the last valid published state. Together with synthetic-first delivery and declarative lifecycle automation, those controls give institutions an inspectable starting point for modernization without claiming that a reference implementation alone supplies production accreditation or regulatory certainty.

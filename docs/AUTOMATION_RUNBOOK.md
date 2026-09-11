@@ -4,6 +4,11 @@ The orchestration scripts wrap the existing Terraform runbook. They do not
 replace Terraform, Databricks Asset Bundles or the stage-specific scripts; they
 execute those tools in the required order and stop on the first failed gate.
 
+For a resource-by-resource explanation of both Azure resource groups, the
+Databricks account layer, creation ownership, reuse behavior, cost relevance,
+and teardown ownership, see the
+[Systems Architect Resource Provenance Guide](RESOURCE_PROVENANCE.md).
+
 ## Assumptions
 
 Before setup:
