@@ -266,6 +266,10 @@
       params.append("date_from", referencePeriod.value);
       params.append("date_to", referencePeriod.value);
     }
+    // Built here rather than in runSearch so the export links carry the same
+    // lifecycle scope as the preview; otherwise a download silently drops
+    // quarantined rows the administrator can see on screen.
+    if (quarantine && quarantine.checked) params.append("include_quarantined", "true");
     return params;
   }
 
@@ -434,7 +438,6 @@
     const sequence = ++searchSequence;
     clearError();
     const params = currentParams();
-    if (quarantine && quarantine.checked) params.append("include_quarantined", "true");
     params.append("limit", "500");
 
     const response = await authenticatedFetch("/api/v1/search?" + params.toString());
@@ -494,7 +497,10 @@
     refreshExportLinks();
     scheduleSearch();
   });
-  quarantine.addEventListener("change", scheduleSearch);
+  quarantine.addEventListener("change", () => {
+    refreshExportLinks();
+    scheduleSearch();
+  });
   document.addEventListener("click", (event) => {
     filterMenus.forEach((menu) => {
       if (!menu.contains(event.target)) menu.open = false;

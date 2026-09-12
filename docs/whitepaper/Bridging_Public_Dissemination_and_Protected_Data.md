@@ -50,7 +50,7 @@ Databricks Apps enforce workspace sign-in, so they cannot by themselves provide 
 * **Databricks App:** signed-in workspace users query with an on-behalf-of SQL token. The caller's Databricks account-group memberships reach Unity Catalog unchanged.
 * **Azure Container Apps gateway:** anonymous requests query as `spn-sovereignshield-public`, an explicit service principal that belongs only to `sg-sovereignshield-public`. Optional Entra Easy Auth uses `AllowAnonymous`; after sign-in, the browser forwards the caller's Azure Databricks access token to the same API instead of using the public proxy identity.
 
-The gateway chooses an identity, never rows. Unity Catalog applies `is_account_group_member()` at query time and returns only the rows and values allowed for that identity. The portal can export the governed result as SDMx-ML 3.0, SDMx-JSON 2.0.0, SDMx-CSV 2.0.0, or tidy CSV.
+The gateway chooses an identity, never rows. Unity Catalog applies `is_account_group_member()` at query time and returns only the rows and values allowed for that identity. The portal can export the governed result as SDMx-ML 3.0, SDMx-JSON 2.0.0, SDMx-CSV 2.0.0, or tidy CSV — and the export carries the caller's entitlement rather than a wider one, as the sample messages in §5 show.
 
 ---
 
@@ -212,6 +212,37 @@ submission volume or micro ledger.
 * **Atomic Verdict, Precise Attribution:** Acceptance is atomic per `(reporting country, reporting period)`. Partial publication is incoherent rather than merely undesirable: the aggregates that reconcile depend on the components that did not. Every observation in a broken batch is therefore withheld — but `FAILED_RULE_ID` names only the checks that observation itself broke, and is null for a series that reconciles. The verdict is collective; the accusation is not, so an investigator is pointed at the break rather than at every row that shares its quarter.
 * **Structural Validation:** Submissions are parsed against the live BIS_LBS Data Structure Definition using `pysdmx` object models, resolving the eleven dimensions that compose the series key (`FREQ`, `L_MEASURE`, `L_POSITION`, `L_INSTR`, `L_DENOM`, `L_CURR_TYPE`, `L_PARENT_CTY`, `L_REP_BANK_TYPE`, `L_REP_CTY`, `L_CP_SECTOR`, `L_CP_COUNTRY`). A key of the wrong arity is rejected outright rather than silently misaligned against the dimension list.
 * **Revision Without Regression:** A quarantined re-filing is written as a non-current audit record. The previously published version stays `IS_CURRENT` and continues to feed the public view, so a failed revision can never withdraw data that was already correct.
+
+### Standards-Native Dissemination
+
+Data arrives as SDMx and leaves as SDMx. The governed result of a query is serialised back into the same dataflow it was reported against — `BIS:WS_LBS_D_PUB(1.0)` — rather than into a portal-specific export shape that a receiving system would have to learn.
+
+The samples in [`demo/sdmx/`](../../demo/sdmx) were produced by the deployed portal's exporter for the administrator persona, reference period `2026-Q1`. The same 22 observations are emitted in SDMx-ML 3.0, SDMx-JSON 2.0.0 and SDMx-CSV 2.0.0, plus a non-standard tidy CSV for analysts; the three standard formats are mutually equivalent observation-for-observation.
+
+```xml
+<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="USD"
+        L_CURR_TYPE="D" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="US"
+        L_CP_SECTOR="A" L_CP_COUNTRY="5J">
+  <Obs TIME_PERIOD="2026-Q1" OBS_VALUE="400" OBS_STATUS="A" OBS_CONF="N" />
+</Series>
+```
+
+Every dimension of the eleven-part key is written out, so the reporting jurisdiction the row filter keyed on (`L_REP_CTY="US"`, segment 9) is visible to the receiving system rather than implied. The SDMx-CSV rows carry the same structural identity on every line, which is what makes the file self-describing rather than order-dependent:
+
+```text
+STRUCTURE,STRUCTURE_ID,ACTION,FREQ,...,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF
+dataflow,BIS:WS_LBS_D_PUB(1.0),I,Q,...,2026-Q1,400,A,N
+```
+
+**The entitlement travels with the export.** These files are the strongest available evidence that the persona matrix is enforced below the presentation layer, because the payload changes with the caller and not with the format:
+
+| Persona | Observations exported | Restricted values |
+| --- | ---: | --- |
+| Public proxy | 13 | none present — confidential rows never enter the result |
+| Researcher | 22 | 9 serialised as **absent**, not zero |
+| Administrator | 22 | 9 present, because `OBS_CONF = 'N'` is readable at this tier |
+
+The distinction between an absent observation and a zero one is not cosmetic. Writing `0` for a redacted value would convert a confidentiality control into a false data point that reconciles incorrectly downstream; the exporter therefore omits the measure entirely, and `tests/test_sdmx_validation_rules.py` asserts that a masked value never serialises as `0`.
 
 ---
 

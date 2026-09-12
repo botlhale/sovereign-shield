@@ -411,6 +411,8 @@ a fully compromised gateway still cannot return a confidential observation.
 Real SDMX-ML 3.0, SDMX-JSON 2.0.0 and SDMX-CSV 2.0.0 messages, serialised with
 `pysdmx` against the published BIS LBS structure. The consistency rulebook is parsed
 from the published workbook at runtime, so a standards revision needs no deployment.
+Sample downloads from the deployed portal are in [`demo/sdmx/`](demo/sdmx) — the same
+22 observations in all three standard formats, mutually equivalent observation-for-observation.
 
 → [Validation engine](.github/skills/sdmx_lbs_validation.md)
 
@@ -429,7 +431,7 @@ Routed by what you are trying to establish.
 | **Sizing it for production** | [Scaling blueprint](docs/technical_guide.md) | [Cluster policy](terraform/modules/databricks_workspace/compute.tf) |
 | **Engaging a contractor** | [Onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) | [Contractor workflow](.github/skills/contractor_zero_trust_workflow.md) |
 | **Consuming the API** | [Technical vision](docs/technical_vision.md) — data model, cadences, endpoints | [Gateway detail](docs/technical_reference.md) |
-| **Checking SDMx conformance** (statistical audit) | [SDMx LBS validation](.github/skills/sdmx_lbs_validation.md) | [MVSD specification](.github/skills/mvsd_specification.md) |
+| **Checking SDMx conformance** (statistical audit) | [SDMx LBS validation](.github/skills/sdmx_lbs_validation.md) | [Sample exports](demo/sdmx) · [MVSD specification](.github/skills/mvsd_specification.md) |
 | **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Image prompts](docs/image_prompts.md) |
 | **Presenting it** | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) | [Executive vision](docs/executive_vision.md) · [Public write-up](docs/LINKEDIN_POST.md) |
 | **Running it end to end** | [One-command operations](docs/AUTOMATION_RUNBOOK.md) | [Terraform runbook](steps_terraform.md) |

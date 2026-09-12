@@ -94,10 +94,10 @@ _SDMX_ML_NS = {
     "xsi": "http://www.w3.org/2001/XMLSchema-instance",
 }
 
-_SDMX_JSON_SCHEMA = (
-    "https://raw.githubusercontent.com/sdmx-twg/sdmx-json/master/data-message/"
-    "tools/schemas/2.0.0/sdmx-json-data-schema.json"
-)
+#: The SDMX-TWG GitHub tree carries only the unversioned working copy, which now
+#: describes 2.1.0. json.sdmx.org publishes each release under its own path, so
+#: this pins the schema for the version these messages actually declare.
+_SDMX_JSON_SCHEMA = "https://json.sdmx.org/2.0.0/sdmx-json-data-schema.json"
 
 
 class SdmxSerializationError(RuntimeError):
@@ -496,7 +496,13 @@ def to_sdmx_json_2_0_0(
             "sender": {"id": sender_id, "name": sender_name},
         },
         "data": {
-            "dataSets": [{"action": dataset_action, "series": series}],
+            "dataSets": [
+                {
+                    "action": dataset_action,
+                    "links": [{"urn": structure_urn(), "rel": "dataflow"}],
+                    "series": series,
+                }
+            ],
             "structures": [
                 {
                     "dataSets": [0],
@@ -515,15 +521,21 @@ def to_sdmx_json_2_0_0(
                             {
                                 "id": TIME_DIMENSION,
                                 "name": "Time period",
+                                # TIME_PERIOD follows the 11 series dimensions in the key.
+                                "keyPosition": len(SDMX_DIMENSIONS),
                                 "values": [{"id": v, "name": v} for v in period_values],
                             }
                         ],
+                    },
+                    "measures": {
+                        "observation": [{"id": MEASURE, "name": MEASURE}]
                     },
                     "attributes": {
                         "observation": [
                             {
                                 "id": attribute,
                                 "name": attribute,
+                                "relationship": {"observation": {}},
                                 "values": [{"id": v, "name": v} for v in attribute_values[attribute]],
                             }
                             for attribute in OBS_ATTRIBUTES

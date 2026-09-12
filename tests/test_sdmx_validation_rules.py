@@ -308,3 +308,38 @@ def test_observations_are_grouped_into_series():
 
     assert "<Series" in xml
     assert 'dimensionAtObservation="TIME_PERIOD"' in xml
+
+
+def test_sdmx_json_cites_a_version_pinned_schema():
+    """The published schema link must resolve to the version being emitted.
+
+    The SDMX-TWG GitHub tree keeps only an unversioned working copy, which now
+    describes 2.1.0, so the previous raw.githubusercontent path 404s and a
+    consumer cannot validate what it was sent.
+    """
+    assert sdmx._SDMX_JSON_SCHEMA == "https://json.sdmx.org/2.0.0/sdmx-json-data-schema.json"
+
+
+def test_sdmx_json_declares_every_schema_required_component():
+    """SDMX-JSON 2.0.0 marks these required; omitting them fails validation.
+
+    ``dataSet`` requires ``links``, every ``dimension`` requires ``keyPosition``
+    and every ``attribute`` requires ``relationship``. They are structural, so a
+    reader cannot infer them from the payload.
+    """
+    import json
+
+    frame = _macro_frame([("Q.S.C.A.USD.F.5J.A.CA.A.5J", 100.0)])
+
+    message = json.loads(sdmx.to_sdmx_json_2_0_0(frame))
+    data_set = message["data"]["dataSets"][0]
+    structure = message["data"]["structures"][0]
+
+    assert data_set["links"], "dataSet.links is required"
+    assert [d["keyPosition"] for d in structure["dimensions"]["series"]] == list(range(11))
+    assert structure["dimensions"]["observation"][0]["keyPosition"] == 11, (
+        "TIME_PERIOD follows the 11 series dimensions in the key"
+    )
+    assert [m["id"] for m in structure["measures"]["observation"]] == ["OBS_VALUE"]
+    for attribute in structure["attributes"]["observation"]:
+        assert attribute["relationship"] == {"observation": {}}

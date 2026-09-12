@@ -111,3 +111,18 @@ def test_portal_keeps_results_and_exports_in_one_desktop_workspace(repo_root):
     assert 'class="min-h-0 flex-1 overflow-auto"' in portal
     assert "sticky top-0" in portal
     assert 'id="export-sdmx-ml"' in portal
+
+
+def test_portal_exports_inherit_the_previewed_quarantine_scope(repo_root):
+    """An administrator's download must match what the preview shows.
+
+    Export links are built from ``currentParams()``. While the quarantine flag
+    was appended separately inside ``runSearch``, every export silently returned
+    published rows only, however the checkbox was set.
+    """
+    portal = open(repo_root + "/src/templates/portal.html", encoding="utf-8").read()
+
+    params_body = portal.split("function currentParams()", 1)[1].split("function scheduleSearch", 1)[0]
+
+    assert 'params.append("include_quarantined", "true")' in params_body
+    assert portal.count('params.append("include_quarantined", "true")') == 1

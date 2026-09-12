@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mes:StructureSpecificData xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:mes="http://www.sdmx.org/resources/sdmxml/schemas/v3_0/message" xmlns:ss="http://www.sdmx.org/resources/sdmxml/schemas/v3_0/data/structurespecific" xmlns:com="http://www.sdmx.org/resources/sdmxml/schemas/v3_0/common" xmlns:ns1="urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=BIS:WS_LBS_D_PUB(1.0):ObsLevelDim:TIME_PERIOD" xsi:schemaLocation="http://www.sdmx.org/resources/sdmxml/schemas/v3_0/message https://registry.sdmx.org/schemas/v3_0/SDMXMessage.xsd">
+	<mes:Header>
+		<mes:ID>791c4409-8047-42c6-b0bb-5efca2189d25</mes:ID>
+		<mes:Test>false</mes:Test>
+		<mes:Prepared>2026-09-12T02:57:28Z</mes:Prepared>
+		<mes:Sender id="SOVEREIGNSHIELD">
+			<com:Name>SovereignShield Dissemination Gateway</com:Name>
+		</mes:Sender>
+		<mes:Structure structureID="WS_LBS_D_PUB" namespace="urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=BIS:WS_LBS_D_PUB(1.0)" dimensionAtObservation="TIME_PERIOD">
+			<com:StructureUsage>urn:sdmx:org.sdmx.infomodel.datastructure.Dataflow=BIS:WS_LBS_D_PUB(1.0)</com:StructureUsage>
+		</mes:Structure>
+		<mes:DataSetAction>Information</mes:DataSetAction>
+		<mes:DataSetID>WS_LBS_D_PUB_20260912T025728Z</mes:DataSetID>
+	</mes:Header>
+	<mes:DataSet ss:structureRef="WS_LBS_D_PUB" xsi:type="ns1:DataSetType" action="Information">
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="CAD" L_CURR_TYPE="D" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="CA" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="400" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="GBP" L_CURR_TYPE="D" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="300" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="TO1" L_CURR_TYPE="A" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="CA" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="1000" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="TO1" L_CURR_TYPE="A" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="900" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="TO1" L_CURR_TYPE="A" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="US" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="1000" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="TO1" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="CA" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="500" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="TO1" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="500" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="TO1" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="US" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="500" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="UN9" L_CURR_TYPE="U" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="CA" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="100" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="UN9" L_CURR_TYPE="U" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="100" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="UN9" L_CURR_TYPE="U" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="US" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="100" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="USD" L_CURR_TYPE="D" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="US" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="400" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="CHF" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="100" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="EUR" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="-50" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="GBP" L_CURR_TYPE="D" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="450" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="GBP" L_CURR_TYPE="D" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="B" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="300" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="GBP" L_CURR_TYPE="D" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="N" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="150" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="GBP" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="100" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="JPY" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="100" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="TO1" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="400" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="TO3" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="50" OBS_STATUS="A" OBS_CONF="N" />
+		</Series>
+		<Series FREQ="Q" L_MEASURE="S" L_POSITION="L" L_INSTR="A" L_DENOM="USD" L_CURR_TYPE="F" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="GB" L_CP_SECTOR="A" L_CP_COUNTRY="5J" >
+			<Obs TIME_PERIOD="2026-Q1" OBS_VALUE="100" OBS_STATUS="A" OBS_CONF="F" />
+		</Series>
+	</mes:DataSet>
+</mes:StructureSpecificData>
