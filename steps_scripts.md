@@ -245,12 +245,14 @@ renders empty for every visitor.
 
 Restart the app afterwards so it picks up the new membership.
 
-The portal has four independent authorization layers. Check all four when a
-persona can load the app but cannot query it: the app's `CAN_USE` ACL, the
-app's `user_api_scopes: ["sql"]`, the SQL warehouse's own `CAN_USE` ACL, and
-the Unity Catalog grants and policies. The warehouse ACL is not implied by
-table `SELECT` or by app access. Grant `CAN_USE` to every persona group on the
-warehouse through **SQL Warehouses -> Permissions**, then verify it with:
+The portal has five independent authorization layers. Check all five when a
+persona can load the app but cannot query it: workspace-scoped
+`databricks-sql-access` on the persona group, the app's `CAN_USE` ACL, the app's
+`user_api_scopes: ["sql"]`, the SQL warehouse's own `CAN_USE` ACL, and the Unity
+Catalog grants and policies. Workspace assignment does not imply SQL entitlement,
+and the warehouse ACL is not implied by table `SELECT` or app access. Re-run
+`databricks_account_setup.ps1` to restore group entitlements, grant `CAN_USE` to
+every persona group on the warehouse, then verify the warehouse ACL with:
 
 ```powershell
 databricks warehouses get-permissions <warehouse-id> --output json

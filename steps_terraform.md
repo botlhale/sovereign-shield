@@ -444,9 +444,10 @@ already did.
 The Databricks App uses its managed service principal for the public tier and
 the viewer's `X-Forwarded-Access-Token` for signed-in queries. The bundle
 declares `user_api_scopes: ["sql"]`, app `CAN_USE` permissions, and the warehouse
-resource. Terraform grants warehouse `CAN_USE`, catalog/schema traversal and
-table privileges to every persona; `unity_catalog_grants.sql` grants `EXECUTE`
-on the mask function. Verify the live state:
+resource. Account setup grants workspace-scoped `databricks-sql-access` to every
+persona group. Terraform grants warehouse `CAN_USE`, catalog/schema traversal
+and table privileges to every persona; `unity_catalog_grants.sql` grants
+`EXECUTE` on the mask function. Verify the live state:
 
 ```powershell
 databricks apps get sovereignshield-portal --output json

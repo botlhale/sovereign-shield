@@ -58,7 +58,7 @@ resources or Terraform state remain.
 | ---: | --- | --- | --- |
 | 0 | `sovereignshield_up.ps1` | Validates tools, config, Azure login, providers, persona users, and tests | Read-only except idempotent provider registration |
 | 1 | Terraform | Identity, Key Vault, Databricks workspace, UC storage/connector, catalog, schemas, volume, SQL warehouse, cluster policy | Terraform converges state; the workload resource group can be created or adopted |
-| 2 | `databricks_account_setup.ps1`, then Terraform | Databricks account SCIM mirrors, memberships, workspace assignments, public proxy SQL entitlement, catalog/schema/warehouse grants | Lists before creating; skips existing objects, memberships, assignments, and entitlements |
+| 2 | `databricks_account_setup.ps1`, then Terraform | Databricks account SCIM mirrors, memberships, workspace assignments, persona-group and public-proxy SQL entitlements, catalog/schema/warehouse grants | Lists before creating; skips existing objects, memberships, assignments, and entitlements |
 | 3 | Databricks Asset Bundles | Three-task pipeline job, Databricks App definition, synchronized source and requirements | Bundle deploy updates its existing deployment |
 | 4 | Asset Bundle job and SQL | Security DDL, synthetic submissions, micro ledger, SCD2 history, policy functions, masks, row filters, published view | DDL and merge logic are idempotent; revisions append audit history |
 | 5 | Terraform | Table grants after Stage 4 creates the objects and applies policy-function execution grants | Additive grants converge through `grant_tables=true` |
@@ -123,10 +123,12 @@ Stage 2 therefore:
 1. Creates or finds the five account-level groups.
 2. Creates or finds account user records for the four pre-existing Entra users.
 3. Creates or finds Databricks account service-principal records for the CI/CD
-  and public proxy Entra applications; the public proxy receives the workspace
-  `databricks-sql-access` entitlement required by serverless SQL.
+  and public proxy Entra applications.
 4. Adds each principal to its policy group.
 5. Assigns the groups and deployment principal to the new workspace.
+6. Grants every persona group and the public proxy the workspace-scoped
+  `databricks-sql-access` entitlement required for identity resolution and
+  serverless SQL. Workspace assignment alone does not confer this entitlement.
 
 These Databricks account records support identity resolution; they are not a
 running workspace and do not incur compute cost. They intentionally survive

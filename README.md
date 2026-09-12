@@ -268,7 +268,7 @@ They are **not** the supported route to a governed environment. Terraform holds 
 
 Two capabilities remain script-only because no provider expresses them:
 
-* `sh/databricks_account_setup.ps1` — Databricks **account**-level groups and workspace assignment. `is_account_group_member()` resolves account scope, and the Terraform Databricks provider addresses the workspace.
+* `sh/databricks_account_setup.ps1` — Databricks **account**-level groups, workspace assignment and persona SQL entitlements. `is_account_group_member()` resolves account scope, and the Terraform Databricks provider addresses the workspace.
 * `sh/kv_spn_remediation.sh` — deliberate, destructive credential rotation on demand.
 
 ### Session authentication for the quickstart path

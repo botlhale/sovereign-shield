@@ -236,6 +236,37 @@ function Add-ServicePrincipalEntitlement {
     finally { Remove-Item $file -ErrorAction SilentlyContinue }
 }
 
+function Add-GroupEntitlement {
+    param(
+        [string]$GroupId,
+        [string]$Label,
+        [string]$Entitlement
+    )
+
+    $group = Invoke-Db -Arguments @("groups", "get", $GroupId)
+    $existing = @()
+    if ($group.PSObject.Properties.Name -contains "entitlements" -and $group.entitlements) {
+        $existing = @($group.entitlements | ForEach-Object { $_.value })
+    }
+    if ($existing -contains $Entitlement) {
+        Write-Host "  [skip]   $Label already has $Entitlement"
+        return
+    }
+
+    Write-Host "  [create] Granting $Entitlement to $Label" -ForegroundColor Green
+    $payload = @{
+        schemas    = @("urn:ietf:params:scim:api:messages:2.0:PatchOp")
+        Operations = @(@{
+            op    = "add"
+            path  = "entitlements"
+            value = @(@{ value = $Entitlement })
+        })
+    }
+    $file = New-TempJson $payload
+    try { Invoke-Db -Arguments @("groups", "patch", $GroupId, "--json", "@$file") | Out-Null }
+    finally { Remove-Item $file -ErrorAction SilentlyContinue }
+}
+
 try {
     if ($AppOnly) {
         if (-not $appClientId) { throw "-AppOnly requires -AppName." }
@@ -366,21 +397,25 @@ try {
         finally { Remove-Item $file -ErrorAction SilentlyContinue }
     }
 
-    if ($publicPrincipalId) {
-        $workspaceHost = az databricks workspace show -g $ResourceGroup -n $WorkspaceName --query workspaceUrl -o tsv
-        $accountHost = $env:DATABRICKS_HOST
-        $accountIdValue = $env:DATABRICKS_ACCOUNT_ID
-        try {
-            $env:DATABRICKS_HOST = "https://$workspaceHost"
-            $env:DATABRICKS_ACCOUNT_ID = $null
+    $workspaceHost = az databricks workspace show -g $ResourceGroup -n $WorkspaceName --query workspaceUrl -o tsv
+    $accountHost = $env:DATABRICKS_HOST
+    $accountIdValue = $env:DATABRICKS_ACCOUNT_ID
+    try {
+        $env:DATABRICKS_HOST = "https://$workspaceHost"
+        $env:DATABRICKS_ACCOUNT_ID = $null
+        foreach ($name in $GROUPS) {
+            Add-GroupEntitlement -GroupId $groupIds[$name] -Label $name `
+                -Entitlement "databricks-sql-access"
+        }
+        if ($publicPrincipalId) {
             Add-ServicePrincipalEntitlement -PrincipalId $publicPrincipalId `
                 -Label "spn-sovereignshield-public" `
                 -Entitlement "databricks-sql-access" -WorkspaceScope
         }
-        finally {
-            $env:DATABRICKS_HOST = $accountHost
-            $env:DATABRICKS_ACCOUNT_ID = $accountIdValue
-        }
+    }
+    finally {
+        $env:DATABRICKS_HOST = $accountHost
+        $env:DATABRICKS_ACCOUNT_ID = $accountIdValue
     }
 
     Write-Host "`n========================================================" -ForegroundColor Green

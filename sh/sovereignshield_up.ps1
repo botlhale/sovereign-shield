@@ -223,6 +223,25 @@ try {
             throw "Databricks App '$AppName' is not running."
         }
 
+        foreach ($groupName in @(
+            "sg-sovereignshield-admin",
+            "sg-sovereignshield-submitter-ca",
+            "sg-sovereignshield-submitter-us",
+            "sg-sovereignshield-researchers",
+            "sg-sovereignshield-public"
+        )) {
+            $groups = @(& databricks groups list --filter "displayName eq '$groupName'" `
+                --output json | Out-String | ConvertFrom-Json)
+            if ($LASTEXITCODE -ne 0 -or $groups.Count -ne 1) {
+                throw "Workspace persona group '$groupName' could not be resolved."
+            }
+            $group = (& databricks groups get $groups[0].id --output json | Out-String | ConvertFrom-Json)
+            $entitlements = @($group.entitlements | ForEach-Object { $_.value })
+            if ($entitlements -notcontains "databricks-sql-access") {
+                throw "Workspace persona group '$groupName' lacks databricks-sql-access."
+            }
+        }
+
         $containerFqdn = (& az containerapp show --name "ca-sovereignshield-portal" `
             --resource-group $ResourceGroup --query properties.configuration.ingress.fqdn -o tsv | Out-String).Trim()
         if ([string]::IsNullOrWhiteSpace($containerFqdn)) {
