@@ -44,7 +44,8 @@ param(
     [string]$ResourceGroup = "rg-sovereignshield",
     [string]$WorkspaceName = "dbw-sovshield",
     [string]$TenantDomain = "13668754CANADAINC.onmicrosoft.com",
-    [string]$AppName = ""
+    [string]$AppName = "",
+    [switch]$AppOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -197,7 +198,73 @@ function Add-GroupMember {
     finally { Remove-Item $file -ErrorAction SilentlyContinue }
 }
 
+function Add-ServicePrincipalEntitlement {
+    param(
+        [string]$PrincipalId,
+        [string]$Label,
+        [string]$Entitlement,
+        [switch]$WorkspaceScope
+    )
+
+    [string[]]$commandPrefix = if ($WorkspaceScope) {
+        "service-principals"
+    } else {
+        "account"
+        "service-principals"
+    }
+    $principal = Invoke-Db -Arguments ($commandPrefix + @("get", $PrincipalId))
+    $existing = @()
+    if ($principal.PSObject.Properties.Name -contains "entitlements" -and $principal.entitlements) {
+        $existing = @($principal.entitlements | ForEach-Object { $_.value })
+    }
+    if ($existing -contains $Entitlement) {
+        Write-Host "  [skip]   $Label already has $Entitlement"
+        return
+    }
+
+    Write-Host "  [create] Granting $Entitlement to $Label" -ForegroundColor Green
+    $payload = @{
+        schemas    = @("urn:ietf:params:scim:api:messages:2.0:PatchOp")
+        Operations = @(@{
+            op    = "add"
+            path  = "entitlements"
+            value = @(@{ value = $Entitlement })
+        })
+    }
+    $file = New-TempJson $payload
+    try { Invoke-Db -Arguments ($commandPrefix + @("patch", $PrincipalId, "--json", "@$file")) | Out-Null }
+    finally { Remove-Item $file -ErrorAction SilentlyContinue }
+}
+
 try {
+    if ($AppOnly) {
+        if (-not $appClientId) { throw "-AppOnly requires -AppName." }
+
+        Write-Host "=== App service principal ===" -ForegroundColor Cyan
+        $publicGroups = @(Get-Resources (Invoke-Db @(
+            "account", "groups", "list", "--filter",
+            "displayName eq 'sg-sovereignshield-public'"
+        )))
+        if ($publicGroups.Count -eq 0) {
+            throw "sg-sovereignshield-public does not exist. Run the full account setup first."
+        }
+
+        $appPrincipals = @(Get-Resources (Invoke-Db @(
+            "account", "service-principals", "list", "--filter",
+            "applicationId eq '$appClientId'"
+        )))
+        if ($appPrincipals.Count -eq 0) {
+            throw "No account service principal exists yet for app '$AppName'."
+        }
+
+        Add-GroupMember `
+            -GroupId (Get-ResourceId $publicGroups[0] "group sg-sovereignshield-public") `
+            -GroupName "sg-sovereignshield-public" `
+            -PrincipalId (Get-ResourceId $appPrincipals[0] "$AppName managed SP") `
+            -Label "$AppName (managed SP)"
+        return
+    }
+
     Write-Host "=== 1. Account groups ===" -ForegroundColor Cyan
     $groupIds = @{}
     foreach ($name in $GROUPS) {
@@ -233,6 +300,7 @@ try {
 
     Write-Host "`n=== 3. Account service principals ===" -ForegroundColor Cyan
     $cicdPrincipalId = $null
+    $publicPrincipalId = $null
     foreach ($spn in $SERVICE_PRINCIPALS) {
         $appId = az ad app list --display-name $spn.Name `
             --query "[?displayName=='$($spn.Name)'].appId | [0]" -o tsv
@@ -255,6 +323,9 @@ try {
 
         Add-GroupMember -GroupId $groupIds[$spn.Group] -GroupName $spn.Group -PrincipalId $spId -Label $spn.Name
         if ($spn.Name -eq "spn-sovereignshield-cicd") { $cicdPrincipalId = $spId }
+        if ($spn.Name -eq "spn-sovereignshield-public") {
+            $publicPrincipalId = $spId
+        }
     }
 
     Write-Host "`n=== 4. Workspace assignment ===" -ForegroundColor Cyan
@@ -278,6 +349,9 @@ try {
     if ($cicdPrincipalId) {
         $targets += @{ Id = $cicdPrincipalId; Label = "spn-sovereignshield-cicd"; Permission = "ADMIN" }
     }
+    if ($publicPrincipalId) {
+        $targets += @{ Id = $publicPrincipalId; Label = "spn-sovereignshield-public"; Permission = "USER" }
+    }
 
     foreach ($target in $targets) {
         if ($assigned.ContainsKey([string]$target.Id)) {
@@ -290,6 +364,23 @@ try {
             Invoke-Db @("account", "workspace-assignment", "update", $workspaceId, [string]$target.Id, "--json", "@$file") | Out-Null
         }
         finally { Remove-Item $file -ErrorAction SilentlyContinue }
+    }
+
+    if ($publicPrincipalId) {
+        $workspaceHost = az databricks workspace show -g $ResourceGroup -n $WorkspaceName --query workspaceUrl -o tsv
+        $accountHost = $env:DATABRICKS_HOST
+        $accountIdValue = $env:DATABRICKS_ACCOUNT_ID
+        try {
+            $env:DATABRICKS_HOST = "https://$workspaceHost"
+            $env:DATABRICKS_ACCOUNT_ID = $null
+            Add-ServicePrincipalEntitlement -PrincipalId $publicPrincipalId `
+                -Label "spn-sovereignshield-public" `
+                -Entitlement "databricks-sql-access" -WorkspaceScope
+        }
+        finally {
+            $env:DATABRICKS_HOST = $accountHost
+            $env:DATABRICKS_ACCOUNT_ID = $accountIdValue
+        }
     }
 
     Write-Host "`n========================================================" -ForegroundColor Green

@@ -74,9 +74,14 @@ function Test-AzResourceExists {
 }
 
 Write-Host "==> 1/8 Registering providers and the containerapp extension" -ForegroundColor Cyan
-az extension add --name containerapp --upgrade --only-show-errors | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Azure CLI could not update the 'containerapp' extension. Continuing because Azure CLI may provide it through dynamic extension loading. If a later containerapp command is unavailable, install it with: az extension add --name containerapp --upgrade"
+az containerapp --help 2>$null | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "    [skip]   Container Apps commands are available"
+} else {
+    az extension add --name containerapp --upgrade --only-show-errors | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Azure CLI could not install the 'containerapp' extension. Run: az extension add --name containerapp --upgrade"
+    }
 }
 az provider register --namespace Microsoft.App --wait | Out-Null
 az provider register --namespace Microsoft.OperationalInsights --wait | Out-Null
@@ -330,13 +335,19 @@ if ($EnableEntraSignIn) {
     if (-not $TokenStoreStorageName) {
         $TokenStoreStorageName = "stsovereignshieldauth$((Get-Random -Maximum 1000).ToString('000'))"
     }
-    $tokenStorageExists = az storage account show --name $TokenStoreStorageName `
-        --resource-group $ResourceGroup --query name -o tsv 2>$null
+    $tokenStorageExists = Test-AzResourceExists {
+        az storage account show --name $TokenStoreStorageName `
+            --resource-group $ResourceGroup --only-show-errors
+    }
     if (-not $tokenStorageExists) {
+        Write-Host "    [create] Token store $TokenStoreStorageName" -ForegroundColor Green
         az storage account create --name $TokenStoreStorageName `
             --resource-group $ResourceGroup --location $Location `
             --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 `
             --allow-blob-public-access false --https-only true --output none
+    }
+    else {
+        Write-Host "    [skip]   Token store $TokenStoreStorageName exists"
     }
     az storage container create --account-name $TokenStoreStorageName `
         --name easy-auth-tokens --auth-mode login --public-access off --output none
@@ -366,6 +377,9 @@ if ($EnableEntraSignIn) {
     $storedTokenSas = az containerapp secret list --name $AppName `
         --resource-group $ResourceGroup --show-values `
         --query "[?name=='easy-auth-token-sas'].value | [0]" -o tsv
+    if ([string]::IsNullOrWhiteSpace($storedTokenSas)) {
+        throw "Easy Auth token-store SAS secret was not stored or is empty."
+    }
     foreach ($requiredPart in @("se=", "sp=", "spr=", "sv=", "sr=", "sig=")) {
         if (-not $storedTokenSas.Contains($requiredPart)) {
             throw "Easy Auth token-store SAS secret is incomplete (missing $requiredPart)."
@@ -390,13 +404,7 @@ if ($EnableEntraSignIn) {
     az containerapp revision restart --name $AppName --resource-group $ResourceGroup `
         --revision $activeRevision --output none
 
-    Write-Host ""
-    Write-Host "Manual step: add the Databricks scope to the login request." -ForegroundColor Yellow
-    Write-Host "  Entra portal > App registrations > app-sovereignshield-portal > Authentication"
-    Write-Host "  Container App > Authentication > Microsoft > Edit > Login parameters:"
-    Write-Host "    scope=openid profile $AzureDatabricksResourceId/user_impersonation"
-    Write-Host "  Without it the forwarded token has the wrong audience and every"
-    Write-Host "  signed-in visitor silently stays on the public tier."
+    Write-Host "    [ok]     Easy Auth login scopes and Blob token store configured"
 }
 else {
     Write-Host "==> 8/8 Skipping Entra sign-in (anonymous tier only)" -ForegroundColor Cyan

@@ -50,11 +50,6 @@ resource "azurerm_storage_account" "unity_catalog" {
   min_tls_version                 = "TLS1_2"
   shared_access_key_enabled       = false
 
-  network_rules {
-    default_action = "Allow"
-    bypass         = ["AzureServices"]
-  }
-
   tags = var.tags
 }
 

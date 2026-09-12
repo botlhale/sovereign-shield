@@ -1,0 +1,11 @@
+**
+!Dockerfile
+!src/
+src/**
+!src/requirements.txt
+!src/api_gateway.py
+!src/portal_ui.py
+!src/uc_query.py
+!src/sdmx_ml_exporter.py
+!src/templates/
+!src/templates/**

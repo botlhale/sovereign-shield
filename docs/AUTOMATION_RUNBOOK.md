@@ -35,17 +35,20 @@ The default run executes:
 | Stage | Action | Typical evaluation time |
 | ---: | --- | ---: |
 | 0 | Validate tools, config, Azure session, providers, persona users and offline tests | 2–5 min |
-| 1 | Terraform foundation with deferred grants/gateway disabled | 8–20 min |
+| 1 | Terraform foundation with deferred grants/gateway disabled; automatically reconverges after first workspace creation when needed | 8–20 min |
 | 2 | Databricks account wiring and persona traversal/warehouse grants | 2–5 min |
 | 3 | Validate and deploy the Databricks Asset Bundle | 1–3 min |
 | 4 | Run security DDL, SDMx generation, validation and SCD2 pipeline | 8–15 min |
-| 5 | Bind table and policy-function grants | 1–3 min |
+| 5 | Bind Terraform table grants; Stage 4 already applied policy-function execution grants | 1–3 min |
 | 6 | Start the Databricks App and bind its public identity | 2–5 min |
 | 7 | Build and deploy Container Apps with anonymous + Entra access | 8–18 min |
-| 8 | Verify both portals and optionally configure GitHub | 1–3 min |
+| 8 | Verify both portals, 13-row anonymous fixture, Easy Auth/token store, and optionally configure GitHub | 1–3 min |
 
 First-run duration is normally 30–70 minutes. Regional capacity, RBAC
 propagation, cluster start and ACR build queues are the main sources of variance.
+The repository `.dockerignore` restricts the ACR upload to the portal runtime
+files; local environments, Terraform providers, data, documentation and demo
+media are never sent as image-build context.
 
 ### Resume or bound a run
 

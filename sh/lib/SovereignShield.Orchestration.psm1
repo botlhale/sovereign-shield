@@ -116,6 +116,8 @@ function Set-SovereignShieldWorkspaceAuth {
     }
     $env:DATABRICKS_AUTH_TYPE = "azure-cli"
     Remove-Item Env:ARM_CLIENT_ID, Env:ARM_CLIENT_SECRET -ErrorAction SilentlyContinue
+    Remove-Item Env:DATABRICKS_ACCOUNT_ID, Env:DATABRICKS_AZURE_RESOURCE_ID, `
+        Env:DATABRICKS_AZURE_TENANT_ID, Env:DATABRICKS_CONFIG_PROFILE -ErrorAction SilentlyContinue
 }
 
 function Test-SovereignShieldEntraUsers {

@@ -58,10 +58,10 @@ resources or Terraform state remain.
 | ---: | --- | --- | --- |
 | 0 | `sovereignshield_up.ps1` | Validates tools, config, Azure login, providers, persona users, and tests | Read-only except idempotent provider registration |
 | 1 | Terraform | Identity, Key Vault, Databricks workspace, UC storage/connector, catalog, schemas, volume, SQL warehouse, cluster policy | Terraform converges state; the workload resource group can be created or adopted |
-| 2 | `databricks_account_setup.ps1`, then Terraform | Databricks account SCIM mirrors, memberships, workspace assignments, catalog/schema/warehouse grants | Lists before creating; skips existing objects and memberships |
+| 2 | `databricks_account_setup.ps1`, then Terraform | Databricks account SCIM mirrors, memberships, workspace assignments, public proxy SQL entitlement, catalog/schema/warehouse grants | Lists before creating; skips existing objects, memberships, assignments, and entitlements |
 | 3 | Databricks Asset Bundles | Three-task pipeline job, Databricks App definition, synchronized source and requirements | Bundle deploy updates its existing deployment |
 | 4 | Asset Bundle job and SQL | Security DDL, synthetic submissions, micro ledger, SCD2 history, policy functions, masks, row filters, published view | DDL and merge logic are idempotent; revisions append audit history |
-| 5 | Terraform | Table and policy-function grants after those objects exist | Additive grants converge through `grant_tables=true` |
+| 5 | Terraform | Table grants after Stage 4 creates the objects and applies policy-function execution grants | Additive grants converge through `grant_tables=true` |
 | 6 | Asset Bundle plus account setup | Starts the Databricks App and assigns its managed service principal to the public account group | Existing app is redeployed; existing membership is skipped |
 | 7 | `container_apps_deploy.ps1` | ACR, image, Container Apps environment/app, managed identity, Easy Auth registration and token store | Discovers named/random resources and updates them; image is rebuilt intentionally |
 | 8 | `sovereignshield_up.ps1` | Health and running-state verification; optional GitHub environment configuration | Verification only unless GitHub configuration is requested |
@@ -123,7 +123,8 @@ Stage 2 therefore:
 1. Creates or finds the five account-level groups.
 2. Creates or finds account user records for the four pre-existing Entra users.
 3. Creates or finds Databricks account service-principal records for the CI/CD
-   and public proxy Entra applications.
+  and public proxy Entra applications; the public proxy receives the workspace
+  `databricks-sql-access` entitlement required by serverless SQL.
 4. Adds each principal to its policy group.
 5. Assigns the groups and deployment principal to the new workspace.
 

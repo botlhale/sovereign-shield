@@ -131,12 +131,28 @@ try {
             -Arguments @("init", "-input=false", "-backend-config=$TerraformBackendConfig") | Out-Null
         Invoke-SovereignShieldTerraform -Terraform $terraform -RepoRoot $repoRoot `
             -Arguments @("validate") | Out-Null
-        Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
-            -VarFile $TerraformVarFile -Variables @(
-                "account_groups_ready=false",
-                "grant_tables=false",
-                "deploy_dissemination_gateway=false"
-            )
+        $foundationVariables = @(
+            "account_groups_ready=false",
+            "grant_tables=false",
+            "deploy_dissemination_gateway=false"
+        )
+        try {
+            Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
+                -VarFile $TerraformVarFile -Variables $foundationVariables
+        }
+        catch {
+            # During a fresh create the Databricks provider host is unknown until
+            # Azure finishes the workspace. Converge once more against its live
+            # URL instead of requiring the operator to restart at Stage 1.
+            $workspaceHost = (& az databricks workspace list --resource-group $ResourceGroup `
+                --query "[?name=='$WorkspaceName'].workspaceUrl | [0]" -o tsv | Out-String).Trim()
+            if ([string]::IsNullOrWhiteSpace($workspaceHost)) { throw }
+
+            Write-Warning "Foundation apply stopped after workspace creation. Retrying against https://$workspaceHost."
+            Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost
+            Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
+                -VarFile $TerraformVarFile -Variables $foundationVariables
+        }
     }
 
     $workspaceUrl = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "workspace_url"
@@ -170,7 +186,7 @@ try {
             -Arguments @("bundle", "run", "sovereignshield_sdmx_pipeline", "-t", $Target) | Out-Null
     }
 
-    Invoke-Stage 5 "Table and policy-function grants" {
+    Invoke-Stage 5 "Terraform table grants" {
         Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
             -VarFile $TerraformVarFile -Variables @(
                 "account_groups_ready=true",
@@ -184,7 +200,7 @@ try {
             -Arguments @("bundle", "run", "sovereignshield_portal", "-t", $Target, "--var=warehouse_id=$warehouseId") | Out-Null
         & (Join-Path $repoRoot "sh\databricks_account_setup.ps1") `
             -AccountId $AccountId -ResourceGroup $ResourceGroup -WorkspaceName $WorkspaceName `
-            -TenantDomain $TenantDomain -AppName $AppName
+            -TenantDomain $TenantDomain -AppName $AppName -AppOnly
         Invoke-SovereignShieldNative -FilePath "databricks" `
             -Arguments @("bundle", "run", "sovereignshield_portal", "-t", $Target, "--var=warehouse_id=$warehouseId") | Out-Null
     }
@@ -215,6 +231,22 @@ try {
         $health = Invoke-RestMethod "https://$containerFqdn/api/v1/health"
         if ($health.status -ne "ok") { throw "Container Apps health check is not OK." }
 
+        $publicResult = Invoke-RestMethod "https://$containerFqdn/api/v1/search"
+        if ($publicResult.row_count -ne 13 -or $publicResult.masked_observations -ne 0) {
+            throw "Anonymous public verification failed: expected 13 rows and 0 masked values."
+        }
+
+        if ($EnableEntraSignIn) {
+            $auth = (& az containerapp auth show --name "ca-sovereignshield-portal" `
+                --resource-group $ResourceGroup --output json | Out-String | ConvertFrom-Json)
+            if ($auth.globalValidation.unauthenticatedClientAction -ne "AllowAnonymous") {
+                throw "Container Apps Easy Auth is not configured with AllowAnonymous."
+            }
+            if ($auth.login.tokenStore.azureBlobStorage.sasUrlSettingName -ne "easy-auth-token-sas") {
+                throw "Container Apps Easy Auth Blob token store is not configured."
+            }
+        }
+
         if ($ConfigureGitHub) {
             if ([string]::IsNullOrWhiteSpace($GitHubRepository)) {
                 throw "-GitHubRepository is required with -ConfigureGitHub."
@@ -236,6 +268,7 @@ try {
         Write-Host "`nSovereignShield is ready." -ForegroundColor Green
         Write-Host "  Databricks App : $($app.url)"
         Write-Host "  Public portal  : https://$containerFqdn"
+        Write-Host "  Public rows    : $($publicResult.row_count)"
         Write-Host "  Warehouse      : $warehouseId"
         Write-Host "  Submission root: $submissionVolume"
         Write-Host "  Elapsed         : $([math]::Round(((Get-Date) - $startedAt).TotalMinutes, 1)) minute(s)"
