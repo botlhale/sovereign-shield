@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a reproducible defect in code, documentation, tests, or deployment automation
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve SovereignShield. Do not report vulnerabilities or include secrets, personal data, client data, or real institutional records here. Use the Security tab for private vulnerability reporting.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Unity Catalog policies and grants
+        - SDMX generation, validation, or export
+        - SCD2 and quarantine lifecycle
+        - Portal or API
+        - Terraform or Azure infrastructure
+        - Databricks Asset Bundle or job
+        - Setup, teardown, or CI automation
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and why is it a defect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Provide the smallest reproducible sequence using synthetic data.
+      placeholder: |
+        1. Run ...
+        2. Query ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python, Terraform, Databricks CLI/runtime, and relevant provider versions.
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Add logs, request IDs, screenshots, or sample payloads with all sensitive values removed.
+
+  - type: checkboxes
+    id: assurances
+    attributes:
+      label: Submission checks
+      options:
+        - label: This report does not disclose a security vulnerability.
+          required: true
+        - label: This report contains no secrets, personal data, client data, or real institutional records.
+          required: true
+        - label: I have searched for an existing issue and agree to follow the Code of Conduct.
+          required: true

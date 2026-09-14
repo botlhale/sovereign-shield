@@ -1,0 +1,62 @@
+name: Feature request
+description: Propose an improvement to the reference architecture
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explain the institutional or technical problem first. Substantial architecture, dependency, data-model, or public API changes should be discussed before implementation.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What user, institution, or workflow needs this, and what constraint exists today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable behavior, not only an implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Include affected components, standards, and ownership boundaries.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Primary impact
+      options:
+        - Security or identity governance
+        - SDMX standards or validation
+        - Data lifecycle or quarantine
+        - Portal or API experience
+        - Infrastructure or operations
+        - Documentation or demonstration
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: assurances
+    attributes:
+      label: Submission checks
+      options:
+        - label: This request uses no secrets, personal data, client data, or real institutional records.
+          required: true
+        - label: I have searched for an existing request and agree to follow the Code of Conduct.
+          required: true

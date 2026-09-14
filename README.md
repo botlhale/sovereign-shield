@@ -36,6 +36,8 @@ The validation rulebook is treated as **metadata, not code** — an approach the
 
 > **Status:** a complete, deployed, end-to-end reference architecture on Azure, running the genuine BIS LBS rulebook and real SDMx 3.0 message structures against realistic **synthetic** submissions. It is not connected to live reporting data, and it is an independent piece of work — not a production system of, nor endorsed by, any central bank or international organisation. It is published for scrutiny, and critique from SDMx practitioners is genuinely welcome.
 
+> **Stewardship:** SovereignShield is developed and maintained by **13668754 Canada Inc.** as a public demonstration of secure cloud data-platform architecture, SDMx engineering, and reproducible delivery practices. Community participation is welcome under the [Apache License 2.0](LICENSE); production implementation and contracted support are separate from the public contribution process.
+
 ---
 
 ## 🗺️ System Architecture
@@ -436,6 +438,7 @@ Routed by what you are trying to establish.
 | **Presenting it** | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) | [Executive vision](docs/executive_vision.md) · [Public write-up](docs/LINKEDIN_POST.md) |
 | **Running it end to end** | [One-command operations](docs/AUTOMATION_RUNBOOK.md) | [Terraform runbook](steps_terraform.md) |
 | **Explaining deployed resources** | [Resource provenance](docs/RESOURCE_PROVENANCE.md) | [Technical reference](docs/technical_reference.md) |
+| **Contributing or reporting a concern** | [Contribution guide](CONTRIBUTING.md) | [Security policy](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) |
 
 ---
 

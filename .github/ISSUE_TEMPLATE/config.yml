@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/botlhale/sovereign-shield/security/advisories/new
+    about: Report vulnerabilities privately. Do not disclose security issues in a public issue.
+  - name: Deployment and operations documentation
+    url: https://github.com/botlhale/sovereign-shield/blob/main/docs/AUTOMATION_RUNBOOK.md
+    about: Review setup, recovery, pause, and teardown guidance before opening an issue.
