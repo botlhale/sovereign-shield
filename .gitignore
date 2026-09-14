@@ -260,3 +260,9 @@ sh/databricks_details
 # generate_sovereign_submissions.py and local_pandas_scd2.py on demand.
 data/local_delta_catalog/
 data/*_submission_*.xml
+
+# Derived presentation output. Markdown and tracked source images are canonical.
+docs/whitepaper/*.pdf
+/arch.png
+/slt.png
+docs/Gemini_Generated_Image_*

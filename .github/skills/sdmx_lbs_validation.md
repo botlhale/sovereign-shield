@@ -1,8 +1,8 @@
-# Project SovereignShield: SDMx 3.0 Data Validation & Schema Enforcement
+# SovereignShield SDMx 3.0 Data Validation and Schema Enforcement
 
 > **Context:** validation of national submissions to an international statistical body. The rulebook is authored and revised by **BIS**, not by this platform — which is precisely why the checks are loaded as runtime metadata rather than compiled into code.
 
-## 📊 Overview
+## Overview
 
 Validation in this domain is already rigorous: the BIS publishes an explicit consistency rulebook and submitting agencies check against it carefully. SovereignShield demonstrates how that same rulebook can be applied on a cloud-native platform under the **SDMx 3.0 standard**, loaded as runtime metadata rather than compiled into pipeline code.
 
@@ -10,7 +10,7 @@ The validation layer acts as the primary gatekeeper. It ensures that raw micro-t
 
 ---
 
-## 🏗️ Target Schema Alignment
+## Target Schema Alignment
 
 During the macro-aggregation phase, the pipeline must strictly conform to the unified analytical schema. This schema was intentionally expanded to support both Zero-Trust security views and complex macroeconomic research.
 
@@ -39,7 +39,7 @@ The validator emits these columns in a fixed order and the merge engine binds th
 
 ---
 
-## 🛡️ The BIS Rule Engine (`src/sdmx_rule_validator.py`)
+## The BIS Rule Engine (`src/sdmx_rule_validator.py`)
 
 Validation rules are **not hard-coded**. `SDMxRuleValidator` parses the official BIS consistency checks from `docs/reference_standards/checks_lbs.xls` at runtime and compiles each row into an executable predicate. Dimension names are resolved from the live `BIS_LBS` DSD via `pysdmx`, falling back to a pinned 11-dimension list when the registry is unreachable.
 
@@ -88,7 +88,7 @@ An empty input returns a correctly-shaped empty frame rather than raising. A qua
 
 ---
 
-## 🚧 The Quarantine Gate (`BATCH_STATUS`)
+## The Quarantine Gate (`BATCH_STATUS`)
 
 BIS submissions are accepted or rejected **as a whole**. A partially-published quarter is meaningless: the aggregates that reconcile depend on the components that did not.
 

@@ -3,7 +3,7 @@
 A reading order for someone who wants to understand the system properly, including
 the code, rather than deploy it.
 
-**This is not a deployment guide.** [`steps.md`](../steps.md) owns that, and nothing
+**This is not a deployment guide.** [`AUTOMATION_RUNBOOK.md`](AUTOMATION_RUNBOOK.md) owns that, and nothing
 here duplicates it. You do not need a cloud subscription, credentials, or a
 Databricks workspace to complete every pass below — the test suite and the local
 Delta mirror run on a laptop, which is itself one of the architectural claims.
@@ -20,8 +20,8 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pytest tests/ --no-header
 ```
 
-Expect `77 passed, 12 skipped`. The skips are the `--live` tests that need a real
-workspace and the `--stress` benchmarks that take minutes. If this passes, every
+The default suite runs offline. Tests marked `live` require a real workspace and
+tests marked `stress` require an explicit opt-in. If this passes, every
 pass in this guide is available to you offline.
 
 **The one idea to hold onto.** Almost every design decision in this repository
@@ -257,9 +257,11 @@ Violating this in either direction produces a resource fight where one plane rev
 the other. It is also why teardown must run in a specific order: a leftover row
 filter blocks the catalog destroy.
 
-⚠️ **A trap.** The `sh/` scripts are a quickstart, not the deployment path. See
-[README.md § The `sh/` scripts are a quickstart](../README.md). If you read them as
-the source of truth you will build a mental model the Terraform contradicts.
+**Operational distinction.** `sovereignshield_up.ps1` and
+`sovereignshield_down.ps1` are supported orchestrators around Terraform, the
+Asset Bundle, and focused helper scripts. The individual imperative path in
+`steps_scripts.md` is a demo and recovery aid; Terraform remains authoritative
+for the resources it manages.
 
 ---
 
@@ -488,7 +490,7 @@ Collected so you do not have to rediscover them.
 | Filtering in a Unity Catalog view | Views resolve membership against the **view owner**. Per-caller entitlement must read the base table |
 | RLS appears not to work | Row filters and column masks are not evaluated on `SINGLE_USER` compute. `USER_ISOLATION` is mandatory |
 | `*_secret_id` Terraform variables | Pointers, not secrets. Excluded from the secret scanner by design |
-| The `sh/` scripts | Quickstart only. Terraform is the deployment path |
+| Individual imperative helpers | Useful for demos and recovery; use `sovereignshield_up.ps1` and `sovereignshield_down.ps1` for the supported lifecycle |
 | `local_pandas_scd2.py` column names | Intentionally different from the macro path. Documented in its docstring |
 | "Single-node means it doesn't scale" | Single-node is the *default*, set by `worker_count_max = 0`. Entitlement is evaluated by the engine and is identical at any size |
 | "Raise the warehouse size when it's slow" | Size fixes heavy single queries; `sql_warehouse_max_clusters` fixes concurrency. Queueing is usually the second problem |
@@ -499,7 +501,7 @@ Collected so you do not have to rediscover them.
 
 ## Where to go next
 
-- **To deploy it:** [steps.md](../steps.md), Stage 0 onward.
+- **To deploy it:** [One-command operations](AUTOMATION_RUNBOOK.md).
 - **To present it:** [docs/technical_vision.md § Talking points](technical_vision.md)
   and § Anticipated challenges.
 - **For the capability inventory:** [.github/skills/SKILLS.md](../.github/skills/SKILLS.md).

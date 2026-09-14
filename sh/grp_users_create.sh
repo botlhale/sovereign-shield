@@ -7,11 +7,13 @@
 # this can be re-run after a workspace teardown to add only what is missing.
 # An existing user's password is never reset - that would invalidate a login
 # someone may already be using.
+#
+# Usage: TENANT_DOMAIN=example.onmicrosoft.com bash sh/grp_users_create.sh
 # =====================================================================
 
 set -euo pipefail
 
-TENANT_DOMAIN="${TENANT_DOMAIN:-13668754CANADAINC.onmicrosoft.com}"
+: "${TENANT_DOMAIN:?Set TENANT_DOMAIN to the target Entra tenant domain.}"
 
 # Only consulted when a user genuinely has to be created; an existing user's
 # password is never reset. Generated per run rather than committed - a literal

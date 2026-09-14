@@ -1,8 +1,8 @@
 # Executive Vision — Strategic Business Case
 
 **Audience:** senior leadership, board, non-technical sponsors, procurement
-**Companion:** [`technical_vision.md`](technical_vision.md) for architects ·
-[`image_prompts.md`](image_prompts.md) to regenerate the diagram
+**Steward:** 13668754 Canada Inc.
+**Companion:** [`technical_vision.md`](technical_vision.md) for architects
 
 ![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions labelled AA, BB and CC submit standardised documents along a pathway; an automated rule check deflects one into a "held for correction" tray while the rest continue into a governed vault wrapped in three rings labelled "who you are", "what you may see" and "what is published"; four audiences draw from that single source through beams of increasing width.](sovereign-shield_executive.jpg)
 

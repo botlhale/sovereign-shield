@@ -1,4 +1,4 @@
-# 🧭 SovereignShield — Platform Capability Matrix
+# SovereignShield Platform Capability Matrix
 
 **SovereignShield** explores Zero-Trust for **SDMx 3.0 statistical submissions to an international body** — national central banks reporting confidential banking data into the BIS Locational Banking Statistics collection. The perimeter here is not a network boundary but a *national* one, and it is legal rather than technical. Institutions already enforce that boundary rigorously through specialised SDMx software and operational protocol; every capability below explores what it looks like when the same boundary is additionally expressed in the data platform itself.
 
@@ -6,7 +6,7 @@ This matrix documents the **operational capabilities the platform actually imple
 
 **Namespaces:** `sovereign_shield` (published macro history), `sovereign_intake`
 (domestic micro ledger), `sovereign_submissions` (admin-only filing volume) ·
-**Runtime:** Databricks 18.x LTS · **Standard:** SDMx 3.0 / BIS LBS
+**Runtime:** Databricks 18.x · **Standard:** SDMx 3.0 / BIS LBS
 
 ![Policy as a Metastore Object — promotion plane, the Terraform/pipeline ownership boundary, a data plane with quarantine isolation, and a consumption band, all resolving into a Unity Catalog enforcement point that maps five personas ending in "no group — zero rows, fails closed".](../../docs/sovereign-shield_technical_vision.jpg)
 

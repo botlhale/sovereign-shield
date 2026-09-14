@@ -4,6 +4,7 @@
 
 **Author:** Botlhale Mosweu  
 **Role:** Enterprise Data Platform Architect  
+**Organization:** 13668754 Canada Inc.
 **Classification:** Public Reference Architecture  
 **Standards:** SDMx 3.0 | BIS Locational Banking Statistics (LBS) | Azure Databricks Unity Catalog  
 **Implementation status:** End-to-end reference deployment validated with synthetic data
@@ -141,7 +142,7 @@ RETURN
   );
 ```
 
-Two details carry disproportionate weight. `try_element_at` is used instead of `element_at` because under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`, which would abort every query against the table if a malformed key were ever persisted; the `coalesce` turns the resulting `NULL` into `FALSE`, so a malformed row is invisible rather than universally visible. And the mask re-checks segment 9 rather than trusting the group name — an earlier draft of this function omitted that check, and the resulting cross-sovereign exposure is undetectable against a single-jurisdiction test corpus.
+Two details carry disproportionate weight. `try_element_at` is used instead of `element_at` because under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`, which would abort every query against the table if a malformed key were ever persisted; the `coalesce` turns the resulting `NULL` into `FALSE`, so a malformed row is invisible rather than universally visible. The mask also re-checks segment 9 rather than trusting the group name, preventing a submitter entitlement from revealing another jurisdiction's restricted values.
 
 Memberships compose additively. A principal who is both a submitter and a researcher receives the union of the matching row entitlements, while the mask still reveals restricted values only for the principal's own jurisdiction. This is why the functions use independent `OR` branches rather than a first-match `CASE` expression.
 
@@ -157,9 +158,13 @@ The screenshots below are from one deployed synthetic fixture, not design mock-u
 
 *Figure 4 — The researcher receives all 22 published series, while Unity Catalog masks nine restricted values.*
 
+![Bank of Canada analyst filtering a foreign jurisdiction](../../demo/boc_analyst_all_submissions.png)
+
+*Figure 5 — A Canadian submitter filtering for Great Britain receives only the three foreign observations marked free for publication; foreign restricted values remain absent.*
+
 ![Administrator portal showing published and quarantined revisions](../../demo/admin_view_with_quarantine_data.png)
 
-*Figure 5 — The administrator can include quarantine and inspect all 44 published and audit-only rows without changing what downstream personas receive.*
+*Figure 6 — The administrator can include quarantine and inspect all 44 published and audit-only rows without changing what downstream personas receive.*
 
 ---
 

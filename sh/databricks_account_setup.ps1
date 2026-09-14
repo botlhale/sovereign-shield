@@ -23,7 +23,9 @@
     pre_auth.ps1 are suppressed for the duration so they cannot shadow it.
 
 .EXAMPLE
-    ./sh/databricks_account_setup.ps1 -AccountId "12345678-90ab-cdef-1234-567890abcdef"
+    ./sh/databricks_account_setup.ps1 `
+        -AccountId "12345678-90ab-cdef-1234-567890abcdef" `
+        -TenantDomain "example.onmicrosoft.com"
 
 .EXAMPLE
     # Re-run after the app is deployed to grant it the public tier
@@ -43,13 +45,17 @@ param(
 
     [string]$ResourceGroup = "rg-sovereignshield",
     [string]$WorkspaceName = "dbw-sovshield",
-    [string]$TenantDomain = "13668754CANADAINC.onmicrosoft.com",
+    [string]$TenantDomain = $env:TENANT_DOMAIN,
     [string]$AppName = "",
     [switch]$AppOnly
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if (-not $AppOnly -and [string]::IsNullOrWhiteSpace($TenantDomain)) {
+    throw "Provide -TenantDomain or set the TENANT_DOMAIN environment variable."
+}
 
 $GROUPS = @(
     "sg-sovereignshield-admin",

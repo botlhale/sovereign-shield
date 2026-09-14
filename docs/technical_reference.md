@@ -23,7 +23,7 @@ Unity Catalog will not evaluate RLS or DDM on `SINGLE_USER` compute — that mod
 
 | Setting | Sandbox value | Rationale |
 | --- | --- | --- |
-| `spark_version` | `18.x-scala2.13` | Latest LTS — required for single-node `USER_ISOLATION` support |
+| `spark_version` | `18.x-scala2.13` | Runtime family used by the validated deployment |
 | `num_workers` | `0` | Single Node: driver-only, no worker fleet to provision or pay for |
 | `custom_tags.ResourceClass` | `SingleNode` | Signals the single-node profile to the Databricks control plane |
 | `spark.master` | `local[*, 4]` | Executes in-driver with 4 retry attempts |

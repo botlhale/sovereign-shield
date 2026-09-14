@@ -2,8 +2,7 @@
 
 **Audience:** architects, security advisors, platform engineers, technical review boards
 **Companion:** [`executive_vision.md`](executive_vision.md) for the SLT case ·
-[`technical_reference.md`](technical_reference.md) for implementation detail ·
-[`image_prompts.md`](image_prompts.md) to regenerate the diagram
+[`technical_reference.md`](technical_reference.md) for implementation detail
 
 ![Policy as a Metastore Object — four bands: a promotion plane from pull request to OIDC token; an ownership boundary splitting Terraform from the pipeline across a divider reading "one writer per object"; a data plane routing passes to a history table and failures to audit-only quarantine; and a consumption band whose gateway "chooses an identity, never chooses rows". All resolve into a Unity Catalog enforcement point listing five personas.](sovereign-shield_technical_vision.jpg)
 

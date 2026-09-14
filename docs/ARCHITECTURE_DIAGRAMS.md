@@ -1,4 +1,4 @@
-# 🎨 SovereignShield — Architecture Visual Design Pack
+# SovereignShield Architecture Diagrams
 
 > **Disclaimer.** An independent reference architecture, inspired by the design of
 > public statistical portals such as the BIS Data Explorer. Not affiliated with or
@@ -12,10 +12,10 @@
 below decompose the same system — use this one to orient an audience, and those
 to answer the follow-up questions.*
 
-Presentation-ready assets for **SovereignShield** — an exploration of how Azure Databricks and Unity Catalog can carry the security obligations of **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics) as platform constraints, alongside the mature SDMx tooling institutions already run.
-
-**Part 1** contains live-renderable Mermaid.js diagrams (GitHub, VS Code, Notion, Confluence, and most slide tooling render these natively).
-**Part 2** contains text-to-image generation prompts for producing high-fidelity executive slide artwork.
+These live-renderable Mermaid.js diagrams document how Azure Databricks and
+Unity Catalog carry the security obligations of SDMx 3.0 statistical
+submissions. GitHub, VS Code, Notion, Confluence, and most slide tooling render
+them natively.
 
 > All diagrams reflect the implemented system — object names, function names, and rule identifiers are taken from source, not illustrative.
 
@@ -23,7 +23,7 @@ Presentation-ready assets for **SovereignShield** — an exploration of how Azur
 
 ---
 
-## 📐 Part 1 — Live Renderable Diagrams
+## Live-Renderable Diagrams
 
 ### 1.1 System Component Architecture
 
@@ -351,131 +351,7 @@ graph LR
 | No re-implementation risk | Controls are Unity Catalog objects, so they activate on real data on the first run — there is no "productionisation" pass that could get the security wrong |
 | No bespoke off-boarding path | Row filters grant on positive group membership and fail closed. Zero groups yields zero rows, using the same code path that separates jurisdictions |
 
----
-
-## 🖼️ Part 2 — Executive Text-to-Image Prompts
-
-Copy these verbatim into Midjourney v6, DALL·E 3, or an equivalent generator. Both are written for **16:9 slide placement** with deliberate negative space for overlaid titles.
-
-> Image-generation guidance is consolidated in [image_prompts.md](image_prompts.md).
-> The two prompts below are logo-free and text-light, tuned for generators that
-> garble labels.
-
-### Prompt 1 — Dark Mode Isometric Tech Diagram
-
-**Intended use:** title slide or architecture reveal. High visual impact, low text density.
-
-```text
-Isometric 3D technical architecture illustration of a Zero-Trust platform for
-international statistical data exchange — national central banks submitting
-confidential banking statistics to an international body. Dark mode, deep navy
-and charcoal background (#0d1117), dramatic cinematic lighting.
-
-LAYOUT — left to right data flow across six elevated isometric platforms
-connected by glowing conduits:
-
-1. On the far left, four small neoclassical bank buildings with columned facades,
-   each with a distinct national flag pennant, emitting glowing structured
-   document glyphs marked with angle brackets < > onto the flow. One short
-   monospace caption beneath them: "SDMx 3.0".
-2. A luminous golden vault cube embossed with a shield emblem, emitting thin gold
-   light-threads. Sealed, radiating security.
-3. A hexagonal orchestration hub in electric blue, with a single compact compute
-   node hovering above it, wrapped in a translucent containment field.
-4. A central processing platform in cyan showing a validation gate, with an open
-   rulebook icon feeding into its side captioned "BIS RULEBOOK": a stream of
-   glowing data packets splits into two divergent paths — a bright emerald green
-   channel flowing forward and a warning-amber channel diverting downward into a
-   sealed containment chamber.
-5. A layered crystalline data vault in emerald green, three stacked translucent
-   slabs representing versioned historical records, each thinner slab beneath
-   glowing dimmer than the one above.
-6. Four separate violet channels fanning out on the right, each terminating at a
-   distinct silhouetted analyst figure, each channel physically walled off from
-   the others by vertical light barriers.
-
-STYLE — premium enterprise technology aesthetic, neon accent lighting on dark
-surfaces, subtle volumetric fog, thin glowing circuit traces along every
-platform edge, soft bloom on all light sources, high contrast, ultra detailed,
-octane render, 8k, clean minimal geometry, no logos, and no text anywhere except
-the two short captions "SDMx 3.0" and "BIS RULEBOOK".
-
-MOOD — authoritative, secure, precise, institutional.
-
-COMPOSITION — wide 16:9 cinematic framing, generous negative space in the upper
-third for a slide title, slight downward camera angle, shallow depth of field
-with the central validation gate in sharpest focus.
-
---ar 16:9 --style raw --v 6 --q 2
-```
-
-**Tuning notes**
-
-* Add `--no letters, words, watermarks` if the generator hallucinates labels beyond the two permitted captions.
-* For a lighter deck theme, swap the background to `soft warm grey (#f5f5f7)` and change "neon accent lighting" to "soft directional studio lighting with pastel accents".
-* Drop the submission buildings to a single icon if the render becomes visually crowded — but keep the `SDMx 3.0` caption; it is what signals the domain.
-
----
-
-### Prompt 2 — Enterprise Security & Compliance Infographic
-
-**Intended use:** governance, compliance, or risk-committee slides. Flat vector, reproduces cleanly at small sizes and in print.
-
-```text
-Flat vector enterprise infographic illustrating Zero-Trust governance of
-international statistical reporting — national central banks submitting banking
-statistics to an international standards body. Clean corporate style, generous
-white space, professional financial-sector palette of deep navy, slate grey,
-teal, and a single amber accent.
-
-STRUCTURE — three clearly delineated horizontal bands:
-
-TOP BAND — INGESTION: four simplified national bank building icons, each in a
-distinct flat colour and each with a small national flag, feeding labelled arrows
-into a single unified intake funnel. Standardized document glyphs marked with
-angle brackets travel along the arrows to convey a common reporting format. One
-short caption above the funnel: "SDMx 3.0".
-
-MIDDLE BAND — AUTOMATED VALIDATION GATE: a prominent central circular checkpoint
-containing a checklist-and-magnifier glyph, positioned as the visual anchor of
-the composition. An open rulebook icon feeds into it from the left, captioned
-"BIS RULEBOOK". Two outbound paths diverge from the checkpoint at clear angles:
-  - a confident teal path flowing right toward a published-records icon marked
-    with a check symbol
-  - an amber path curving downward into a padlocked quarantine container marked
-    with a warning triangle
-Show a thin dotted line running from the quarantine container back to the intake
-funnel to indicate a resubmission loop.
-
-BOTTOM BAND — GOVERNED ACCESS: a wide horizontal shield spanning the full width,
-divided into four vertical compartments separated by solid dividers. Each
-compartment contains one distinct analyst persona icon. Two compartments show
-fully visible bar-chart glyphs, one shows a partially obscured chart with
-several bars redacted into flat grey blocks, and one shows a padlock. To the
-right of the shield, a single domed institutional building icon captioned
-"INTERNATIONAL BODY", reached by one teal arrow only.
-
-STYLE — modern flat 2D vector, consistent 2px line weight, subtle long shadows,
-rounded corners, uniform iconography, generous margins, corporate annual-report
-quality, minimal ornamentation, no gradients, no photographic elements, no
-logos, and no body text beyond the three short captions specified above.
-
-COMPOSITION — 16:9, balanced symmetrical layout, clear visual hierarchy with the
-validation gate as the focal point, ample clear space along the left edge for a
-slide headline.
-
---ar 16:9 --style raw --v 6
-```
-
-**Tuning notes**
-
-* Restricting text to three named captions avoids the garbled pseudo-text most generators produce; add any further labels afterward in the deck tool so they stay editable and accessible.
-* For a one-slide summary, request only the middle band enlarged to fill the frame.
-* Substitute the four bank icons with a world-map fragment showing four highlighted regions for a geographic emphasis.
-
----
-
-## 📤 Export Guidance
+## Export Guidance
 
 | Target | Approach |
 | --- | --- |

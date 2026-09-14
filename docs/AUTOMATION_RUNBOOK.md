@@ -147,7 +147,5 @@ never deleted by the orchestration script.
   passwords or remove account-level identities.
 - Run either the script-managed or Terraform-managed Container Apps path, not both.
 
-## Architecture image
-
-The enterprise lifecycle image-generation prompt is in
-[image_prompts.md](image_prompts.md#terraform-deployment-lifecycle-prompt).
+Resource ownership and retention boundaries are detailed in the
+[Resource Provenance Guide](RESOURCE_PROVENANCE.md).

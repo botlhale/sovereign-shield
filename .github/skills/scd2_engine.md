@@ -1,8 +1,8 @@
-# Project SovereignShield: SDMx Slowly Changing Dimension (SCD2) Engine
+# SovereignShield SDMx Slowly Changing Dimension (SCD2) Engine
 
 > **Context:** historisation of national submissions to an international statistical body. Point-in-time reconstruction is a regulatory requirement here — an international collection must be able to answer "what did this jurisdiction report as of date X," which a mutable status column cannot.
 
-## 🔄 Overview
+## Overview
 
 The SCD2 Merge Engine is the data processing core of Project SovereignShield. It is responsible for bridging the gap between raw, multi-jurisdictional micro-transactions and the centralized **SDMx 3.0** macro-historical tables.
 
@@ -10,18 +10,18 @@ This engine operates in a strict two-step flow: it first ingests and aggregates 
 
 ---
 
-## ⚙️ Compute & Infrastructure Strategy
+## Compute and Infrastructure Strategy
 
 To fully support Unity Catalog's Zero-Trust governance model while navigating Azure infrastructure constraints, the underlying compute engine for this pipeline is meticulously configured:
 
-* **Runtime:** Databricks Runtime **18.x LTS** (`18.x-scala2.13`) to leverage the latest PySpark optimizations, Delta Lake features, and Unity Catalog integrations.
+* **Runtime:** Databricks Runtime **18.x** (`18.x-scala2.13`) for current PySpark, Delta Lake, and Unity Catalog integrations.
 * **Cost & Quota Optimization:** Unity Catalog's Row-Level Security requires a `USER_ISOLATION` cluster. The engine runs this on a **Single Node** job cluster (`num_workers: 0`, `ResourceClass: SingleNode`, `spark.master: local[*, 4]`) using the `Standard_DS3_v2` family with `SPOT_WITH_FALLBACK_AZURE` availability — satisfying the Unity Catalog requirement without breaching `DSv5` core quotas.
 * **Identity:** The executing Service Principal **must** belong to `sg-sovereignshield-admin`. The merge reads the target table to find records to expire; if RLS hid those rows the engine would treat every incoming row as new and silently duplicate history.
 * **Local development:** the pipeline cannot run locally without a JVM. Use `src/local_pandas_scd2.py`, which reproduces the identical SCD2 state machine on pandas + delta-rs.
 
 ---
 
-## 🌊 Phase 1: Micro-to-Macro Aggregation
+## Phase 1: Micro-to-Macro Aggregation
 
 Before any historical merging occurs, the engine must process incoming micro-data submitted by various reporting countries (e.g., Canada, USA, UK).
 
@@ -55,7 +55,7 @@ All three batch columns (`agg_scope`, `date_scope`, `transaction_timestamp`) are
 
 ---
 
-## 🕰️ Phase 2: Validation Gate & The SCD2 Delta Merge
+## Phase 2: Validation Gate and the SCD2 Delta Merge
 
 Between aggregation and historization sits the validation gate. `SDMxRuleValidator` evaluates the BIS consistency checks and assigns `QUALITY_STATUS`, `BATCH_STATUS`, and `FAILED_RULE_ID` **atomically per `(reporting_country, date_scope)`**: if any record in a country-quarter fails, every record in that batch is marked `FAIL` / `QUARANTINE`. The validator is the sole author of these three columns; the merge engine never overrides them.
 
@@ -86,7 +86,7 @@ Series that existed previously but are absent from the current submission are cl
 
 ---
 
-## 🛡️ SCD2 State Guarantees
+## SCD2 State Guarantees
 
 | Incoming `BATCH_STATUS` | Prior active record | New record written | Visible in `v_agg_sdmx_published` |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Re-running the pipeline end-to-end is safe: row counts and active-record counts 
 
 ---
 
-## 📜 Code Execution Flow (`src/scd2_merge_engine.py`)
+## Code Execution Flow (`src/scd2_merge_engine.py`)
 
 `run_pipeline` drives two submission cycles so the quarantine behaviour is directly observable: a `baseline` in which every jurisdiction reconciles and publishes, followed by a `revision` in which Canada re-reports figures that break two BIS cross-checks.
 

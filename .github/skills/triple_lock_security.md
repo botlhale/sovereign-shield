@@ -1,6 +1,6 @@
-# Project SovereignShield: Zero-Trust Triple-Lock Security Architecture
+# SovereignShield Zero-Trust Triple-Lock Security Architecture
 
-## 🛡️ Overview
+## Overview
 
 SovereignShield explores Zero-Trust for **SDMx 3.0 statistical submissions to an international body** (BIS Locational Banking Statistics). The perimeter being defended is a *national* boundary and a legal obligation, not a network segment — so "never trust, always verify" is resolved concretely: every consumer is re-authorised against Entra ID at query time, and entitlement is derived from the SDMx key itself. These are the same guarantees established SDMx implementations uphold in their application layers; here they are expressed one layer lower.
 
@@ -10,7 +10,7 @@ This document outlines the core architectural mandates, the DDL idempotency patt
 
 ---
 
-## 🏗️ Core Architectural Mandates
+## Core Architectural Mandates
 
 Deploying Row-Level Security (RLS) and Dynamic Data Masking (DDM) in Unity Catalog requires strict adherence to specific Databricks compute and execution parameters:
 
@@ -59,7 +59,7 @@ The `compile()` filename survives inside the code object, which is what makes `f
 
 ---
 
-## 🔒 The Triple-Lock Framework
+## The Triple-Lock Framework
 
 The security architecture operates in three distinct layers, bound together by strict DDL idempotency requirements.
 
@@ -113,14 +113,14 @@ Provides a uniform published-only surface for BI clients.
 
 ---
 
-## 🤖 CI/CD Ownership (Zero-Trust IAM)
+## CI/CD Ownership (Zero-Trust IAM)
 
 * **The Zero-Trust Principle:** By strictly orchestrating all deployments through Azure DevOps/GitHub Actions via Databricks Asset Bundles, the executing **Service Principal implicitly and automatically assumes ownership** of all created schemas, tables, views, and functions.
 * **Result:** Direct production governance and mutation capabilities are completely stripped from individual human developers.
 
 ---
 
-## 📜 Appendix: Target DDL Schema Reference
+## Appendix: Target DDL Schema Reference
 
 Policies are attached inline at creation time so the table is never momentarily readable without governance. Note that `OBS_VALUE` may legitimately be negative — LBS positions record both asset and liability directions — while zero-valued observations are not reported at all under SDMx convention and are filtered upstream.
 

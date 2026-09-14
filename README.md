@@ -1,8 +1,10 @@
-# Project SovereignShield: Zero-Trust Governance for SDMx 3.0 Submissions to International Bodies
+# SovereignShield
+
+Zero-Trust governance for SDMx 3.0 submissions to international bodies.
 
 > **What this is:** a working reference implementation exploring how **Azure Databricks and Unity Catalog** can express the security obligations of **international statistical data exchange** as platform-level constraints — the submission of confidential national banking statistics to an international body (BIS Locational Banking Statistics) under the **SDMx 3.0** standard. It complements, rather than replaces, the mature SDMx tooling institutions already operate.
 
-> ### ⚠️ Disclaimer
+> **Disclaimer**
 >
 > This is an **independent reference architecture**, inspired by the design of public statistical portals such as the BIS Data Explorer. It is **not** a system of, affiliated with, or endorsed by the Bank for International Settlements or any central bank.
 >
@@ -12,7 +14,7 @@
 
 ![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions submit standardised documents along a pathway; an automated rule check deflects one submission into a "held for correction" tray while the rest continue into a governed data vault wrapped in three policy rings labelled "who you are", "what you may see" and "what is published"; four audiences (public, researcher, national analyst, auditor) draw from that single source through beams of increasing width.](docs/sovereign-shield_executive.jpg)
 
-## 📖 Executive Summary
+## Executive Summary
 
 Every quarter, national central banks transmit confidential banking statistics to international organisations — the Bank for International Settlements, the IMF, the UN Statistics Division — encoded in **SDMx**, the standard for Statistical Data and Metadata (ISO 17369). That exchange carries three simultaneous obligations: national data sovereignty, cell-level confidentiality, and arithmetic consistency with a rulebook the submitting agency does not own.
 
@@ -40,7 +42,7 @@ The validation rulebook is treated as **metadata, not code** — an approach the
 
 ---
 
-## 🗺️ System Architecture
+## System Architecture
 
 ![Policy as a Metastore Object — four horizontal bands. A promotion plane runs pull request to offline tests to review to merge to a short-lived OIDC token. An ownership boundary splits Terraform (infrastructure and access) from the pipeline (data and policy) either side of a divider reading "one writer per object". A data plane routes validated submissions to a history table and failures to an audit-only quarantine, with the prior published record staying live. A consumption band shows the dissemination gateway choosing an identity but never choosing rows. All four connect into a policy enforcement point in Unity Catalog resolving five personas, ending with "no group — zero rows, fails closed".](docs/sovereign-shield_technical_vision.jpg)
 
@@ -128,16 +130,16 @@ flowchart TB
 | Boundary | Enforced by | Guarantee |
 | --- | --- | --- |
 | Secret → Session | Azure Key Vault + OIDC federation (Terraform), dot-sourced `pre_auth.ps1` (quickstart) | No credential literal exists in git or on disk |
-| Session → Workspace | OIDC workload identity federation via Asset Bundles | No human identity holds production DDL rights |
+| Session → Workspace | OIDC workload identity federation via Asset Bundles | Automated deployment uses a scoped service principal; human administration remains an explicit client responsibility |
 | Workspace → Data | Unity Catalog RLS / DDM | Policy travels with the table, not the query engine |
 | Data → Consumer | Entra ID group resolution | Sovereignty evaluated per-row, per-caller, at runtime |
 | Internet → Data | Portal runs as the caller, or as a public-tier SPN | The gateway selects an identity; it never selects rows |
 
 ---
 
-## 🏗️ Modernized Architecture Stack
+## Architecture Stack
 
-* **Compute Engine:** Azure Databricks (Runtime 18.x LTS)
+* **Compute Engine:** Azure Databricks Runtime 18.x
 * **Storage:** Delta Lake (SCD2 Historization)
 * **Central Governance:** Unity Catalog (`USER_ISOLATION` Shared Compute)
 * **Infrastructure as Code:** Terraform (identity, workspace, catalog, warehouse, gateway) + Databricks Asset Bundles (tables, policy functions, jobs)
@@ -148,13 +150,13 @@ flowchart TB
 
 > **Design note — Terraform or Bicep.** Terraform is the primary declarative engine here because it spans Entra ID, Azure and Databricks in a single dependency graph. For the **Azure control plane alone**, Azure Bicep is interchangeable: resource groups, Key Vault, the Databricks workspace, the access connector and Container Apps all have direct Bicep equivalents, and an organisation standardised on Bicep loses nothing by using it for those. What Bicep cannot express is the Databricks provider layer — catalog, schema, grants and the SQL warehouse — which would remain Terraform or move to the Databricks CLI. The ownership boundary between infrastructure and the data/policy plane is unaffected by that choice.
 
-## ⚡ Five-minute local evaluation
+## Five-Minute Local Evaluation
 
 No Azure subscription, no Databricks workspace, no credentials. The security model
 is verifiable offline, which is the whole point of the delivery pattern.
 
 ```powershell
-git clone https://github.com/<owner>/sovereign-shield.git
+git clone https://github.com/botlhale/sovereign-shield.git
 cd sovereign-shield
 
 python -m venv .venv
@@ -164,8 +166,8 @@ python -m venv .venv
 .venv\Scripts\python.exe -m pytest tests/ --no-header
 ```
 
-Expect **77 passed, 12 skipped**. The skips are the `--live` tests that need a real
-workspace and the `--stress` benchmarks that take minutes.
+The default suite runs offline. Tests marked `live` require a real workspace and
+tests marked `stress` require an explicit opt-in.
 
 ```powershell
 # Generate a 100k-row multi-jurisdiction, multi-cadence corpus
@@ -183,12 +185,13 @@ defect this repository exists to prevent — see
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 .
 ├── databricks.yml                          # Asset Bundle configuration and deployment rules
-├── steps.md                                # Operational rebuild runbook
+├── steps_terraform.md                      # Detailed Terraform deployment path
+├── steps_scripts.md                        # Imperative quickstart path
 ├── .github/
 │   ├── workflows/promote.yml               # OIDC promotion: verify -> plan -> apply -> bundle
 │   └── skills/                             # Single source of truth for agents and reviewers
@@ -201,7 +204,7 @@ defect this repository exists to prevent — see
 │       ├── unity_catalog_governance/       # Catalog, schema, additive grants, SQL warehouse
 │       └── dissemination_gateway/          # Container Apps host for the anonymous tier
 ├── tests/                                  # Offline persona, SDMx, isolation, secret and scale assertions
-├── sh/                                     # Idempotent quickstart provisioning (alternative to Terraform)
+├── sh/                                     # Turnkey orchestration and focused operational helpers
 └── src/
     ├── unity_catalog_triple_lock.sql       # Data & policy plane: DDL, RLS, DDM, quarantine view
     ├── unity_catalog_grants.sql            # Access-control plane (Terraform owns this in IaC mode)
@@ -220,7 +223,7 @@ defect this repository exists to prevent — see
 
 Full file-by-file commentary: [docs/technical_guide.md](docs/technical_guide.md).
 
-## 🔐 Infrastructure-as-Code & Decoupled Secret Injection
+## Infrastructure as Code and Secret Injection
 
 SovereignShield holds a hard constraint: **no credential literal ever enters the repository, the shell history, or a configuration file.** Terraform declares *which* secret is needed; the environment resolves the value in memory at apply time.
 
@@ -262,18 +265,20 @@ Rotation is automatic: `time_rotating` re-mints the dissemination proxy credenti
 | `databricks-workspace-url` | Target workspace → `DATABRICKS_HOST` |
 | `public-spn-client-id` / `public-spn-client-secret` | Anonymous dissemination proxy |
 
-### The `sh/` scripts are a quickstart, not the deployment path
+### Orchestration and focused helpers
 
-`sh/` exists so the platform can be stood up on a laptop without a Terraform state backend — useful for a demo, a first look, or teaching the moving parts. Every script is idempotent and prints `[skip]` / `[create]`.
+`sh/sovereignshield_up.ps1` and `sh/sovereignshield_down.ps1` are the supported
+operator entry points. They orchestrate Terraform, Databricks Asset Bundles,
+account-level identity wiring, the ingestion pipeline, both portal hosts, and
+readiness checks in dependency order. Terraform remains authoritative for the
+infrastructure and access-control resources it manages.
 
-They are **not** the supported route to a governed environment. Terraform holds state, plans changes before making them, and is what CI runs. Where the two overlap they converge on the same result; where they differ, Terraform is authoritative.
-
-Two capabilities remain script-only because no provider expresses them:
+Some focused operations remain script-owned because no provider expresses them:
 
 * `sh/databricks_account_setup.ps1` — Databricks **account**-level groups, workspace assignment and persona SQL entitlements. `is_account_group_member()` resolves account scope, and the Terraform Databricks provider addresses the workspace.
 * `sh/kv_spn_remediation.sh` — deliberate, destructive credential rotation on demand.
 
-### Session authentication for the quickstart path
+### Session authentication for focused helper scripts
 
 ```powershell
 . .\sh\pre_auth.ps1
@@ -283,88 +288,50 @@ The leading `.` executes the script **in the current session scope**. Invoking i
 
 The script discovers the vault by prefix rather than hardcoding a name (the suffix is randomised at creation), fails loudly on a missing secret rather than exporting an empty credential, and `.Trim()`s every value — `az ... -o tsv` appends a newline, and an unstripped secret produces an opaque authentication rejection rather than a parse error.
 
-## 🚀 Deployment & Execution
+## Deployment and Execution
 
-Full sequence, including prerequisites and verification: **[steps.md](steps.md)**.
-
-**1. Infrastructure and access-control plane:**
-
-```powershell
-cd terraform; terraform apply; cd ..
-```
-
-**2. Databricks account groups** (no Terraform equivalent):
+Full sequence, including prerequisites, recovery, verification, pause, and teardown:
+**[One-command operations](docs/AUTOMATION_RUNBOOK.md)**.
 
 ```powershell
-./sh/databricks_account_setup.ps1 -AccountId "<account-id>"
+./sh/sovereignshield_up.ps1 `
+    -AccountId "<databricks-account-guid>" `
+    -TenantDomain "<tenant-domain>"
 ```
 
-**3. Data and policy plane** — table DDL, policy UDFs, row filter and mask bindings:
+The detailed manual paths remain available for architecture review and recovery:
+[Terraform](steps_terraform.md) and [imperative helpers](steps_scripts.md). In CI,
+[`.github/workflows/promote.yml`](.github/workflows/promote.yml) runs offline
+verification, plans pull requests, and applies reviewed changes merged to `main`.
 
-```bash
-databricks bundle deploy -t dev --var="warehouse_id=$(terraform -chdir=terraform output -raw sql_warehouse_id)"
-databricks bundle run sovereignshield_sdmx_pipeline -t dev
-```
+## Teardown
 
-**4. Bind table grants** now that the tables exist:
+Pause compute while retaining data, identities, and infrastructure:
 
 ```powershell
-cd terraform; terraform apply -var="grant_tables=true"; cd ..
+./sh/sovereignshield_down.ps1 -Mode Pause
 ```
 
-In CI this is [`.github/workflows/promote.yml`](.github/workflows/promote.yml): offline verification → plan on pull requests → apply and bundle deploy on merge to `main`.
-
-## 🧹 Teardown
-
-The demo is not free to leave running. Tear down in reverse dependency order.
-
-**Stop paying, keep the platform** — enough between demos:
+Preview the complete workload teardown without changing resources:
 
 ```powershell
-databricks apps stop sovereignshield-portal
-cd terraform; terraform apply -var="deploy_dissemination_gateway=false"; cd ..
+./sh/sovereignshield_down.ps1 -Mode Workload -WhatIf
 ```
 
-The SQL warehouse auto-stops after 10 idle minutes on its own. The job cluster is spot-priced and terminates on completion.
-
-**Full teardown:**
+Execute the ordered teardown only after reviewing the preview:
 
 ```powershell
-# 1. Data and policy plane first. Terraform does not own these objects and
-#    will not remove them; a leftover row filter blocks the catalog destroy.
-databricks bundle destroy -t dev
-
-# 2. Release the table grants so the securables are no longer referenced.
-cd terraform; terraform apply -var="grant_tables=false"
-
-# 3. Everything Terraform owns.
-terraform destroy
-cd ..
-
-# 4. Purge the soft-deleted Key Vault. purge_protection_enabled is on, so the
-#    vault survives destroy by design and the name stays reserved until purged.
-az keyvault purge --name <vault-name> --location canadacentral
+./sh/sovereignshield_down.ps1 -Mode Workload -ConfirmWorkloadDestruction
 ```
 
-Step 1 is not optional. Unity Catalog refuses to drop a schema whose tables carry live row filters, and `terraform destroy` reports a confusing dependency error rather than naming the cause.
+The script removes policy-bound Unity Catalog objects before their schemas,
+destroys bundle and Azure resources through their owning paths, and fails if any
+Terraform state entry or workload resource remains. It preserves the remote-state
+backend and Databricks account identities for reliable reconstruction. See the
+[operations runbook](docs/AUTOMATION_RUNBOOK.md#workload-teardown) for boundaries
+and recovery behavior.
 
-**What survives on purpose:**
-
-| Resource | Why | Remove with |
-| --- | --- | --- |
-| Databricks **account** groups and service principals | Account scope, outside the workspace Terraform manages | Account console, or `sh/databricks_account_setup.ps1` in reverse |
-| Entra ID persona **users** | Never created by Terraform; membership is an administrative act | `az ad user delete` |
-| Terraform state storage account | Bootstrap resource, created before the configuration exists | `az group delete -n rg-sovereignshield-tfstate` |
-
-**Verify nothing is billing:**
-
-```powershell
-az resource list --resource-group rg-sovereignshield --output table
-```
-
-An empty result means the teardown is complete. If the resource group itself lingers, `az group delete -n rg-sovereignshield` — but prefer `terraform destroy` first so state stays consistent with reality.
-
-## 🛡️ How the guarantees are enforced
+## How the Guarantees Are Enforced
 
 Four pillars carry the architecture. Each is a link into the detail rather than a
 summary of it — the full implementation narrative is in
@@ -420,7 +387,7 @@ Sample downloads from the deployed portal are in [`demo/sdmx/`](demo/sdmx) — t
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 Routed by what you are trying to establish.
 
@@ -429,12 +396,12 @@ Routed by what you are trying to establish.
 | **Reading the code** | [Technical guide](docs/technical_guide.md) — an eight-pass reading order | [Technical reference](docs/technical_reference.md) |
 | **Assessing the security model** (CISO / risk) | [Persona security matrix](.github/skills/persona_security_matrix.md) | [Triple-Lock detail](docs/technical_reference.md) · [Test suite](tests/test_persona_access_matrix.py) |
 | **Evaluating the business case** (SLT) | [Executive vision](docs/executive_vision.md) — case, governance posture, positioning | [Whitepaper](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) |
-| **Deploying it** (platform / DevOps) | [steps.md](steps.md) — runbook, Stage 0 to teardown | [Terraform](terraform/main.tf) · [CI workflow](.github/workflows/promote.yml) |
+| **Deploying it** (platform / DevOps) | [One-command operations](docs/AUTOMATION_RUNBOOK.md) | [Terraform runbook](steps_terraform.md) · [Script quickstart](steps_scripts.md) |
 | **Sizing it for production** | [Scaling blueprint](docs/technical_guide.md) | [Cluster policy](terraform/modules/databricks_workspace/compute.tf) |
 | **Engaging a contractor** | [Onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) | [Contractor workflow](.github/skills/contractor_zero_trust_workflow.md) |
 | **Consuming the API** | [Technical vision](docs/technical_vision.md) — data model, cadences, endpoints | [Gateway detail](docs/technical_reference.md) |
 | **Checking SDMx conformance** (statistical audit) | [SDMx LBS validation](.github/skills/sdmx_lbs_validation.md) | [Sample exports](demo/sdmx) · [MVSD specification](.github/skills/mvsd_specification.md) |
-| **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Image prompts](docs/image_prompts.md) |
+| **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Executive view](docs/executive_vision.md) · [Technical view](docs/technical_vision.md) |
 | **Presenting it** | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) | [Executive vision](docs/executive_vision.md) · [Public write-up](docs/LINKEDIN_POST.md) |
 | **Running it end to end** | [One-command operations](docs/AUTOMATION_RUNBOOK.md) | [Terraform runbook](steps_terraform.md) |
 | **Explaining deployed resources** | [Resource provenance](docs/RESOURCE_PROVENANCE.md) | [Technical reference](docs/technical_reference.md) |
@@ -443,44 +410,21 @@ Routed by what you are trying to establish.
 ---
 
 
-## 📝 Bundle Configuration
+## Operational Model
 
-[`databricks.yml`](databricks.yml) is the orchestration matrix. **Task order is a
-security property, not a convenience:** the Triple-Lock DDL runs first, so no table
-ever exists unprotected.
+[`databricks.yml`](databricks.yml) runs security DDL before generating or merging
+data, making task order a security property. Terraform owns infrastructure and
+access-control resources; the Asset Bundle and SQL own data-plane objects and
+policy bindings. The cluster policy fixes `USER_ISOLATION` while allowing the
+compute envelope to scale independently.
 
-```text
-setup_triple_lock_schema  →  generate_synthetic_data  →  run_scd2_merge
-(apply_security.py)          (generate_sovereign_       (scd2_merge_engine.py)
-                              submissions.py)
-```
-
-The job cluster is pinned to `data_security_mode: USER_ISOLATION` and defaults to
-`num_workers: 0`. Both are bounded by the Terraform cluster policy in
-[compute.tf](terraform/modules/databricks_workspace/compute.tf), which fixes the
-security mode and defines the sizing envelope — see
-[the scaling blueprint](docs/technical_guide.md) for how to widen it.
+The [operations runbook](docs/AUTOMATION_RUNBOOK.md) owns prerequisites and
+recovery. The [resource provenance guide](docs/RESOURCE_PROVENANCE.md) explains
+why each deployed object exists, who creates it, and who removes it.
 
 ---
 
-## 🔑 Operational Prerequisites
-
-1. **SPN group membership** — add `spn-sovereignshield-cicd` to `sg-sovereignshield-admin`. Object ownership does not exempt a principal from a row filter; without this the merge engine reads an empty target and silently duplicates history.
-2. **Key Vault access** — the deploying identity needs secret access on the
-    environment's discovered vault. The deployment detects whether the vault uses
-    Azure RBAC or legacy access policies and applies only the matching mechanism.
-3. **Session authentication** — always **dot-source** the loader (`. .\sh\pre_auth.ps1`). Running it as a child process sets the variables in a scope that is discarded on return.
-4. **Credential hygiene** — no credential exists in the repository, and `tests/test_secret_decoupling.py` enforces that on every commit. Terraform rotates the dissemination proxy credential automatically every 90 days via `time_rotating`; `sh/kv_spn_remediation.sh` performs a deliberate, immediate rotation of the CI/CD principal when you need one.
-5. **Entra ID groups** — `sg-sovereignshield-admin`, `sg-sovereignshield-submitter-<cc>`, `sg-sovereignshield-researchers`, and `sg-sovereignshield-public` must exist before the Triple-Lock DDL runs; the security functions resolve membership at query time via `is_account_group_member`. `terraform/modules/identity` provisions them, and `sh/databricks_account_setup.ps1` mirrors them into the Databricks **account** — account scope is what `is_account_group_member` reads, and workspace-scoped groups of the same name will never match.
-6. **Public portal principal** — `terraform/modules/identity` provisions `spn-sovereignshield-public` and adds it to `sg-sovereignshield-public`. It is created with **no Azure RBAC role assignment at all**: its entire entitlement is the row filter. It must also be added to the Databricks account — otherwise the fail-closed default leaves the public portal showing nothing, which looks like an outage rather than a policy decision.
-7. **SQL warehouse** — the portal reads through a warehouse passed as `--var="warehouse_id=..."` at deploy time. The warehouse grants no entitlement of its own; it is the engine the row filter is evaluated in.
-8. **Two-pass apply** — leave `grant_tables = false` on the first apply. Tables are created by the Asset Bundle, and a grant against a securable that does not yet exist fails the apply.
-9. **GitHub repository controls** — run `sh/github_environment_setup.ps1` before relying on the promotion workflow. GitHub creates an environment implicitly on first reference **with no protection rules**, so `environment: production` is decorative until required reviewers, self-review prevention and a protected-branch policy are configured. Protect `main` as well: restricting deployments to protected branches is vacuous if no branch is protected.
-10. **Action pinning** — every action in `.github/workflows/promote.yml` is pinned to an immutable commit SHA with the release recorded in a trailing comment. A tag is a movable pointer and `@main` re-resolves on every run; either would let an upstream compromise reach a job holding a token that can apply infrastructure. Verify before bumping one: `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`.
-
----
-
-## 🤝 Safe Engagement & Clean Handover
+## Safe Engagement and Clean Handover
 
 Specialist platform work is frequently delivered by people who should not hold the
 data they are governing. Institutions manage this well today with NDAs, supervised
@@ -513,18 +457,5 @@ checklist.
 → **[Enterprise onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md)** ·
 [Contractor workflow](.github/skills/contractor_zero_trust_workflow.md)
 
+[Apache-2.0 License](LICENSE) · [Security Policy](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 ---
-
-## 🎤 Presentation & Communication Assets
-
-| Asset | Contents |
-| --- | --- |
-| [docs/executive_vision.md](docs/executive_vision.md) | Strategic business case, governance posture, regulatory positioning, and a five-minute presenting narrative |
-| [docs/technical_vision.md](docs/technical_vision.md) | Data model, multi-frequency cadences, Dissemination Gateway API, and the architecture-review Q&A |
-| [docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) | Full executive whitepaper, PDF-ready |
-| [docs/ARCHITECTURE_DIAGRAMS.md](docs/ARCHITECTURE_DIAGRAMS.md) | Live-renderable Mermaid diagrams (system topology, ownership boundary, atomic quarantine sequence, triple-lock enforcement path) |
-| [docs/image_prompts.md](docs/image_prompts.md) | The prompts that generate the two rendered diagrams |
-| [docs/LINKEDIN_POST.md](docs/LINKEDIN_POST.md) | Public write-up, primary and long-form versions |
-| [docs/PERSONA_DEMO_SCRIPT.md](docs/PERSONA_DEMO_SCRIPT.md) | 3–5 minute persona-led product demonstration and recording plan |
-| [docs/AUTOMATION_RUNBOOK.md](docs/AUTOMATION_RUNBOOK.md) | Resumable one-command setup, pause and ordered workload teardown |
-| [docs/RESOURCE_PROVENANCE.md](docs/RESOURCE_PROVENANCE.md) | Systems-architect map of resource purpose, creator, deployment stage, reuse and teardown owner |

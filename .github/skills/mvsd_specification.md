@@ -8,7 +8,10 @@
 > **Authority.** Structure is derived from the live BIS registry
 > (`https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all`)
 > and reconciled against `docs/reference_standards/checks_lbs.xls`,
-> `src/generate_sovereign_submissions.py` and `src/sdmx_rule_validator.py`.
+> `src/generate_sovereign_submissions.py` and `src/sdmx_rule_validator.py`. Local
+> reference copies of the [LBS technical guide](../../docs/reference_standards/bankstatsguide_tech.pdf)
+> and [data-structure documentation](../../docs/reference_standards/dsd_lbs.pdf)
+> support offline review; their original publishers retain all rights.
 
 ---
 
@@ -56,28 +59,6 @@ Plus the time dimension, measure and observation-level attributes:
 | `OBS_VALUE` | Measure | Signed `DOUBLE`, millions |
 | `OBS_STATUS` | Attribute | `A` normal, `B` break in series |
 | `OBS_CONF` | Attribute | `F` free to publish, `C` confidential, `N` not for publication |
-
-### 2.1 Reconciliation with earlier drafts
-
-An earlier specification circulated with dimension names that do **not** exist in
-the BIS_LBS structure or anywhere in this repository. They are recorded here so
-the discrepancy is documented rather than silently corrected, and so nobody
-reintroduces them:
-
-| Draft name | Occurrences in repo | Authoritative name |
-| --- | --- | --- |
-| `L_POS_TYPE` | 0 | `L_POSITION` |
-| `L_TYPE` | 0 | `L_INSTR` |
-| `L_CP_CTY` | 0 | `L_CP_COUNTRY` |
-| `CURR_TYPE` | 0 | `L_CURR_TYPE` |
-| `CONF_STATUS` | 0 | `OBS_CONF` |
-| `REP_CTY` | derived column only | `L_REP_CTY` |
-| *(omitted from draft)* | — | `L_DENOM`, `L_PARENT_CTY` |
-
-The draft omitted two dimensions entirely, which makes an eleven-segment key
-unconstructible. Adopting the draft names would additionally break the
-`try_element_at(split(TIME_SERIES_CODE, '\\.'), 9)` sovereignty anchor, the
-`checks_lbs.xls` rule matching, and every submission XML already emitted.
 
 `UNIT_MULT` and `DECIMALS` are legitimate BIS_LBS dataset-level attributes but are
 not currently carried by the MVSD; they are constant across the synthetic
@@ -147,10 +128,10 @@ distinguishable and a filter that accidentally returns everything is detectable.
 | `US` | Federal Reserve System | Foreign sovereign — must stay restricted |
 | `GB` | Bank of England | Third party, proves isolation is not a two-way special case |
 
-> An earlier draft named `CH` (Switzerland) as the third jurisdiction. The corpus
-> uses `GB`; `CHF` appears only as a currency denomination. Adding a fourth
-> jurisdiction requires a new Entra group, a new branch in
-> `fn_rls_multi_persona_lock` and new grants — it is not a data-only change.
+The corpus uses `GB` as its third jurisdiction; `CHF` appears only as a currency
+denomination. Adding a fourth jurisdiction requires a new Entra group, a new
+branch in `fn_rls_multi_persona_lock`, and new grants — it is not a data-only
+change.
 
 ### 5.2 Confidentiality masking
 

@@ -3,6 +3,8 @@
 Two copy-paste-ready LinkedIn posts and one follow-up, plus the reasoning behind
 naming the actual technology stack.
 
+**Project steward:** 13668754 Canada Inc.
+
 For a short product video built around the public, researcher, reporting-authority
 and administrator views, use [PERSONA_DEMO_SCRIPT.md](PERSONA_DEMO_SCRIPT.md).
 
@@ -114,7 +116,7 @@ Every test runs on a laptop with no cloud credentials. A leaked copy of the repo
 
 Whitepaper, architecture diagrams and the Terraform codebase are all in the repo.
 
-Independent reference architecture, 100% synthetic data, not affiliated with or endorsed by any organisation named. Link in the comments — I'd genuinely like to be told where this breaks.
+Developed by 13668754 Canada Inc. as an independent reference architecture using 100% synthetic data. Not affiliated with or endorsed by any organisation named. Link in the comments — I'd genuinely like to be told where this breaks.
 ```
 
 ---
@@ -154,7 +156,7 @@ And it was built without the data. Specification in, working platform out. Every
 
 A leaked copy of that repository isn't a data incident. There's no credential and no observation in it.
 
-Independent reference architecture. 100% synthetic data. Not affiliated with or endorsed by the BIS, any central bank, or any vendor named above.
+Developed by 13668754 Canada Inc. as an independent reference architecture using 100% synthetic data. Not affiliated with or endorsed by the BIS, any central bank, or any vendor named above.
 
 Repository in the comments. I'd genuinely like to be told where this breaks.
 ```
@@ -208,7 +210,7 @@ And a fixture with one country cannot catch a cross-border leak. The bug above i
 
 The whole thing runs on synthetic data and was built without access to anything real. Every test runs offline with no cloud credentials, which is the point: the person building it never needs to hold what it protects.
 
-Independent reference architecture. 100% synthetic data. Not affiliated with or endorsed by the BIS, any central bank, or any vendor named above.
+Developed by 13668754 Canada Inc. as an independent reference architecture using 100% synthetic data. Not affiliated with or endorsed by the BIS, any central bank, or any vendor named above.
 
 Repository in the comments. Tell me what else is wrong with it.
 ```

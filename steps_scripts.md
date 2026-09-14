@@ -81,7 +81,7 @@ a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 77 passed, 12 skipped
+pytest tests/                 # live and stress tests are opt-in
 ```
 
 The skips are the `--live` tests, which need a workspace, and the `--stress`
@@ -93,7 +93,7 @@ benchmarks, which take minutes. Both are meant to skip here.
 
 ```bash
 bash sh/kv_spn_create.sh        # RG, Key Vault (discovered by prefix), both SPNs
-bash sh/grp_users_create.sh     # 5 Entra groups, 4 persona users, memberships
+TENANT_DOMAIN="<tenant-domain>" bash sh/grp_users_create.sh
 bash sh/kv_spn_create.sh        # re-run: adds the proxy SPN to the public group
 bash sh/databricks_create.sh    # workspace + publishes its URL to Key Vault
 ```
@@ -119,7 +119,9 @@ created. Both are gitignored and hold identifiers, not secrets.
 The most common cause of "the deploy worked but I see no data".
 
 ```powershell
-./sh/databricks_account_setup.ps1 -AccountId "<your-account-id>"
+./sh/databricks_account_setup.ps1 `
+  -AccountId "<your-account-id>" `
+  -TenantDomain "<tenant-domain>"
 ```
 
 Find the account id at `https://accounts.azuredatabricks.net` (top-right menu).
@@ -229,7 +231,10 @@ part of the DDL task on this path.
 
 ```powershell
 databricks bundle run sovereignshield_portal -t dev
-./sh/databricks_account_setup.ps1 -AccountId "<your-account-id>" -AppName sovereignshield-portal
+./sh/databricks_account_setup.ps1 `
+  -AccountId "<your-account-id>" `
+  -TenantDomain "<tenant-domain>" `
+  -AppName sovereignshield-portal
 ```
 
 Re-running the same script with `-AppName` resolves the app's managed service
@@ -390,7 +395,7 @@ gitignored.
 ### 8.2 Client-side verification
 
 ```powershell
-pytest tests/                    # offline: 77 passed
+pytest tests/                    # offline suite
 databricks bundle validate -t dev
 ```
 

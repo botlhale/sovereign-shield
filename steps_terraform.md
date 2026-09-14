@@ -89,7 +89,7 @@ a contractor reproduces with no credentials at all:
 
 ```powershell
 pip install -r requirements.txt
-pytest tests/                 # expect 77 passed, 12 skipped
+pytest tests/                 # live and stress tests are opt-in
 ```
 
 The skips are the `--live` tests, which need a workspace, and the `--stress`
@@ -294,7 +294,9 @@ cd ..
 The most common cause of "the deploy worked but I see no data".
 
 ```powershell
-./sh/databricks_account_setup.ps1 -AccountId "<your-account-id>"
+./sh/databricks_account_setup.ps1 `
+  -AccountId "<your-account-id>" `
+  -TenantDomain "<tenant-domain>"
 ```
 
 Find the account id at `https://accounts.azuredatabricks.net` (top-right menu).
@@ -434,7 +436,10 @@ cd terraform; terraform apply -var="grant_tables=true"; cd ..
 
 ```powershell
 databricks bundle run sovereignshield_portal -t dev
-./sh/databricks_account_setup.ps1 -AccountId "<your-account-id>" -AppName sovereignshield-portal
+./sh/databricks_account_setup.ps1 `
+  -AccountId "<your-account-id>" `
+  -TenantDomain "<tenant-domain>" `
+  -AppName sovereignshield-portal
 ```
 
 Re-running the same script with `-AppName` resolves the app's managed service
@@ -617,7 +622,7 @@ You do **not** hand over `terraform.tfvars`, `backend.hcl`, `sh/spn_details`,
 The client runs this inside their own boundary, on their own data:
 
 ```powershell
-pytest tests/                    # offline: 77 passed
+pytest tests/                    # offline suite
 terraform plan                   # expect no diff against policy objects
 databricks bundle validate -t dev
 ```

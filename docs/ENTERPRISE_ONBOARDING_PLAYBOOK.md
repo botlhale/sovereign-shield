@@ -298,4 +298,4 @@ Before the engagement closes:
 * [`.github/skills/persona_security_matrix.md`](../.github/skills/persona_security_matrix.md) — the entitlement model
 * [`.github/skills/contractor_zero_trust_workflow.md`](../.github/skills/contractor_zero_trust_workflow.md) — the same pattern for the engineer
 * [`docs/ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md) — renderable topology
-* [`steps.md`](../steps.md) — the operational rebuild runbook
+* [`AUTOMATION_RUNBOOK.md`](AUTOMATION_RUNBOOK.md) — one-command setup, recovery, pause, and teardown
