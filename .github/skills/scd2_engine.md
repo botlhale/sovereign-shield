@@ -1,5 +1,7 @@
 # SovereignShield SDMx Slowly Changing Dimension (SCD2) Engine
 
+> **Current contract supersedes the historical staged recipe below:** use [submission_history](../../src/submission_history.py) and [the Spark adapter](../../src/spark_submission_history.py). Each immutable submission commits expiry and inserts in one Delta transaction. Replay is a no-op; a new identical filing is retained. An accepted smaller full snapshot closes missing keys only in its country/period/aggregation scope; rejected rows never close accepted state. Measures are DECIMAL(38,3), zero is retained, and open VALID_TO is NULL. Both current local and macro history use uppercase temporal columns. Do not reintroduce sequential expire/append/delete writes or use payload hashes as filing identity. See [release evidence](../../docs/RELEASE_EVIDENCE.md) for single-writer and live verification limits.
+
 > **Context:** historisation of national submissions to an international statistical body. Point-in-time reconstruction is a regulatory requirement here — an international collection must be able to answer "what did this jurisdiction report as of date X," which a mutable status column cannot.
 
 ## Overview
@@ -47,7 +49,7 @@ Using PySpark, the micro-data is grouped by the analytical dimensions and rolled
   ```
 
   Segment **9** is the reporting jurisdiction — the exact segment the RLS filter parses.
-* **Zero Suppression:** A final `filter(OBS_VALUE IS NOT NULL AND OBS_VALUE != 0)` is applied. Under SDMx convention a position netting to exactly zero is not reported at all. Negative values, by contrast, are entirely valid and are retained.
+* **Zero retention:** retain genuine zero and signed values. Missing or masked values are not zero. Three decimal places are the explicit reference profile, not a universal SDMx requirement.
 
 ### 3. Batch Stamping
 

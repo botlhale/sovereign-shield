@@ -10,14 +10,14 @@
 
 ## The problem worth solving
 
-Regulated data modernisation stalls on a paradox, not on technology.
+A recurring delivery challenge is validating controls without sharing production records.
 
 The people qualified to build confidential statistical infrastructure — specialist
 architects, systems integrators, vendor teams — are, almost by definition, the
 people who should not hold the data. Security policy forbids third-party access to
-production. So the work either waits for internal capacity that does not exist, or
-proceeds under supervised-access arrangements that are slow, expensive, and
-themselves a risk surface.
+production without an approved purpose. Synthetic-first development offers an
+additional delivery option alongside established supervised-access arrangements;
+this is not a claim about any institution's staffing or control maturity.
 
 I treated that as an architecture problem rather than a staffing one.
 
@@ -29,21 +29,19 @@ applications that read it.**
 When sovereignty, confidentiality and integrity are expressed as catalogue
 constraints, three things follow that matter commercially:
 
-1. A specialist can build and prove the entire control model without ever holding
-   a real observation.
-2. The controls activate on real data at first run, because there is no
-   re-implementation step between the synthetic build and production.
-3. Off-boarding is an administrative action, not a project.
+1. A specialist can build and test the demonstrated control cases without real observations.
+2. The same declarative model can be assessed for production, subject to migration and independent assurance.
+3. Company-controlled execution identities support continuity, while full offboarding remains an identity and ownership review.
 
 ## Where the value lands
 
 | Concern | Conventional posture | This architecture |
 | --- | --- | --- |
 | **Engaging external specialists** | Supervised environments, provisioned access, access reviews | The specialist never holds real data at any point |
-| **Off-boarding** | A bespoke revocation path, separately built and separately tested | Group removal — the same predicate that separates two jurisdictions |
+| **Off-boarding** | Existing institutional access-review process | Stable runtime identity plus complete membership, session, RBAC and ownership review |
 | **Assurance** | Review the application code that enforces policy | Review the catalogue objects. No code path can skip them |
 | **New consumers** | Each new tool re-implements entitlement | A new dashboard, notebook or API inherits the policy automatically |
-| **Repository exposure** | Potentially a data incident | No credential and no observation exists in it |
+| **Repository exposure** | Review data and credential provenance | Synthetic observations; current source scanning does not certify all historical credentials |
 
 ## Governance and audit posture
 
@@ -56,8 +54,7 @@ constraints, three things follow that matter commercially:
 * **Fails closed.** A principal in no group resolves to zero rows. Not an error,
   not a partial view.
 * **Rulebook as metadata.** Consistency checks are parsed from the published
-  standards workbook at runtime, so a rulebook revision needs no deployment and no
-  change-control cycle against application code.
+  standards workbook with explicit coverage; changes still need review and regression tests.
 * **Integrity over availability, deliberately.** A submission that fails validation
   is quarantined whole. The previously published figure stays live and the
   rejection is recorded for audit — stale data, never missing data.
@@ -143,9 +140,9 @@ step with each other.
 **Correct by construction.** A new report, a new tool, a new analyst — the rules
 already apply. Nobody has to remember.
 
-**Off-boarding is instant.** Remove someone from a group and they see nothing.
-Not "less" — nothing. The same mechanism that keeps two countries apart is the
-one that removes a departing contractor. There is no separate switch to forget.
+**Continuity is designed in.** Runtime service principals outlast individual
+engagements. Group removal, session revocation, RBAC and ownership review must all
+be checked; this demonstration does not promise instant universal revocation.
 
 **It was built without the real data.** Everything you are looking at was
 developed and demonstrated against generated figures. The specialist who built it
@@ -155,5 +152,6 @@ is the delivery model.
 > **Anticipated question: "Is this in production?"**
 > No. It is a working reference architecture on synthetic data, built to test
 > whether the approach holds. What it demonstrates is that the controls can be
-> expressed as platform constraints — and that the same constraints activate on
-> real data at first run, with no separate hardening phase.
+> expressed as platform constraints. Production hardening, disclosure control,
+> migration and live acceptance remain required. The separate [executive brief](EXECUTIVE_BRIEF.md)
+> and [release evidence](RELEASE_EVIDENCE.md) are the current decision material.

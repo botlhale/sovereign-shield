@@ -16,7 +16,7 @@ Deploying Row-Level Security (RLS) and Dynamic Data Masking (DDM) in Unity Catal
 
 ### 1. Shared Compute Isolation (`USER_ISOLATION`)
 
-Unity Catalog physically restricts the application of RLS and DDM on `SINGLE_USER` clusters to prevent unauthorized memory bypass.
+This deployment fixes USER_ISOLATION. Dedicated compute has separate documented runtime/serverless requirements; it is not a universal policy bypass.
 
 * **Mandate:** The deployment and execution clusters **must** be configured with `data_security_mode: USER_ISOLATION`.
 * **Optimization:** The pipeline provisions a **Single Node** job cluster (`num_workers: 0`, `ResourceClass: SingleNode`, `spark.master: local[*, 4]`) on the `Standard_DS3_v2` family with `SPOT_WITH_FALLBACK_AZURE` availability, keeping the workload inside Azure `DSv5` core quotas.
@@ -71,16 +71,9 @@ The security architecture operates in three distinct layers, bound together by s
     statements. Only `CREATE TABLE IF NOT EXISTS` and `CREATE OR REPLACE VIEW`
     are permitted.
 * **Create before binding.** Unity Catalog requires target tables to physically exist before security policies bind to them; `ALTER TABLE ... SET ROW FILTER` on a missing table raises `TABLE_OR_VIEW_NOT_FOUND`.
-* **Detach → replace → re-attach.** `CREATE OR REPLACE FUNCTION` fails while the function is bound to a live row filter or column mask. The script therefore drops the filters and masks first (§1), redefines the functions, recreates the tables, then re-attaches (§7).
-* **Selective failure tolerance.** Statements that legitimately fail on one lifecycle path but not the other — detaching a filter on a table that does not yet exist, re-attaching one that is already bound — carry the marker below. The marker must be the *entire* comment on the preceding line; any other failure aborts the deployment rather than leaving the platform half-secured.
-
-```sql
--- @tolerate-failure
-ALTER TABLE agg_sdmx_history DROP ROW FILTER;
-```
-
-The policy script currently parses to **20 statements**. Access grants are a
-separate **30-statement** script.
+* **Never detach protection in normal deployment.** The executor uses content-addressed immutable function names, verifies definitions and bindings, and propagates every unexpected failure. Do not reintroduce DROP ROW FILTER or DROP MASK as an idempotency technique.
+* **Legacy migration is explicit.** Existing incompatible decimal/history schemas cause refusal before policy changes. Live UC metadata acceptance is a release gate, not proved by local mocks.
+* **One grants writer.** Terraform owns schema EXECUTE and table grants; the bundle sets SOVEREIGNSHIELD_SKIP_GRANTS=1. The script-only grants file is an alternative, never a concurrent writer.
 
 ### Lock 1: Row-Level Security (RLS)
 
@@ -97,7 +90,7 @@ Ensures strict national data sovereignty across **both** the macro history and t
 Protects market dominance and strictly confidential reporting metrics while maintaining structural table integrity for researchers.
 
 * **Mechanism:** `fn_ddm_obs_conf_mask(obs_val DOUBLE, obs_conf STRING, time_series_code STRING)` is bound with `MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`. If a record is marked Non-publishable (`N`) or Confidential (`C`), the numerical `OBS_VALUE` is masked to `NULL`. The key is an input, not decoration: without it the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells.
-* **Why `NULL`, not `'xxx'`:** `OBS_VALUE` is a `DOUBLE`, and a masking function must return the column's own type. A string sentinel is not representable.
+* **Why NULL:** measures and mask input/output use DECIMAL(38,3). Reveal explicit F only, except admin/own-country entitlements; unknown and missing flags withhold values.
 * **Privilege ordering:** Group membership is evaluated **before** the confidentiality branch, so an authorized admin or the owning submitter always sees the true value.
 * **Benefit:** External researchers can still perform dimensional joins and assess reporting density without exposing restricted financial limits.
 
@@ -122,7 +115,7 @@ Provides a uniform published-only surface for BI clients.
 
 ## Appendix: Target DDL Schema Reference
 
-Policies are attached inline at creation time so the table is never momentarily readable without governance. Note that `OBS_VALUE` may legitimately be negative — LBS positions record both asset and liability directions — while zero-valued observations are not reported at all under SDMx convention and are filtered upstream.
+Policies attach inline on creation. Negative and zero values are retained; masked absence is different. The following legacy shape is illustrative only; use the current [DDL](../../src/unity_catalog_triple_lock.sql) and [release migration gate](../../docs/RELEASE_EVIDENCE.md), including decimal and submission columns.
 
 ```sql
 CREATE TABLE IF NOT EXISTS agg_sdmx_history (

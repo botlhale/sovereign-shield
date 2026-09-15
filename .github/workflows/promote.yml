@@ -1,4 +1,4 @@
-# Air-gapped promotion.
+# Production-isolated promotion.
 #
 # The contractor opens a pull request; they cannot deploy it. Authentication to
 # Azure uses OpenID Connect workload identity federation, so there is no client
@@ -8,8 +8,8 @@
 # credentials in terraform/modules/identity/main.tf. A job can only authenticate
 # if a credential exists for its exact OIDC subject:
 #
-#   pull_request  -> repo:<owner>/<repo>:pull_request
-#   push to main  -> repo:<owner>/<repo>:environment:production
+#   pull_request  -> no cloud federation or credentials
+#   reviewed manual run -> repo:<owner>/<repo>:environment:production
 #
 # A job requesting an environment with no matching credential fails at the token
 # exchange with an opaque 400, so adding one here means adding one there.
@@ -33,6 +33,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Reviewed cloud operation (verify does not authenticate to Azure)
+        type: choice
+        options: [verify, plan, deploy]
+        default: verify
 
 # Least privilege at the top; id-token is granted per job, only where a token is
 # actually exchanged. The offline job must never be able to request one.
@@ -45,10 +51,6 @@ concurrency:
 
 env:
   TF_IN_AUTOMATION: "true"
-  ARM_USE_OIDC: "true"
-  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
   # Distinguishes "this repository has not been wired up yet" from "it has been
@@ -62,12 +64,21 @@ jobs:
   #                   is a misconfiguration, not an absence
   preflight:
     name: Configuration preflight
+    if: github.event_name == 'workflow_dispatch' && inputs.operation != 'verify' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
       configured: ${{ steps.check.outputs.configured }}
     steps:
+      - name: Require an active human approval gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh api "repos/$GH_REPO/environments/production" > "$RUNNER_TEMP/environment.json"
+          jq -e '.protection_rules | any(.type == "required_reviewers" and (.reviewers | length > 0) and .prevent_self_review == true)' "$RUNNER_TEMP/environment.json"
+          jq -e '.deployment_branch_policy.protected_branches == true' "$RUNNER_TEMP/environment.json"
       - name: Check deployment variables
         id: check
         env:
@@ -77,9 +88,10 @@ jobs:
           DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
           TF_STATE_RESOURCE_GROUP: ${{ vars.TF_STATE_RESOURCE_GROUP }}
           TF_STATE_STORAGE_ACCOUNT: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+          TF_STATE_CONTAINER: ${{ vars.TF_STATE_CONTAINER }}
         run: |
           required=(AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID \
-                    DATABRICKS_HOST TF_STATE_RESOURCE_GROUP TF_STATE_STORAGE_ACCOUNT)
+                    DATABRICKS_HOST TF_STATE_RESOURCE_GROUP TF_STATE_STORAGE_ACCOUNT TF_STATE_CONTAINER)
           missing=()
           for name in "${required[@]}"; do
             [ -z "${!name}" ] && missing+=("$name")
@@ -162,15 +174,28 @@ jobs:
           terraform init -backend=false -input=false
           terraform validate
 
-  # Pull requests only, matching the pull_request federated credential. Nothing
-  # in this job can apply.
+  # This is a privileged plan of reviewed main, not a read-only PR identity.
   plan:
     name: Terraform plan
     needs: [verify, preflight]
     if: >-
-      github.event_name == 'pull_request' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'plan' &&
+      github.ref == 'refs/heads/main' &&
       needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
+    environment: production
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_github_repository: ${{ github.repository }}
+      TF_STATE_RESOURCE_GROUP: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+      TF_STATE_STORAGE_ACCOUNT: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+      TF_STATE_CONTAINER: ${{ vars.TF_STATE_CONTAINER }}
     permissions:
       contents: read
       id-token: write
@@ -187,25 +212,8 @@ jobs:
         with:
           terraform_version: "1.15.8"
 
-      # backend.hcl is gitignored because it names a storage account, so the
-      # backend is configured from repository variables rather than a file.
-      - name: Init
-        working-directory: terraform
-        run: |
-          terraform init -input=false \
-            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
-            -backend-config="key=sovereignshield.tfstate" \
-            -backend-config="use_azuread_auth=true"
-
-      - name: Plan
-        working-directory: terraform
-        run: |
-          terraform plan -no-color -input=false \
-            -var="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
-            -var="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
-            -var="github_repository=${{ github.repository }}"
+      - name: Reviewed non-destructive steady-state plan
+        run: python sh/ci_terraform.py plan
 
   # Pushes to main only. Environment protection rules are the human gate, and
   # the federated credential is scoped to this environment name - a workflow
@@ -214,16 +222,30 @@ jobs:
     name: Terraform apply
     needs: [verify, preflight]
     if: >-
-      github.event_name != 'pull_request' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'deploy' &&
       github.ref == 'refs/heads/main' &&
       needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
     environment: production
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_github_repository: ${{ github.repository }}
+      TF_STATE_RESOURCE_GROUP: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+      TF_STATE_STORAGE_ACCOUNT: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+      TF_STATE_CONTAINER: ${{ vars.TF_STATE_CONTAINER }}
     permissions:
       contents: read
       id-token: write
     outputs:
       warehouse_id: ${{ steps.tf.outputs.warehouse_id }}
+      run_as: ${{ steps.tf.outputs.run_as }}
+      cluster: ${{ steps.tf.outputs.cluster }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -237,28 +259,9 @@ jobs:
         with:
           terraform_version: "1.15.8"
 
-      - name: Init
-        working-directory: terraform
-        run: |
-          terraform init -input=false \
-            -backend-config="resource_group_name=${{ vars.TF_STATE_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
-            -backend-config="key=sovereignshield.tfstate" \
-            -backend-config="use_azuread_auth=true"
-
-      - name: Apply infrastructure and access-control plane
-        working-directory: terraform
-        run: |
-          terraform apply -auto-approve -input=false \
-            -var="subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" \
-            -var="tenant_id=${{ vars.AZURE_TENANT_ID }}" \
-            -var="github_repository=${{ github.repository }}"
-
-      - name: Export the warehouse id
+      - name: Apply reviewed non-destructive steady-state plan
         id: tf
-        working-directory: terraform
-        run: echo "warehouse_id=$(terraform output -raw sql_warehouse_id)" >> "$GITHUB_OUTPUT"
+        run: python sh/ci_terraform.py apply
 
   bundle:
     name: Deploy data and policy plane
@@ -271,6 +274,9 @@ jobs:
     env:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_AUTH_TYPE: azure-cli
+      BUNDLE_VAR_warehouse_id: ${{ needs.apply.outputs.warehouse_id }}
+      BUNDLE_VAR_run_as_service_principal: ${{ needs.apply.outputs.run_as }}
+      BUNDLE_VAR_ingestion_cluster: ${{ needs.apply.outputs.cluster }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -293,3 +299,6 @@ jobs:
 
       - name: Run the ingestion and validation pipeline
         run: databricks bundle run sovereignshield_sdmx_pipeline -t dev
+
+      - name: Activate the Databricks portal
+        run: databricks bundle run sovereignshield_portal -t dev

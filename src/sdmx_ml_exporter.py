@@ -14,18 +14,17 @@ only XML data message the standard still defines. The ``output_type`` argument
 is kept for forward compatibility but rejects anything else rather than
 silently emitting a 2.1-era payload.
 
-Serialization is delegated to ``pysdmx`` whenever it is importable, because it
-writes against the published schemas and is already the engine behind
-``generate_sovereign_submissions.py``. A dependency-free ElementTree writer
-stands behind it so an export request never fails merely because the live BIS
-structure endpoint is unreachable.
+XML serialization uses the pinned pysdmx dependency and offline component
+snapshot. Standard feeds refuse audit records and duplicate observation keys.
+Audit CSV retains lifecycle and submission context separately. No registry
+network call is required on the normal serialization path.
 """
 
 from __future__ import annotations
 
 import csv
 import io
-import json
+import simplejson as json
 import logging
 import os
 import uuid
@@ -35,6 +34,9 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence
 
 import pandas as pd
+
+from decimal_measures import decimal_text, decimal_value
+from lbs_contract import DATASET_ATTRIBUTES, DATASET_PROFILE, SERIES_ATTRIBUTES, pinned_components, with_message_profile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ DSD_VERSION = "1.0"
 
 BIS_LBS_DSD_URL = os.getenv(
     "SOVEREIGNSHIELD_DSD_URL",
-    "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all",
+    "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/1.0?references=all",
 )
 
 #: The 11 BIS_LBS dimensions in the exact order encoded in TIME_SERIES_CODE.
@@ -124,7 +126,7 @@ def parse_series_key(time_series_code: str) -> Dict[str, str]:
     return dict(zip(SDMX_DIMENSIONS, segments))
 
 
-def explode_series_keys(df: pd.DataFrame) -> pd.DataFrame:
+def explode_series_keys(df: pd.DataFrame, *, audit: bool = False) -> pd.DataFrame:
     """Projects a query result into the flat SDMx component layout.
 
     The returned frame carries the 11 dimensions, ``TIME_PERIOD``, ``OBS_VALUE``
@@ -141,6 +143,11 @@ def explode_series_keys(df: pd.DataFrame) -> pd.DataFrame:
 
     if "TIME_SERIES_CODE" not in df.columns:
         raise SdmxSerializationError("Input frame has no TIME_SERIES_CODE column.")
+    if not audit:
+        if "BATCH_STATUS" in df and not df["BATCH_STATUS"].eq("PUBLISHED").all():
+            raise SdmxSerializationError("Standard SDMx feeds contain published observations only; use audit CSV.")
+        if "IS_CURRENT" in df and not df["IS_CURRENT"].eq(True).all():
+            raise SdmxSerializationError("Standard SDMx feeds contain the current snapshot only; use audit CSV.")
 
     keys = df["TIME_SERIES_CODE"].astype(str)
     segment_counts = keys.str.count(r"\.") + 1
@@ -158,12 +165,20 @@ def explode_series_keys(df: pd.DataFrame) -> pd.DataFrame:
         raise SdmxSerializationError("Input frame has neither TIME_PERIOD nor DATE.")
     exploded[TIME_DIMENSION] = df[period_column].astype(str).to_numpy()
 
-    exploded[MEASURE] = pd.to_numeric(df[MEASURE], errors="coerce").to_numpy() if MEASURE in df.columns else pd.NA
+    try:
+        exploded[MEASURE] = df[MEASURE].map(lambda value: decimal_value(value, allow_missing=True)).to_numpy()
+    except (KeyError, ValueError) as exc:
+        raise SdmxSerializationError(str(exc)) from exc
 
     for attribute in OBS_ATTRIBUTES:
         exploded[attribute] = df[attribute].to_numpy() if attribute in df.columns else ""
 
-    return exploded.reset_index(drop=True)
+    if not audit and exploded.duplicated(SDMX_DIMENSIONS + [TIME_DIMENSION]).any():
+        raise SdmxSerializationError("Duplicate series/period key; use a submission-aware audit export.")
+    try:
+        return with_message_profile(exploded).reset_index(drop=True)
+    except ValueError as exc:
+        raise SdmxSerializationError(str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -250,22 +265,9 @@ def to_sdmx_ml_3_0(
         )
 
     observations = explode_series_keys(df)
-    components = fetch_lbs_components()
-
-    if components is not None:
-        try:
-            payload = _write_with_pysdmx(
-                observations, components, sender_id, sender_name, dataset_action, dataset_id
-            )
-        except Exception as exc:  # noqa: BLE001 - fall through to the local writer
-            LOGGER.warning("pysdmx serialization failed, using the local writer: %s", exc)
-            payload = _write_with_elementtree(
-                observations, sender_id, sender_name, dataset_action, dataset_id
-            )
-    else:
-        payload = _write_with_elementtree(
-            observations, sender_id, sender_name, dataset_action, dataset_id
-        )
+    payload = _write_with_pysdmx(
+        observations, pinned_components(), sender_id, sender_name, dataset_action, dataset_id
+    )
 
     if validate:
         _assert_readable(payload)
@@ -292,7 +294,7 @@ def _write_with_pysdmx(
     frame = observations.copy()
     # A masked observation is absent, not zero: DDM nulls confidential values
     # for personas that are not entitled to read them.
-    frame[MEASURE] = frame[MEASURE].map(lambda v: "" if pd.isna(v) else f"{v:g}")
+    frame[MEASURE] = frame[MEASURE].map(decimal_text)
 
     schema = Schema(
         context="dataflow",
@@ -302,10 +304,13 @@ def _write_with_pysdmx(
         version=DATAFLOW_VERSION,
     )
     action = ActionType[dataset_action]
-    dataset = PandasDataset(structure=schema, data=frame, action=action)
+    dataset = PandasDataset(
+        structure=schema, data=frame.drop(columns=DATASET_ATTRIBUTES, errors="ignore"),
+        attributes=dict(DATASET_PROFILE), action=action,
+    )
     header = Header(
         id=str(uuid.uuid4()),
-        test=False,
+        test=True,
         prepared=datetime.now(timezone.utc),
         sender=Organisation(id=sender_id, name=sender_name),
         dataset_action=action,
@@ -403,7 +408,7 @@ def _group_series(observations: pd.DataFrame):
         attributes = {TIME_DIMENSION: str(record[TIME_DIMENSION])}
         value = record.get(MEASURE)
         if not pd.isna(value):
-            attributes[MEASURE] = f"{value:g}"
+            attributes[MEASURE] = decimal_text(value)
         for attribute in OBS_ATTRIBUTES:
             text = record.get(attribute)
             if text not in (None, "") and not pd.isna(text):
@@ -419,7 +424,7 @@ def _assert_readable(xml_payload: str) -> None:
     try:
         from pysdmx.io import read_sdmx
 
-        read_sdmx(xml_payload, validate=False)
+        read_sdmx(xml_payload, validate=True)
         return
     except ImportError:
         # pysdmx defers its XML-extra check to call time, so a missing extra
@@ -450,6 +455,10 @@ def to_sdmx_json_2_0_0(
 ) -> str:
     """Serializes query results as an SDMX-JSON 2.0.0 data message."""
     observations = explode_series_keys(df)
+    if observations.empty:
+        raise SdmxSerializationError("No observations to export.")
+    if dataset_action not in ACTION_CODES:
+        raise SdmxSerializationError(f"Unknown dataset action '{dataset_action}'.")
 
     dimension_values: Dict[str, List[str]] = {d: [] for d in SDMX_DIMENSIONS}
     dimension_index: Dict[str, Dict[str, int]] = {d: {} for d in SDMX_DIMENSIONS}
@@ -457,6 +466,8 @@ def to_sdmx_json_2_0_0(
     period_index: Dict[str, int] = {}
     attribute_values: Dict[str, List[str]] = {a: [] for a in OBS_ATTRIBUTES}
     attribute_index: Dict[str, Dict[str, int]] = {a: {} for a in OBS_ATTRIBUTES}
+    series_values = {name: [] for name in SERIES_ATTRIBUTES}
+    series_indexes = {name: {} for name in SERIES_ATTRIBUTES}
 
     def _position(value: str, values: List[str], index: Dict[str, int]) -> int:
         if value not in index:
@@ -473,7 +484,7 @@ def to_sdmx_json_2_0_0(
         period_position = _position(str(record[TIME_DIMENSION]), period_values, period_index)
 
         value = record.get(MEASURE)
-        cell: List[Any] = [None if pd.isna(value) else float(value)]
+        cell: List[Any] = [None if pd.isna(value) else value]
         for attribute in OBS_ATTRIBUTES:
             text = record.get(attribute)
             if text in (None, "") or pd.isna(text):
@@ -483,14 +494,17 @@ def to_sdmx_json_2_0_0(
                     _position(str(text), attribute_values[attribute], attribute_index[attribute])
                 )
 
-        series.setdefault(series_key, {"attributes": [], "observations": {}})
+        series.setdefault(series_key, {
+            "attributes": [_position(str(record[name]), series_values[name], series_indexes[name]) for name in SERIES_ATTRIBUTES],
+            "observations": {},
+        })
         series[series_key]["observations"][str(period_position)] = cell
 
     message = {
         "meta": {
             "schema": _SDMX_JSON_SCHEMA,
             "id": str(uuid.uuid4()),
-            "test": False,
+            "test": True,
             "prepared": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "contentLanguages": ["en"],
             "sender": {"id": sender_id, "name": sender_name},
@@ -500,6 +514,7 @@ def to_sdmx_json_2_0_0(
                 {
                     "action": dataset_action,
                     "links": [{"urn": structure_urn(), "rel": "dataflow"}],
+                    "attributes": [0] * len(DATASET_ATTRIBUTES),
                     "series": series,
                 }
             ],
@@ -531,6 +546,17 @@ def to_sdmx_json_2_0_0(
                         "observation": [{"id": MEASURE, "name": MEASURE}]
                     },
                     "attributes": {
+                        "dataSet": [
+                            {"id": name, "name": name, "relationship": {"dataflow": {}},
+                             "values": [{"id": DATASET_PROFILE[name], "name": DATASET_PROFILE[name]}]}
+                            for name in DATASET_ATTRIBUTES
+                        ],
+                        "series": [
+                            {"id": name, "name": name,
+                             "relationship": {"dimensions": SDMX_DIMENSIONS},
+                             "values": [{"id": value, "name": value} for value in series_values[name]]}
+                            for name in SERIES_ATTRIBUTES
+                        ],
                         "observation": [
                             {
                                 "id": attribute,
@@ -545,7 +571,7 @@ def to_sdmx_json_2_0_0(
             ],
         },
     }
-    return json.dumps(message, indent=2)
+    return json.dumps(message, indent=2, use_decimal=True, allow_nan=False)
 
 
 # ---------------------------------------------------------------------------
@@ -572,15 +598,15 @@ def to_sdmx_csv_2_0_0(df: pd.DataFrame, dataset_action: str = "Information") -> 
         ["STRUCTURE", "STRUCTURE_ID", "ACTION"]
         + SDMX_DIMENSIONS
         + [TIME_DIMENSION, MEASURE]
-        + OBS_ATTRIBUTES
+        + OBS_ATTRIBUTES + SERIES_ATTRIBUTES + DATASET_ATTRIBUTES
     )
     for record in observations.to_dict(orient="records"):
         value = record.get(MEASURE)
         writer.writerow(
             ["dataflow", structure_reference, ACTION_CODES[dataset_action]]
             + [record[d] for d in SDMX_DIMENSIONS]
-            + [record[TIME_DIMENSION], "" if pd.isna(value) else f"{value:g}"]
-            + [_blank_if_missing(record.get(a)) for a in OBS_ATTRIBUTES]
+            + [record[TIME_DIMENSION], decimal_text(value)]
+            + [_blank_if_missing(record.get(attribute)) for attribute in OBS_ATTRIBUTES + SERIES_ATTRIBUTES + DATASET_ATTRIBUTES]
         )
     return buffer.getvalue()
 
@@ -591,10 +617,10 @@ def to_tidy_csv(df: pd.DataFrame, columns: Optional[Sequence[str]] = None) -> st
     Keeps the composite key alongside the exploded dimensions so the file can
     be joined straight back to the Delta history.
     """
-    observations = explode_series_keys(df)
+    observations = explode_series_keys(df, audit=True)
     observations.insert(0, "TIME_SERIES_CODE", df["TIME_SERIES_CODE"].astype(str).to_numpy())
 
-    for passthrough in ("AGG_CODE", "BATCH_STATUS", "QUALITY_STATUS"):
+    for passthrough in ("AGG_CODE", "BATCH_STATUS", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES", "SUBMISSION_ID", "RECEIVED_AT", "SOURCE_SHA256", "VALID_FROM", "VALID_TO", "IS_CURRENT"):
         if passthrough in df.columns:
             observations[passthrough] = df[passthrough].to_numpy()
 
@@ -623,6 +649,7 @@ SERIALIZERS = {
     "sdmx-json": (to_sdmx_json_2_0_0, "application/vnd.sdmx.data+json;version=2.0.0", "json"),
     "sdmx-csv": (to_sdmx_csv_2_0_0, "application/vnd.sdmx.data+csv;version=2.0.0", "csv"),
     "tidy-csv": (to_tidy_csv, "text/csv", "csv"),
+    "audit-csv": (to_tidy_csv, "text/csv", "csv"),
 }
 
 

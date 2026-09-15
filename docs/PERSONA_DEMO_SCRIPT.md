@@ -1,7 +1,7 @@
 # SovereignShield — Persona Demo Narrative
 
 **Audience:** statistical leaders, data architects, central-bank analysts, research partners  
-**Format:** 3–5 minute LinkedIn video  
+**Format:** Optional 3–5 minute follow-up video; technical post and separate executive brief first<br>
 **Companions:** [Executive vision](executive_vision.md) · [Technical vision](technical_vision.md) · [Whitepaper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md)
 
 ## Reference Captures
@@ -26,7 +26,7 @@ The demo and the architecture pattern should remain separate but connected.
 - **The architecture explains why those views can be trusted.** Unity Catalog row filters and column masks enforce the differences at query time.
 - **The whitepaper provides the durable argument.** It records the design, standards, controls and operating model beyond what fits in a short video.
 
-For LinkedIn, lead with the demo. Use one brief architecture transition near the end, then link to the whitepaper and repository for evidence. The video earns attention; the architecture earns confidence; the whitepaper supports serious evaluation.
+For the agreed launch, lead with the [technical post and executive brief](LINKEDIN_POST.md). A video is optional supporting material, not a prerequisite or a promise of reach. Label local UI fixtures and historical cloud captures accurately.
 
 ---
 
@@ -61,7 +61,7 @@ This creates a practical validation feedback loop:
 submit → validate → publish or quarantine → inspect outcome → reconcile rule interpretation → improve the next filing
 ```
 
-SovereignShield currently demonstrates visibility of published and quarantined versions. `FAILED_RULE_ID` is retained in the governed history and API result model; presenting rule-level diagnostics directly in the portal would be a logical product extension for operational users.
+The current portal offers Published, Published + quarantine, and Quarantine only modes for administrators and submitters. It displays `FAILED_RULE_ID`, the separate batch rejection reason, submission identity, and submitted/received times. Standard SDMx feeds require Published mode; Audit CSV matches the selected lifecycle view. Values use the explicit three-place reference profile. These changes are locally verified, not yet a fresh live deployment capture.
 
 ---
 

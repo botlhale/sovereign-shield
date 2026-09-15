@@ -4,21 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SovereignShield &middot; Public Dissemination Gateway</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            ink: '#0b1f33',
-            slate850: '#16293d',
-            accent: '#0f766e',
-          },
-          fontFamily: { sans: ['Inter', 'system-ui', 'Segoe UI', 'sans-serif'] },
-        },
-      },
-    };
-  </script>
+  <link rel="stylesheet" href="/static/portal.css">
     <style>
       @media (min-width: 1024px) {
         body { display: flex; height: 100vh; flex-direction: column; overflow: hidden; }
@@ -71,7 +57,7 @@
         Statistic type
         <select id="statistic-type" class="mt-1 block h-9 w-full rounded-md border-slate-300 bg-white text-sm normal-case text-slate-800 focus:border-accent focus:ring-accent"></select>
       </label>
-      <label id="aggregation-field" class="min-w-[18rem] flex-[2] text-[11px] font-semibold uppercase text-slate-500">
+      <label id="aggregation-field" class="min-w-0 basis-full flex-[2] text-[11px] font-semibold uppercase text-slate-500 sm:basis-0 sm:min-w-[18rem]">
         Aggregation
         <select id="aggregation" class="mt-1 block h-9 w-full rounded-md border-slate-300 bg-white text-sm normal-case text-slate-800 focus:border-accent focus:ring-accent"></select>
       </label>
@@ -100,10 +86,14 @@
         </select>
       </label>
 
-      <label id="quarantine-card" class="hidden col-span-2 h-8 items-center gap-2 self-end rounded-md border border-amber-300 bg-amber-50 px-2 text-xs text-amber-900 sm:col-span-1 lg:col-span-2 xl:col-span-1">
-        <input id="include-quarantined" type="checkbox" class="rounded border-amber-400 text-amber-600">
-        <span class="truncate" title="Include failed BIS consistency batches">Include quarantine</span>
-      </label>
+      <fieldset id="quarantine-card" class="hidden col-span-full flex-wrap items-center gap-2 text-xs">
+        <legend class="sr-only">Submission view</legend>
+        <div class="lifecycle-control" role="radiogroup" aria-label="Submission view">
+          <label><input type="radio" name="lifecycle" value="published" checked><span>Published</span></label>
+          <label><input type="radio" name="lifecycle" value="all"><span>Published + quarantine</span></label>
+          <label><input type="radio" name="lifecycle" value="quarantine"><span>Quarantine only</span></label>
+        </div>
+      </fieldset>
     </div>
   </section>
 
@@ -127,6 +117,10 @@
               <th class="px-5 py-3 font-semibold">Status</th>
               <th class="px-5 py-3 font-semibold">Conf.</th>
               <th class="px-5 py-3 font-semibold">Batch</th>
+              <th data-audit-column class="hidden px-5 py-3 font-semibold">Failed rule</th>
+              <th data-audit-column class="hidden px-5 py-3 font-semibold">Batch rejection</th>
+              <th data-audit-column class="hidden px-5 py-3 font-semibold">Submission</th>
+              <th data-audit-column class="hidden px-5 py-3 font-semibold">Submitted / received</th>
             </tr>
           </thead>
           <tbody id="results" class="divide-y divide-slate-100"></tbody>
@@ -137,24 +131,24 @@
     <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
       <div>
         <h2 class="text-sm font-semibold text-slate-800">Export</h2>
-        <p class="text-[11px] text-slate-500">Current filters and caller entitlement apply.</p>
+        <p id="export-scope" class="text-[11px] text-slate-500">Published snapshot</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <a id="export-sdmx-ml" href="#"
            class="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-white shadow hover:bg-teal-700">
-          SDMX-ML 3.0
+          SDMx-ML 3.0
         </a>
         <a id="export-sdmx-json" href="#"
            class="rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
-          SDMX-JSON 2.0.0
+          SDMx-JSON 2.0.0
         </a>
         <a id="export-sdmx-csv" href="#"
            class="rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
-          SDMX-CSV 2.0.0
+          SDMx-CSV 2.0.0
         </a>
         <a id="export-tidy-csv" href="#"
            class="rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
-          Tidy CSV
+          Audit CSV
         </a>
       </div>
     </div>
@@ -182,7 +176,7 @@
   const aggregation = document.getElementById("aggregation");
   const dimensionFilters = document.getElementById("dimension-filters");
   const referencePeriod = document.getElementById("reference-period");
-  const quarantine = document.getElementById("include-quarantined");
+  const lifecycleOptions = Array.from(document.querySelectorAll('input[name="lifecycle"]'));
   const results = document.getElementById("results");
   const summary = document.getElementById("result-summary");
   const maskingNote = document.getElementById("masking-note");
@@ -190,12 +184,13 @@
   let easyAuthAccessToken = null;
   let refreshTimer = null;
   let searchSequence = 0;
+  let mayReview = false;
 
   const EXPORTS = {
     "export-sdmx-ml": "/api/v1/export/sdmx-ml",
     "export-sdmx-json": "/api/v1/export/sdmx-json",
     "export-sdmx-csv": "/api/v1/export/csv?format=sdmx",
-    "export-tidy-csv": "/api/v1/export/csv?format=tidy",
+    "export-tidy-csv": "/api/v1/export/audit-csv",
   };
 
   function populateStatisticCatalog() {
@@ -215,7 +210,9 @@
     (definition ? definition.aggregations : []).forEach((item) => {
       const option = document.createElement("option");
       option.value = item.code;
-      option.textContent = item.label + " (" + item.code + ")" +
+      const labels = { LBSR: "Residency", LBSN: "Nationality", CBSI: "Immediate counterparty", CBSG: "Guarantor basis" };
+      option.title = item.label;
+      option.textContent = (labels[item.code] || item.label) + " (" + item.code + ")" +
         (item.available ? "" : " - unavailable");
       option.disabled = !item.available;
       aggregation.appendChild(option);
@@ -266,16 +263,14 @@
       params.append("date_from", referencePeriod.value);
       params.append("date_to", referencePeriod.value);
     }
-    // Built here rather than in runSearch so the export links carry the same
-    // lifecycle scope as the preview; otherwise a download silently drops
-    // quarantined rows the administrator can see on screen.
-    if (quarantine && quarantine.checked) params.append("include_quarantined", "true");
+    const lifecycle = lifecycleOptions.find((option) => option.checked);
+    params.append("lifecycle", mayReview && lifecycle ? lifecycle.value : "published");
     return params;
   }
 
   function scheduleSearch() {
     clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(runSearch, 180);
+    refreshTimer = setTimeout(() => runSearch().catch((error) => showError(error.message)), 180);
   }
 
   function updateMenuSummary(menu) {
@@ -331,9 +326,17 @@
 
   function refreshExportLinks() {
     const query = currentParams().toString();
+    const auditMode = currentParams().get("lifecycle") !== "published";
+    document.getElementById("export-scope").textContent = auditMode ? "Audit CSV only for this view" : "Published snapshot";
     Object.entries(EXPORTS).forEach(([id, path]) => {
       const separator = path.includes("?") ? "&" : "?";
-      document.getElementById(id).href = query ? path + separator + query : path;
+      const link = document.getElementById(id);
+      link.href = query ? path + separator + query : path;
+      const disabled = auditMode && id !== "export-tidy-csv";
+      link.setAttribute("aria-disabled", String(disabled));
+      link.classList.toggle("opacity-40", disabled);
+      link.tabIndex = disabled ? -1 : 0;
+      link.title = disabled ? "Available in the Published view" : "";
     });
   }
 
@@ -350,7 +353,7 @@
     if (!observations.length) {
       const row = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 6;
+      td.colSpan = mayReview ? 10 : 6;
       td.className = "px-5 py-8 text-center text-slate-500";
       td.textContent = "No observations are visible to your access level for this filter.";
       row.appendChild(td);
@@ -369,7 +372,7 @@
       if (value === null || value === undefined) {
         cell(row, "restricted", "text-right italic text-slate-400");
       } else {
-        cell(row, Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }),
+        cell(row, String(value),
              "text-right tabular-nums");
       }
 
@@ -383,6 +386,15 @@
         (batch === "QUARANTINE" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800");
       span.textContent = batch;
       badge.appendChild(span);
+      if (mayReview) {
+        const failure = cell(row, observation.FAILED_RULE_ID || "", "text-xs text-rose-800 audit-feedback");
+        failure.title = observation.VALIDATION_NOTES || "";
+        cell(row, observation.BATCH_FAILED_RULE_ID || "", "text-xs text-amber-900 audit-feedback");
+        const identity = observation.SUBMISSION_ID || "";
+        const submissionCell = cell(row, identity.slice(-12), "font-mono text-xs");
+        submissionCell.title = identity;
+        cell(row, [observation.SUBMITTED_AT, observation.RECEIVED_AT].filter(Boolean).join(" / "), "text-xs audit-feedback");
+      }
 
       fragment.appendChild(row);
     });
@@ -393,6 +405,8 @@
     const response = await authenticatedFetch("/api/v1/whoami");
     if (!response.ok) throw new Error("Could not resolve the security context.");
     const identity = await response.json();
+    mayReview = Boolean(identity.may_see_quarantine);
+    document.querySelectorAll("[data-audit-column]").forEach((column) => column.classList.toggle("hidden", !mayReview));
 
     const badge = document.getElementById("persona-badge");
     const dot = badge.querySelector("span");
@@ -448,6 +462,7 @@
       return;
     }
     const payload = await response.json();
+    if (sequence !== searchSequence) return;
     renderRows(payload.observations);
 
     summary.textContent =
@@ -478,7 +493,8 @@
       menu.open = false;
     });
     referencePeriod.value = "";
-    if (quarantine) quarantine.checked = false;
+    lifecycleOptions.forEach((option) => { option.checked = option.value === "published"; });
+    refreshExportLinks();
     runSearch();
   });
   statisticType.addEventListener("change", () => {
@@ -497,10 +513,10 @@
     refreshExportLinks();
     scheduleSearch();
   });
-  quarantine.addEventListener("change", () => {
+  lifecycleOptions.forEach((option) => option.addEventListener("change", () => {
     refreshExportLinks();
     scheduleSearch();
-  });
+  }));
   document.addEventListener("click", (event) => {
     filterMenus.forEach((menu) => {
       if (!menu.contains(event.target)) menu.open = false;
@@ -508,11 +524,15 @@
   });
   Object.keys(EXPORTS).forEach((id) => {
     document.getElementById(id).addEventListener("click", async (event) => {
-      if (!easyAuthAccessToken) return;
       event.preventDefault();
       clearError();
       const link = event.currentTarget;
+      if (link.getAttribute("aria-disabled") === "true") return;
       const response = await authenticatedFetch(link.href);
+      if (response.status === 204) {
+        showError("No observations matched the filter.");
+        return;
+      }
       if (!response.ok) {
         const detail = await response.json().catch(() => ({ detail: response.statusText }));
         showError(detail.detail || "The export could not be completed.");

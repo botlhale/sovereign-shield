@@ -1,5 +1,15 @@
 # Everything a follow-on step needs, and nothing that would be a disclosure.
-# No credential is emitted: the proxy password exists only in Key Vault.
+# No credential is emitted by these outputs; Terraform state remains sensitive.
+
+output "ingestion_job_cluster" {
+  description = "Complete cost-gated job compute specification consumed by the bundle."
+  value = merge(module.databricks_workspace.ingestion_job_cluster, {
+    spark_env_vars = {
+      SOVEREIGNSHIELD_SUBMISSION_DIR = module.unity_catalog_governance.submission_volume_path
+      SOVEREIGNSHIELD_SKIP_GRANTS    = "1"
+    }
+  })
+}
 
 output "key_vault_name" {
   description = "Vault name. sh/pre_auth.ps1 discovers this by prefix rather than hardcoding it."

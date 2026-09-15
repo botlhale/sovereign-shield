@@ -10,7 +10,8 @@ uvicorn[standard]>=0.30.0
 jinja2>=3.1.4
 
 # SDMx 3.0 serialization
-pysdmx[xml]>=1.18.0
+pysdmx[xml]==1.18.0
+simplejson>=3.19.3
 
 # Result handling
 pandas>=2.2.0

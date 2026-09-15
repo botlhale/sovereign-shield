@@ -224,7 +224,7 @@ Worth rehearsing — an architecture review will find these.
 | Challenge | Honest answer |
 | --- | --- |
 | "The local policy mirror duplicates the SQL. That will drift." | It will. The offline tests assert the same expectations the live tests assert against the real metastore, so drift fails the live run. It is a verified convenience, not an independent implementation to trust. |
-| "Views resolve group membership as the view owner." | Correct, which is why the gateway queries the base table directly. A pre-filtered view would hand every visitor the owner's entitlement. |
+| "Views resolve group membership as the view owner." | Incorrect as a blanket claim: UC dynamic-view membership functions are caller-aware. Base-table queries are used here for current and audit modes. |
 | "A row filter that raises kills the whole table." | Yes. That is why the segment lookup is the non-throwing variant wrapped in a coalesce to false. A malformed key becomes invisible rather than causing an outage. |
 | "Ownership must exempt the pipeline principal." | It does not. Object ownership does not lift a row filter — the pipeline identity has to hold the admin persona explicitly, or its merge reads an empty target and silently duplicates history. |
 | "Account-scope vs workspace-scope groups." | Only account-scope groups resolve. Workspace-scoped groups of the same name look identical in the console and match nothing. This is the most common misconfiguration and it fails closed. |

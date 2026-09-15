@@ -47,11 +47,11 @@ GRANT USAGE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshiel
 -- can redact their values. Every principal that can reach the macro table must
 -- therefore be allowed to execute the mask function; otherwise masked SELECTs
 -- fail even though facets and unmasked submitter queries still work.
-GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-admin`;
-GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-submitter-ca`;
-GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-submitter-us`;
-GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-researchers`;
-GRANT EXECUTE ON FUNCTION dbw_sovereignshield.sovereign_shield.fn_ddm_obs_conf_mask TO `sg-sovereignshield-public`;
+GRANT EXECUTE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-admin`;
+GRANT EXECUTE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-submitter-ca`;
+GRANT EXECUTE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-submitter-us`;
+GRANT EXECUTE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-researchers`;
+GRANT EXECUTE ON SCHEMA dbw_sovereignshield.sovereign_shield TO `sg-sovereignshield-public`;
 
 -- Intake holds the pre-submission ledger. Submitters traverse it to reach their own
 -- rows; researchers and the public tier are absent, so they cannot see it at all.
@@ -88,9 +88,8 @@ GRANT SELECT ON TABLE sovereign_intake.lbs_micro_transactions TO `sg-sovereignsh
 
 -- =====================================================================
 -- 5. CURATED PUBLISHED VIEW
--- A convenience for BI tools with a uniform audience. Note that a Unity Catalog
--- view resolves group membership against the VIEW OWNER, not the caller, which
--- is why the portal queries the base table instead.
+-- A current-state convenience for BI tools. Dynamic-view membership functions
+-- are caller-aware; table policies also protect direct base-table access.
 -- =====================================================================
 GRANT SELECT ON VIEW v_agg_sdmx_published TO `sg-sovereignshield-researchers`;
 GRANT SELECT ON VIEW v_agg_sdmx_published TO `sg-sovereignshield-public`;

@@ -137,7 +137,7 @@ configuration, and the mirror is unreachable once a workspace is configured.
 
 ---
 
-## Phase 3 — Air-gapped promotion
+## Phase 3 — Production-isolated promotion
 
 ```
 PR ──▶ offline tests ──▶ human review ──▶ merge
@@ -158,13 +158,10 @@ PR ──▶ offline tests ──▶ human review ──▶ merge
 | Infrastructure & access control | Terraform | Entra groups, service principals, OIDC federation, Key Vault, workspace, access connector, storage credential, external location, catalog, schema, SQL warehouse, `USE CATALOG` / `USE SCHEMA` / `SELECT` |
 | Data & policy | DABs + `unity_catalog_triple_lock.sql` | Table DDL, policy UDFs, `SET ROW FILTER`, `SET MASK`, the quarantine view |
 
-The boundary is not stylistic. Row filters are detached and re-attached on every
-pipeline run so the functions they bind can be replaced. If Terraform also owned
-them it would report drift after every run, and an apply could detach a live
-filter mid-query. **One writer per object.**
-
-Grants use the additive `databricks_grant` resource, never the authoritative
-`databricks_grants`, which would revoke anything it does not declare.
+Policy functions are content-addressed and bindings change without detaching
+protection. Terraform owns grants; the bundle sets `SOVEREIGNSHIELD_SKIP_GRANTS=1`.
+The singular `databricks_grant` resource is authoritative for one principal/securable
+pair, not universally additive. **One writer per managed pair.**
 
 ### Why OIDC rather than a stored secret
 
@@ -200,7 +197,7 @@ the platform partially granted.
 
 ---
 
-## Phase 4 — The zero-secret guarantee
+## Phase 4 — Credential boundaries
 
 `tests/test_secret_decoupling.py` runs on every pull request and scans for
 connection strings, API keys, private-key blocks, client secrets and hardcoded
@@ -216,12 +213,14 @@ The guarantee is structural:
   variable names fail the build; only pointers (`*_secret_id`) are permitted.
 * **Container Apps** resolves credentials through
   `keyvaultref:...,identityref:...` — the platform injects them, and no value
-  passes on a command line or enters Terraform state.
+  is embedded in the portal's source. Terraform-managed secrets remain in sensitive state and plans.
 * **Databricks** reads through a Key Vault-backed secret scope, which stores a
-  pointer rather than a copy, so rotation takes effect immediately.
+  pointer rather than a source literal; rotation and consumer refresh must be verified.
 
-The corollary: **a leaked repository is not a data incident.** It contains no
-credential and no observation.
+The repository contains synthetic observations. Current source scanning is not a
+guarantee about all historical versions: an old bootstrap password was identified,
+and the author reports that it is no longer used. Production credentials and data
+must remain outside the developer fixture and its history.
 
 > The scanner earned its place. It initially *missed* a real password hidden in a
 > shell default expansion (`${VAR:-literal}`) because the `$` prefix looked like
@@ -232,24 +231,13 @@ credential and no observation.
 
 ## Phase 5 — Revocation
 
-Three actions, none of which touch the delivered code:
+Offboarding is an identity and ownership review, not three universally sufficient commands.
 
-1. **Rotate the service principal.** Terraform re-mints the dissemination proxy
-   credential automatically every 90 days (`time_rotating`); for an immediate
-   rotation use `terraform apply -replace="module.identity.azuread_service_principal_password.public_proxy"`,
-   or `sh/kv_spn_remediation.sh` for the CI/CD principal. Either way the secret is
-   overwritten under the **same name**, so any retained copy dies immediately and
-   the pipeline keeps working with no code change — every consumer resolves
-   secrets by name, never by value.
-2. **Remove the Key Vault role assignment.** Without it they cannot hydrate a
-   session at all.
-3. **Remove them from every Entra ID group.** The row filter grants rows only on
-   positive membership and fails closed, so a former specialist who somehow
-   retained a valid login resolves to zero groups and therefore zero rows.
-
-> The mechanism that stops Canada seeing UK data is the mechanism that stops a
-> former contractor seeing any data. There is no separate off-boarding feature
-> that could rot, be forgotten, or be tested less rigorously than the primary one.
+1. Remove applicable Entra and Databricks account/workspace memberships; reconcile both directories.
+2. Revoke sessions and tokens, and remove Azure RBAC, vault, GitHub and delegated deployment rights.
+3. Transfer or verify object ownership and stable service-principal execution. Do not delete the delivered runtime identity because one person's engagement ended.
+4. Rotate credentials that the departing person could access, refresh consumers and verify continuity. The 90-day Terraform resource acts on a subsequent apply, not independently on a calendar.
+5. Record evidence that all relevant routes are revoked, including break-glass and indirect memberships. Group removal alone does not revoke privileged ownership or copied exports.
 
 ---
 

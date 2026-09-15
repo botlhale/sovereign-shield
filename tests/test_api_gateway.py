@@ -44,7 +44,7 @@ def test_submitter_label_and_export_sender_are_jurisdiction_based(jurisdiction, 
 def test_masked_numeric_values_are_json_nulls():
     records = _json_records(pd.DataFrame({"OBS_VALUE": [100.0, float("nan")]}))
 
-    assert records == [{"OBS_VALUE": 100.0}, {"OBS_VALUE": None}]
+    assert records == [{"OBS_VALUE": "100.000"}, {"OBS_VALUE": None}]
     assert not any(math.isnan(value) for record in records for value in record.values() if isinstance(value, float))
 
 
@@ -155,5 +155,8 @@ def test_portal_exports_inherit_the_previewed_quarantine_scope(repo_root):
 
     params_body = portal.split("function currentParams()", 1)[1].split("function scheduleSearch", 1)[0]
 
-    assert 'params.append("include_quarantined", "true")' in params_body
-    assert portal.count('params.append("include_quarantined", "true")') == 1
+    assert 'params.append("lifecycle",' in params_body
+    assert '"/api/v1/export/audit-csv"' in portal
+    assert 'setAttribute("aria-disabled"' in portal
+    assert "cdn.tailwindcss.com" not in portal
+    assert "Number(value)" not in portal

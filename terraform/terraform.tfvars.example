@@ -34,7 +34,7 @@ group_prefix = "sg-sovereignshield"
 # MVSD, or the new group resolves to zero rows.
 reporting_jurisdictions = ["ca", "us"]
 
-github_repository  = "botnt/sovereign-shield"
+github_repository  = "botlhale/sovereign-shield"
 github_environment = "production"
 
 sql_warehouse_size              = "2X-Small"

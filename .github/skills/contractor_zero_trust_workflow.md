@@ -87,7 +87,7 @@ row filter perfectly still resolves to zero rows once removed from the groups.
 
 ---
 
-## 4. Phase 3 — Air-gapped promotion
+## 4. Phase 3 — Production-isolated promotion
 
 The contractor opens a pull request. They cannot deploy it.
 
@@ -129,11 +129,10 @@ through an Azure Key Vault-backed secret scope, so a notebook or job references
 | Infrastructure & access control | Terraform | Entra groups, service principals, OIDC federation, Key Vault, workspace, catalogs, schemas, storage credentials, external locations, SQL warehouse, `GRANT USE CATALOG` / `USE SCHEMA` / `SELECT` |
 | Data & policy | DABs + `unity_catalog_triple_lock.sql` | Table DDL, policy UDFs, `SET ROW FILTER`, `SET MASK`, the quarantine view |
 
-The split is deliberate and the boundary matters. Row filters and masks evolve
-with the data model and are re-applied on every pipeline run through a
-detach → replace → re-attach sequence. If Terraform also owned them it would
-report drift after every run, and an `apply` could detach a live filter
-mid-query. One writer per object.
+Policy functions are immutable and content-addressed. Normal deployment never
+detaches existing protection and never tolerates failed bindings. Terraform owns
+grants while the bundle owns policy bindings. PR jobs have no cloud credentials;
+privileged OIDC planning/deployment requires a protected manual reviewed-main run.
 
 ---
 
@@ -156,17 +155,22 @@ The guarantee is structural rather than aspirational:
 * Databricks Apps injects its own managed service principal's credentials into
   the runtime; nothing is stored in the repository.
 
-The corollary is that a leaked repository is not a data incident. It contains no
-credential and no observation.
+The repository contains synthetic observations. Historical source contained a
+bootstrap password, reported by the author as no longer used. Terraform-managed
+secrets remain in sensitive state/plans; current source scans do not certify history.
 
 ---
 
 ## 6. Revocation
 
-Three actions, none of which touch the delivered code:
+The following older checklist is incomplete on its own. Follow the current
+[offboarding and ownership contract](../../docs/RELEASE_EVIDENCE.md#ci-ownership-and-cost):
+Entra/Databricks groups, sessions/tokens, Azure/vault/GitHub rights, delegated
+ownership and exposed credentials all require review. Do not delete a stable
+runtime identity merely because one contractor leaves.
 
 1. **Rotate the service principal** — Terraform re-mints the dissemination proxy
-   credential every 90 days on its own, and
+  credential when a subsequent apply performs a due 90-day rotation, and
    `terraform apply -replace="module.identity.azuread_service_principal_password.public_proxy"`
    forces it immediately; `sh/kv_spn_remediation.sh` does the same for the CI/CD
    principal. The secret is overwritten under the **same name**, so any copy the

@@ -32,6 +32,9 @@ from pysdmx.model.dataflow import DataStructureDefinition, Schema
 from pysdmx.model.dataset import ActionType
 from pysdmx.model.message import Header
 
+from decimal_measures import decimal_sum, decimal_text, decimal_value
+from lbs_contract import DATASET_ATTRIBUTES, DATASET_PROFILE, pinned_components, with_message_profile
+
 # =====================================================================
 # CONFIGURATION & CONSTANTS
 # =====================================================================
@@ -65,7 +68,7 @@ DOMINANCE_THRESHOLD: float = 0.60
 MICRO_COLUMNS: List[str] = ["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE", "OBS_VALUE"]
 
 #: Live BIS REST endpoint exposing the BIS_LBS Data Structure Definition (DSD).
-BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all"
+BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/1.0?references=all"
 
 
 def _resolve_repo_root() -> str:
@@ -177,7 +180,7 @@ def _make_micro_rows(
                 "BANK_CODE": bank_code,
                 "DATE": REPORTING_DATE,
                 "AGG_CODE": AGG_CODE_DEFAULT,
-                "OBS_VALUE": float(obs_value),
+                "OBS_VALUE": decimal_value(obs_value),
             }
         )
     return rows
@@ -367,25 +370,26 @@ def aggregate_micro_to_macro(df_micro: pd.DataFrame, threshold: float = 0.60) ->
         `OBS_VALUE`, `MAX_BANK_SHARE`, `OBS_CONF`, and `OBS_STATUS`.
     """
     group_keys = ["TIME_SERIES_CODE", "DATE", "AGG_CODE"]
+    df_micro = df_micro.copy()
+    df_micro["OBS_VALUE"] = df_micro["OBS_VALUE"].map(decimal_value)
 
     # 1. Total macro OBS_VALUE per SDMx time series.
-    df_macro = df_micro.groupby(group_keys, as_index=False)["OBS_VALUE"].sum()
+    df_macro = df_micro.groupby(group_keys, as_index=False)["OBS_VALUE"].agg(decimal_sum)
 
     # 2. Per-bank contribution within each time series, then the max absolute share.
-    df_bank_totals = df_micro.groupby(group_keys + ["BANK_CODE"], as_index=False)["OBS_VALUE"].sum()
+    df_bank_totals = df_micro.groupby(group_keys + ["BANK_CODE"], as_index=False)["OBS_VALUE"].agg(decimal_sum)
     df_bank_totals = df_bank_totals.rename(columns={"OBS_VALUE": "BANK_OBS_VALUE"})
-    df_bank_totals["ABS_BANK_OBS_VALUE"] = df_bank_totals["BANK_OBS_VALUE"].abs()
+    df_bank_totals["ABS_BANK_OBS_VALUE"] = df_bank_totals["BANK_OBS_VALUE"].map(lambda value: value.copy_abs())
 
-    df_abs_totals = df_bank_totals.groupby(group_keys, as_index=False)["ABS_BANK_OBS_VALUE"].sum()
+    df_abs_totals = df_bank_totals.groupby(group_keys, as_index=False)["ABS_BANK_OBS_VALUE"].agg(decimal_sum)
     df_abs_totals = df_abs_totals.rename(columns={"ABS_BANK_OBS_VALUE": "ABS_TOTAL"})
     df_bank_totals = df_bank_totals.merge(df_abs_totals, on=group_keys, how="left")
 
     # A series with no reported exposure at all has no dominant contributor to protect.
-    df_bank_totals["BANK_SHARE"] = np.where(
-        df_bank_totals["ABS_TOTAL"] > 0,
-        df_bank_totals["ABS_BANK_OBS_VALUE"] / df_bank_totals["ABS_TOTAL"].replace(0, np.nan),
-        0.0,
-    )
+    df_bank_totals["BANK_SHARE"] = [
+        float(bank / total) if total else 0.0
+        for bank, total in zip(df_bank_totals["ABS_BANK_OBS_VALUE"], df_bank_totals["ABS_TOTAL"])
+    ]
 
     df_max_share = df_bank_totals.groupby(group_keys, as_index=False)["BANK_SHARE"].max()
     df_max_share = df_max_share.rename(columns={"BANK_SHARE": "MAX_BANK_SHARE"})
@@ -397,9 +401,6 @@ def aggregate_micro_to_macro(df_micro: pd.DataFrame, threshold: float = 0.60) ->
 
     # 4. Standard observation status.
     df_macro["OBS_STATUS"] = "A"
-
-    # 5. SDMx convention: zero-valued positions are not reported at all.
-    df_macro = df_macro[df_macro["OBS_VALUE"] != 0]
 
     return df_macro[group_keys + ["OBS_VALUE", "MAX_BANK_SHARE", "OBS_CONF", "OBS_STATUS"]]
 
@@ -464,39 +465,44 @@ def generate_sdmx_ml(
             f"Unknown submission_type '{submission_type}'. Expected one of: "
             f"{', '.join(SUBMISSION_ACTIONS)}."
         )
-    if dsd is None:
-        dsd = fetch_bis_lbs_dsd()
-
     df_obs = df_macro["TIME_SERIES_CODE"].str.split(".", expand=True)
     df_obs.columns = DSD_DIMENSIONS
     df_obs["TIME_PERIOD"] = df_macro["DATE"].to_numpy()
-    df_obs["OBS_VALUE"] = df_macro["OBS_VALUE"].to_numpy()
+    df_obs["OBS_VALUE"] = df_macro["OBS_VALUE"].map(decimal_text).to_numpy()
     # A Break in Series overrides every observation's status to flag the structural change.
     df_obs["OBS_STATUS"] = "B" if submission_type == "Break in Series" else df_macro["OBS_STATUS"].to_numpy()
     df_obs["OBS_CONF"] = df_macro["OBS_CONF"].to_numpy()
+    df_obs = with_message_profile(df_obs)
 
     schema = Schema(
         context="datastructure",
-        agency=dsd.agency,
-        id=dsd.id,
-        components=dsd.components,
-        version=dsd.version,
+        agency="BIS",
+        id="BIS_LBS",
+        components=pinned_components(),
+        version="1.0",
     )
     dataset_action = SUBMISSION_ACTIONS[submission_type]
-    dataset = PandasDataset(structure=schema, data=df_obs, action=dataset_action)
+    dataset = PandasDataset(
+        structure=schema, data=df_obs.drop(columns=DATASET_ATTRIBUTES),
+        attributes=dict(DATASET_PROFILE), action=dataset_action,
+    )
 
-    sender = SOVEREIGN_SENDERS.get(country_code, Organisation(id="ZZZ"))
+    if country_code not in SOVEREIGN_SENDERS:
+        raise ValueError(f"Unconfigured submitter country: {country_code}.")
+    sender = SOVEREIGN_SENDERS[country_code]
     dataset_id = f"{country_code.upper()}_{AGG_CODE_DEFAULT}_{REPORTING_DATE.replace('-', '')}"
     header = Header(
         id=str(uuid.uuid4()),
-        test=False,
+        test=True,
         prepared=datetime.now(timezone.utc),
         sender=sender,
         dataset_action=dataset_action,
         dataset_id=dataset_id,
     )
 
-    xml_payload = sdmx_io.write_sdmx(dataset, Format.DATA_SDMX_ML_3_0, header=header)
+    xml_payload = sdmx_io.write_sdmx(
+        dataset, Format.DATA_SDMX_ML_3_0, header=header, dimension_at_observation="TIME_PERIOD"
+    )
 
     target_dir = output_dir or OUTPUT_DIR
     os.makedirs(target_dir, exist_ok=True)
@@ -504,17 +510,16 @@ def generate_sdmx_ml(
     # day, and a filing is evidence of what was sent when, so nothing here overwrites.
     # The reporting period stays in the observations rather than the name.
     filed_at = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
-    output_path = os.path.join(target_dir, f"{country_code}_submission_{filed_at}.xml")
-    with open(output_path, "w", encoding="utf-8") as xml_file:
+    output_path = os.path.join(target_dir, f"{country_code}_submission_{filed_at}_{header.id}.xml")
+    with open(output_path, "x", encoding="utf-8") as xml_file:
         xml_file.write(xml_payload)
 
     return output_path
 
 
 if __name__ == "__main__":
-    print("Fetching live BIS_LBS Data Structure Definition from the BIS REST API...")
-    bis_lbs_dsd = fetch_bis_lbs_dsd()
-    print(f"Fetched DSD '{bis_lbs_dsd.agency}:{bis_lbs_dsd.id}({bis_lbs_dsd.version})'.")
+    bis_lbs_dsd = None
+    print("Using the pinned BIS:BIS_LBS(1.0) component contract.")
 
     # Partitioned by the date the filing arrived, not the period it reports. A revision
     # to 2026-Q1 filed in November is a November arrival, and an auditor asking what was
@@ -527,6 +532,7 @@ if __name__ == "__main__":
         arrival.strftime("%Y"),
         arrival.strftime("%m"),
         arrival.strftime("%d"),
+        arrival.strftime("%H%M%S%f"),
     )
     print(f"Submissions will be filed under {arrival_root}")
 

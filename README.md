@@ -1,6 +1,6 @@
 # SovereignShield
 
-Zero-Trust governance for SDMx 3.0 submissions to international bodies.
+Synthetic-first delivery and governed access for SDMx statistical submissions.
 
 > **What this is:** a working reference implementation exploring how **Azure Databricks and Unity Catalog** can express the security obligations of **international statistical data exchange** as platform-level constraints — the submission of confidential national banking statistics to an international body (BIS Locational Banking Statistics) under the **SDMx 3.0** standard. It complements, rather than replaces, the mature SDMx tooling institutions already operate.
 
@@ -17,21 +17,23 @@ Institutions already uphold these obligations rigorously today, using specialise
 
 SovereignShield asks an adjacent architectural question: *what happens if the same obligations are moved out of the application layer entirely and expressed as constraints of the cloud data platform itself?*
 
-**Zero Trust is a network and application security model. This project re-imagines it for statistical submissions.** In this domain the perimeter is not a VPC — it is a national border, and a legal one. "Never trust, always verify" therefore resolves to a concrete mechanism: every consumer is re-authorised against Entra ID at query time, and entitlement is evaluated from the SDMx key itself.
+**Scope:** this study applies group-based query-time entitlements to synthetic statistical submissions. Unity Catalog uses Databricks account-group membership; provisioning reconciles selected Entra identities, not continuous Entra deprovisioning. The gateway caches identity metadata briefly. Logical country segregation is not physical data residency, and masking alone does not prevent statistical inference from published totals.
 
-Three properties follow, and each is expressed in Unity Catalog rather than in pipeline code:
+The following responsibilities are deliberately separated:
 
-| Obligation | Enforcement | Bypassable by application code? |
+| Obligation | Enforcement | Boundary |
 | --- | --- | --- |
-| **Sovereignty** — a jurisdiction sees only its own rows | Row filter on `L_REP_CTY`, segment 9 of the SDMx key | No — attached to the table object |
-| **Confidentiality** — protected observations never leave | Column mask keyed on `OBS_CONF` **and** the reporting jurisdiction | No — attached to the column |
-| **Integrity** — nothing internally inconsistent is published | Atomic per-country-quarter validation against the BIS rulebook | No — the curated view is the only researcher path |
+| **Jurisdictional entitlement** | Own-country rows plus public foreign observations, enforced by table RLS | Supported UC query paths; privileged ownership remains trusted |
+| **Measure entitlement** | Mask keyed on `OBS_CONF` and reporting country; explicit `F` reveal, otherwise withhold | Not secondary suppression or inference protection |
+| **Publication integrity** | Input validation and atomic country/period/aggregation verdict; rejected rows remain audit-only | Base-table SELECT exists; the gateway/view adds current-state selection |
 
-Because policy lives in the metastore, it is enforced identically through PySpark, a SQL warehouse, a BI tool, an ad-hoc JDBC session — or the public web portal and REST API described below. There is no code path that can forget to apply it, because it is not in the code path at all.
+Table policies apply on supported Unity Catalog query paths independently of an application's filter predicates. Runtime/access-mode limitations, privileged direct-storage access, gateway integrity and exports remain explicit trust boundaries. Dynamic views also support caller-aware membership functions; choosing the base table is this application's design, not a platform requirement.
 
-The validation rulebook is treated as **metadata, not code** — an approach the SDMx community has long advocated: BIS consistency checks are parsed from the published workbook at runtime, so a rulebook revision requires no deployment. Routine operator intervention in production is correspondingly reduced — credentials are hydrated from Azure Key Vault into session scope and never persisted, and all DDL is applied by an automated, version-controlled pipeline.
+The rulebook is read as metadata, but its interpreter is code that needs review. The implementation evaluates 21 within-dataset arithmetic checks and explicitly reports six cross-collection checks as unsupported. The pinned DSD/codelist contract is refreshed deliberately, not from unreviewed `latest` metadata. Terraform state and plans contain sensitive credentials even when current source contains no credential literal.
 
-> **Status:** a complete, deployed, end-to-end reference architecture on Azure, running the genuine BIS LBS rulebook and real SDMx 3.0 message structures against realistic **synthetic** submissions. It is not connected to live reporting data, and it is an independent piece of work — not a production system of, nor endorsed by, any central bank or international organisation. It is published for scrutiny, and critique from SDMx practitioners is genuinely welcome.
+> **Status:** the current revision is verified locally with synthetic data and real local Delta transactions. Historical Azure screenshots document an earlier revision. The new decimal/history schema, policy functions, shared bundle path and stable job identity have **not** been deployed in this pass. Existing environments require an approved migration; see [Release Evidence](docs/RELEASE_EVIDENCE.md). This is not a production accreditation.
+
+> **Decision material:** [Executive brief](docs/EXECUTIVE_BRIEF.md), [full whitepaper](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md), and [technical publication plan](docs/LINKEDIN_POST.md).
 
 > **Authorship:** Developed by Botlhale Mosweu in a personal capacity. Community participation is welcome under the [Apache License 2.0](LICENSE). Copyright attribution is recorded in [NOTICE](NOTICE); the reference implementation does not imply a support contract, institutional approval, or production certification.
 
@@ -93,7 +95,7 @@ flowchart TB
     KV -->|ARM_CLIENT_ID / SECRET / TENANT_ID<br/>DATABRICKS_HOST| CLI
     KV -.->|stores credentials for| SPN
     CLI -->|OAuth M2M| DAB
-    SPN -->|executes as implicit owner| DAB
+    SPN -->|explicit stable run_as| DAB
     DAB --> COMPUTE
     DAB --> DBAPP
     DBAPP --> API
@@ -124,7 +126,7 @@ flowchart TB
 
 | Boundary | Enforced by | Guarantee |
 | --- | --- | --- |
-| Secret → Session | Azure Key Vault + OIDC federation (Terraform), dot-sourced `pre_auth.ps1` (quickstart) | No credential literal exists in git or on disk |
+| Secret → Session | Key Vault and OIDC federation; authenticated operator for local administration | No deployment secret needed for CI federation; state, plans and runtime tokens remain sensitive |
 | Session → Workspace | OIDC workload identity federation via Asset Bundles | Automated deployment uses a scoped service principal; human administration remains an explicit client responsibility |
 | Workspace → Data | Unity Catalog RLS / DDM | Policy travels with the table, not the query engine |
 | Data → Consumer | Entra ID group resolution | Sovereignty evaluated per-row, per-caller, at runtime |
@@ -220,7 +222,7 @@ Full file-by-file commentary: [docs/technical_guide.md](docs/technical_guide.md)
 
 ## Infrastructure as Code and Secret Injection
 
-SovereignShield holds a hard constraint: **no credential literal ever enters the repository, the shell history, or a configuration file.** Terraform declares *which* secret is needed; the environment resolves the value in memory at apply time.
+Current source checks prohibit credential literals and sensitive local configuration in tracked files. Historical source contained a bootstrap password, which the author reports is no longer used; this release does not rewrite history or claim a current incident. Terraform-managed passwords and vault values remain in sensitive state and plans. Restrict their access, retention and logging.
 
 ### Terraform is the primary path
 
@@ -250,7 +252,7 @@ Credentials reach their consumers three ways, none of which is a literal:
 | Container Apps | `keyvaultref:...,identityref:...` resolved by the platform at start-up |
 | Databricks jobs | Key Vault-backed secret scope, which stores a pointer rather than a copy |
 
-Rotation is automatic: `time_rotating` re-mints the dissemination proxy credential every 90 days and writes it straight to Key Vault. Because consumers resolve secrets by **name**, rotation requires no code change and no redeploy.
+The 90-day `time_rotating` resource performs due rotation on a subsequent Terraform apply, not on an independent schedule. Key Vault references avoid source changes, but consumer refresh, overlapping validity where supported, and health checks must be verified. Easy Auth registrations and token-store SAS credentials have separate lifecycles.
 
 | Key Vault Secret | Purpose |
 | --- | --- |
@@ -296,8 +298,11 @@ Full sequence, including prerequisites, recovery, verification, pause, and teard
 
 The detailed manual paths remain available for architecture review and recovery:
 [Terraform](steps_terraform.md) and [imperative helpers](steps_scripts.md). In CI,
-[`.github/workflows/promote.yml`](.github/workflows/promote.yml) runs offline
-verification, plans pull requests, and applies reviewed changes merged to `main`.
+[.github/workflows/promote.yml](.github/workflows/promote.yml) runs credential-free
+verification for PRs and pushes. Explicit manual `plan`/`deploy` operations on
+reviewed `main` require a protected environment with independent reviewers.
+Planning is privileged, not read-only. CI handles steady-state Terraform/bundle
+promotion; the complete script-owned Container Apps rollout remains an `up` operation.
 
 ## Teardown
 
@@ -336,8 +341,8 @@ summary of it — the full implementation narrative is in
 
 The specialist you need for confidential data work is, by definition, someone who
 should not have the data. So the build happens against a **Minimal Viable Synthetic
-Dataset** specified by the client, promotion runs through OIDC federation with no
-stored secret, and revocation is three actions that touch no code.
+Dataset** specified by the client, promotion uses reviewed workload identity,
+and offboarding follows the institution's identity and ownership checklist.
 
 → [Onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) ·
 [Contractor workflow](.github/skills/contractor_zero_trust_workflow.md)
@@ -365,16 +370,18 @@ nations are the same mechanism.
 ### 3. Public Dissemination Gateway
 
 One service decides *which identity* a query runs as. Unity Catalog decides *what
-that identity may see*. There is no persona branch anywhere in the serving code, so
-a fully compromised gateway still cannot return a confidential observation.
+that identity may see*. The gateway handles elevated bearer tokens and returned
+data, so its integrity remains trusted. A compromised gateway can misuse those
+tokens or disclose results already authorized to an elevated caller.
 
 → [Gateway and SDMx serialization](docs/technical_reference.md)
 
 ### 4. SDMx 3.0 Conformance
 
 Real SDMX-ML 3.0, SDMX-JSON 2.0.0 and SDMX-CSV 2.0.0 messages, serialised with
-`pysdmx` against the published BIS LBS structure. The consistency rulebook is parsed
-from the published workbook at runtime, so a standards revision needs no deployment.
+`pysdmx` and a pinned BIS LBS component/codelist contract. The standard feeds
+contain only current published observations; rejected filings use a separate audit CSV.
+Measures use an explicit three-decimal reference profile. Standards changes require review.
 Sample downloads from the deployed portal are in [`demo/sdmx/`](demo/sdmx) — the same
 22 observations in all three standard formats, mutually equivalent observation-for-observation.
 
@@ -424,26 +431,22 @@ why each deployed object exists, who creates it, and who removes it.
 Specialist platform work is frequently delivered by people who should not hold the
 data they are governing. Institutions manage this well today with NDAs, supervised
 environments and access reviews. SovereignShield explores how much of that burden
-the platform itself can absorb: **the specialist never needs access to real data at
-any point**, and **removing them afterwards is a small set of administrative actions
-rather than an audit exercise**.
+the platform can support: specialists build and test the demonstrated controls
+without real data, while production access, risk acceptance and offboarding remain
+institutional responsibilities.
 
 **Why the build never needs real data.** Submissions are generated, not sourced. The
-rulebook is a published standards artefact. The security deliverable is declarative
-DDL, reviewable without executing against a real row. Credentials are hydrated from
-Key Vault into session scope, never stored. The only tuned constant in the system is
-the disclosure-dominance threshold (`0.60`) — a policy decision, not a value learned
-from data.
+rulebook is a published standards artifact. The deliverable is reviewable DDL,
+code and tests. A `0.60` dominance threshold is a synthetic policy illustration,
+not complete statistical disclosure control. Production tuning and assurance
+require institution-specific evidence.
 
-**The cut-off is three actions, none of which touch the delivered code:** rotate the
-service principal, remove the Key Vault access policy, remove the builder from every
-Entra ID group. The third is the interesting one — `fn_rls_multi_persona_lock` grants
-rows only on positive membership, so a former builder resolves to zero groups and
-therefore zero rows.
-
-> Off-boarding a person and enforcing sovereignty between two nations are **the same
-> code path**. There is no separate revocation feature that could rot, be forgotten,
-> or be tested less rigorously than the primary one.
+**Continuity and offboarding:** the job uses an explicit service-principal `run_as`
+and shared bundle path rather than the contractor's identity. Review Entra and
+Databricks account memberships, sessions/tokens, Azure RBAC, vault access,
+GitHub access, and delegated ownership. Rotate credentials that were exposed to
+the departing person and verify consumer refresh. Group removal alone does not
+revoke every route or privileged ownership.
 
 **Where this model stops** — the part reviewers should press on — is documented
 honestly in the playbook, along with the full three-phase framework and acceptance

@@ -11,10 +11,8 @@
 # Raising worker_count_max and setting enable_photon widens the envelope
 # without touching a line of pipeline code.
 #
-# data_security_mode is fixed, not defaulted. Row filters and column masks are
-# not evaluated on SINGLE_USER compute, so a cluster that drifted off
-# USER_ISOLATION would return unfiltered rows while appearing to work. Pinning
-# it here means the guarantee survives someone editing the bundle.
+# This deployment fixes USER_ISOLATION. Dedicated compute has separate runtime
+# and serverless requirements; it is not a universal row-policy bypass.
 
 locals {
   # A driver-only cluster must declare local execution explicitly; Spark
@@ -74,11 +72,9 @@ locals {
       type  = "fixed"
       value = "SPOT_WITH_FALLBACK_AZURE"
     }
-    "autotermination_minutes" = {
-      type         = "range"
-      minValue     = 10
-      maxValue     = 120
-      defaultValue = var.autotermination_minutes
+    "cluster_type" = {
+      type  = "fixed"
+      value = "job"
     }
   }
 }
@@ -86,4 +82,23 @@ locals {
 resource "databricks_cluster_policy" "ingestion" {
   name       = "cp-sovereignshield-ingestion"
   definition = jsonencode(merge(local.base_policy, local.single_node_overrides))
+}
+
+output "ingestion_job_cluster" {
+  value = merge({
+    policy_id                   = databricks_cluster_policy.ingestion.id
+    apply_policy_default_values = true
+    spark_version               = "18.x-scala2.13"
+    node_type_id                = var.node_type_id
+    data_security_mode          = "USER_ISOLATION"
+    runtime_engine              = var.enable_photon ? "PHOTON" : "STANDARD"
+    azure_attributes            = { availability = "SPOT_WITH_FALLBACK_AZURE" }
+    }, var.worker_count_max == 0 ? {
+    num_workers = 0
+    } : {}, var.worker_count_max == 0 ? {
+    spark_conf  = { "spark.databricks.cluster.profile" = "singleNode", "spark.master" = "local[*, 4]" }
+    custom_tags = { ResourceClass = "SingleNode" }
+    } : {}, var.worker_count_max > 0 ? {
+    autoscale = { min_workers = var.worker_count_min, max_workers = var.worker_count_max }
+  } : {})
 }

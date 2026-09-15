@@ -19,7 +19,7 @@ these topics into a reading order and tells you which parts matter most.
 
 ## 1. Compute isolation and cost optimisation
 
-Unity Catalog will not evaluate RLS or DDM on `SINGLE_USER` compute — that mode permits direct memory access that could bypass the policy engine. The execution cluster is therefore pinned to `data_security_mode: USER_ISOLATION`, and the cost profile is tuned underneath that constraint rather than around it.
+This deployment pins `USER_ISOLATION`. Dedicated compute supports governed access under specific runtime/serverless conditions; it is not a universal policy bypass. Verify the [current platform limitations](https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/filters-and-masks/) for the selected engine.
 
 | Setting | Sandbox value | Rationale |
 | --- | --- | --- |
@@ -141,8 +141,8 @@ Both predicates are required. `BATCH_STATUS` alone would expose superseded histo
 ### Supporting guarantees
 
 * **Target catalog:** uses the pre-provisioned workspace catalog (`dbw_sovereignshield`), avoiding the need to grant Metastore Admin rights to the Service Principal.
-* **Non-destructive, idempotent DDL:** `unity_catalog_triple_lock.sql` runs as the *first* task of *every* execution, so it must never drop the historical tables — doing so silently erases the entire SCD2 lineage. The script uses `CREATE TABLE IF NOT EXISTS` and a detach → replace → re-attach sequence, because Unity Catalog refuses to replace a function bound to a live row filter or column mask. Statements that legitimately fail on one lifecycle path (fresh create vs. re-apply) are annotated `-- @tolerate-failure` and skipped; every other failure aborts the deployment so the platform is never left partially secured.
-* **Absolute SPN ownership:** the deployment pipeline executes via CI/CD, so the Service Principal assumes ownership of all created tables, views, and functions, stripping direct governance from individual developers.
+* **Protected policy deployment:** the executor creates immutable content-addressed functions, verifies their definitions, changes bindings without dropping protection, and verifies binding metadata. Unexpected errors abort. Existing incompatible tables require explicit migration; success is not inferred from skipped errors.
+* **Stable execution, explicit ownership:** the job's `run_as` is a configured service principal. This does not transfer existing objects automatically; table/function ownership, Azure rights and GitHub administration remain explicit handover decisions.
 
 > **Deployment prerequisite:** the pipeline Service Principal **must** be a member of `sg-sovereignshield-admin`. Ownership does not exempt a principal from a row filter. The SCD2 engine reads the target table to locate records to expire; if RLS hid those rows, the merge would treat every row as new — silently duplicating history and never closing prior versions. This fails without raising an error.
 
@@ -156,7 +156,7 @@ BIS statistical submissions are accepted or rejected **as an indivisible unit**.
 
 | Batch outcome | `QUALITY_STATUS` | `BATCH_STATUS` | `FAILED_RULE_ID` |
 | --- | --- | --- | --- |
-| **Any** record in the reporting-period batch fails | `FAIL` on **every** row | `QUARANTINE` | Sorted union of all violated check codes |
+| **Any** record in the reporting-period batch fails | `FAIL` on **every** row | `QUARANTINE` | Per-observation violation; batch union is separate `BATCH_FAILED_RULE_ID` |
 | All records pass | `PASS` | `PUBLISHED` | `NULL` |
 
 The validator is the single source of truth for these three columns; no downstream stage overrides them. There is no manual approval step and no intermediate `UNDER_REVIEW` state.
@@ -212,7 +212,7 @@ Three details prevent subtle corruption:
 
 The locks above are only interesting if something actually exercises them from outside the workspace. `src/api_gateway.py` is a single FastAPI process that serves both the REST API under `/api/v1` and a BIS-style filter dashboard at `/`, deployed as a Databricks App.
 
-**The gateway chooses an identity. It never chooses rows.** There is no persona branch anywhere in the serving code: the SQL it builds is deliberately naive about confidentiality and lifecycle state, and Unity Catalog narrows the result. If the gateway were compromised outright, the metastore would still refuse to hand a quarantined or confidential observation to an unentitled caller.
+**The gateway selects the SQL identity and lifecycle query; UC enforces row/value entitlement.** The gateway remains trusted because it handles bearer tokens and elevated results. Standard feeds are current/published-only; audit CSV preserves rejected filings separately. See [current release evidence](RELEASE_EVIDENCE.md) for migration and verification limits.
 
 | Caller | Identity used | Carrier |
 | --- | --- | --- |

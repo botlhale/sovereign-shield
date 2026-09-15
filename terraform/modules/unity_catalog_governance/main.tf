@@ -141,7 +141,7 @@ resource "databricks_grant" "schema_traversal" {
 
   schema     = "${databricks_catalog.main.name}.${databricks_schema.main.name}"
   principal  = each.value
-  privileges = ["USE_SCHEMA"]
+  privileges = ["USE_SCHEMA", "EXECUTE"]
 }
 
 resource "databricks_grant" "admin_schema_ownership" {

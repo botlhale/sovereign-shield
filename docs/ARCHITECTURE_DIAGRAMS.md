@@ -130,7 +130,7 @@ graph TD
 | `KV → DAB` | Credentials are hydrated into session scope at deploy time; no literal is ever stored |
 | `T1` runs first | No table exists un-governed, even momentarily |
 | Filters on **both** tables | Protecting only the aggregate would leave the raw ledger exposed |
-| `API → MACRO`, not `API → VIEW` | A Unity Catalog view resolves group membership against the **view owner**, so per-caller entitlement has to be evaluated against the base table |
+| `API → MACRO`, not `API → VIEW` | The base table supports current and audit views; UC dynamic views also support caller-aware membership functions |
 | `MACRO → NONE` dashed | The fail-closed default. Off-boarding and inter-sovereign isolation are the same code path |
 
 **The Zero-Trust identity boundary**

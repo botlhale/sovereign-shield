@@ -21,14 +21,19 @@ problem, its siblings are", which is what an investigator needs to know.
 from __future__ import annotations
 
 import glob
+import hashlib
 import os
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Dict, List, Optional
 
 import pandas as pd
 import pysdmx.io as sdmx_io
 from pysdmx.model.dataflow import DataStructureDefinition, Role
+
+from decimal_measures import decimal_sum
+from lbs_contract import DATASET_PROFILE, MACRO_COLUMNS, check_component_codes, normalize_macro, structure_contract
 
 # =====================================================================
 # CONFIGURATION & CONSTANTS
@@ -45,7 +50,7 @@ CHECKS_XLS_PATH: str = os.path.join(_REPO_ROOT, "docs", "reference_standards", "
 CHECKS_SHEET_NAME: str = "LBS"
 
 #: Live BIS REST endpoint exposing the BIS_LBS Data Structure Definition (DSD).
-BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all"
+BIS_LBS_DSD_URL: str = "https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/1.0?references=all"
 
 #: Directory containing sovereign SDMx 3.0 XML submission files. The reporting task
 #: writes here and the receiving task reads here, so it is the contract between them
@@ -90,7 +95,8 @@ _EMPTY_TOKEN_RE = re.compile(r"^[.\u2026\s]*$")
 _FOOTNOTE_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 
 #: Numerical tolerance used when comparing an aggregate against its components.
-EQUALITY_TOLERANCE: float = 1e-4
+EQUALITY_TOLERANCE = Decimal("0.0001")
+UNIMPLEMENTED_CROSS_COLLECTION_RULES = {f"LBS_CC:{number}" for number in range(22, 28)}
 
 
 @dataclass
@@ -147,20 +153,12 @@ class SDMxRuleValidator:
 
     @property
     def dimension_order(self) -> List[str]:
-        """The ordered list of the 11 BIS_LBS dimensions, derived from the live DSD.
-
-        Falls back to `FALLBACK_DSD_DIMENSIONS` if the live DSD cannot be fetched.
-        """
+        """The security-critical order in the reviewed, offline BIS LBS snapshot."""
         if self._dimension_order is None:
-            try:
-                self._dimension_order = [
-                    component.id
-                    for component in self.dsd.components
-                    if component.role == Role.DIMENSION and component.id != "TIME_PERIOD"
-                ]
-            except Exception as exc:  # noqa: BLE001 - network/parse failures are non-fatal here.
-                print(f"Warning: could not fetch live BIS_LBS DSD ({exc}). Falling back to known dimension order.")
-                self._dimension_order = list(FALLBACK_DSD_DIMENSIONS)
+            self._dimension_order = [name for name, spec in structure_contract()["components"].items()
+                                     if spec["role"] == "Dimension" and name != "TIME_PERIOD"]
+            if self._dimension_order != FALLBACK_DSD_DIMENSIONS:
+                raise ValueError("BIS LBS dimension order changed; review the security contract.")
         return self._dimension_order
 
     @property
@@ -212,13 +210,18 @@ class SDMxRuleValidator:
 
         parsed_rules: List[LbsRule] = []
         for _, row in df_rules.iterrows():
+            check_no = str(row["Check No"]).strip()
+            if not re.fullmatch(r"LBS_CC:?\d+", check_no):
+                continue
             dim_names = self._parse_dimension_positions(row["Dimensions1"], dim_names_all)
             if not dim_names:
-                continue
+                if check_no in UNIMPLEMENTED_CROSS_COLLECTION_RULES:
+                    continue
+                raise ValueError(f"Unparseable rule dimensions: {row['Check No']}.")
 
             aggregate = self._parse_code_cell(row["Aggregate_to_check1"], dim_names)
             if aggregate is None:
-                continue
+                raise ValueError(f"Unparseable aggregate: {row['Check No']}.")
 
             components: List[Dict[str, str]] = []
             for col in component_columns:
@@ -226,7 +229,7 @@ class SDMxRuleValidator:
                 if parsed is not None:
                     components.append(parsed)
             if not components:
-                continue
+                raise ValueError(f"No components parsed for rule: {row['Check No']}.")
 
             parsed_rules.append(
                 LbsRule(
@@ -311,22 +314,44 @@ class SDMxRuleValidator:
         Raises:
             ValueError: If the SDMx message contains no dataset.
         """
-        message = sdmx_io.read_sdmx(xml_path, validate=False)
+        message = sdmx_io.read_sdmx(xml_path, validate=True)
         datasets = message.get_datasets()
-        if not datasets:
-            raise ValueError(f"No datasets found in SDMx message '{xml_path}'.")
-
-        data = datasets[0].data.copy()
-        dim_cols = [dim for dim in self.dimension_order if dim in data.columns]
-        data["TIME_SERIES_CODE"] = data[dim_cols].astype(str).agg(".".join, axis=1)
+        if len(datasets) != 1:
+            raise ValueError("Exactly one dataset per submission is required.")
+        dataset = datasets[0]
+        if str(dataset.structure) not in ("DataStructure=BIS:BIS_LBS(1.0)", "Dataflow=BIS:WS_LBS_D_PUB(1.0)"):
+            raise ValueError(f"Unconfigured DSD/dataflow: {dataset.structure}.")
+        if str(dataset.action) not in ("Replace", "Information"):
+            raise ValueError("Only full-snapshot Information/Replace submissions are supported.")
+        data = dataset.data.copy()
+        for name, value in dataset.attributes.items():
+            if name in data and not data[name].eq(value).all():
+                raise ValueError(f"Conflicting dataset attribute: {name}.")
+            data[name] = str(value)
+        data = check_component_codes(data)
+        for name, expected in DATASET_PROFILE.items():
+            if not data[name].eq(expected).all():
+                raise ValueError(f"The demonstration profile requires {name}={expected}.")
+        if data.empty:
+            raise ValueError("An empty replacement needs an explicit scope manifest and is not supported.")
+        sender = getattr(message.header.sender, "id", "")
+        expected_country = {"SUBMITTER_CA": "CA", "SUBMITTER_US": "US", "SUBMITTER_GB": "GB"}.get(sender)
+        if expected_country is None or not data["L_REP_CTY"].eq(expected_country).all():
+            raise ValueError("Sender-country mismatch or unconfigured sender.")
+        if not message.header.id or not message.header.prepared:
+            raise ValueError("Submission header requires ID and Prepared timestamp.")
+        data["TIME_SERIES_CODE"] = data[self.dimension_order].agg(".".join, axis=1)
         data = data.rename(columns={"TIME_PERIOD": "DATE"})
-        data["OBS_VALUE"] = pd.to_numeric(data["OBS_VALUE"]).astype(float)
         data["AGG_CODE"] = AGG_CODE_DEFAULT
-        for col in ("OBS_STATUS", "OBS_CONF"):
-            if col not in data.columns:
-                data[col] = pd.NA
-
-        return data[["TIME_SERIES_CODE", "DATE", "AGG_CODE", "OBS_VALUE", "OBS_STATUS", "OBS_CONF"]].reset_index(drop=True)
+        result = normalize_macro(data[MACRO_COLUMNS], self.dimension_order).reset_index(drop=True)
+        with open(xml_path, "rb") as source:
+            source_hash = hashlib.sha256(source.read()).hexdigest()
+        result.attrs.update({
+            "SUBMISSION_ID": f"{sender}:{message.header.id}",
+            "SUBMITTED_AT": pd.Timestamp(message.header.prepared),
+            "SOURCE_SHA256": source_hash,
+        })
+        return result
 
     def load_submissions(self, directory: str = DATA_DIR, pattern: str = "*_submission*.xml") -> Dict[str, pd.DataFrame]:
         """Discovers and ingests every sovereign SDMx 3.0 XML file in `directory`.
@@ -343,8 +368,11 @@ class SDMxRuleValidator:
         """
         submissions: Dict[str, pd.DataFrame] = {}
         for path in sorted(glob.glob(os.path.join(directory, pattern))):
-            country_code = os.path.basename(path).split("_")[0].lower()
-            submissions[country_code] = self.load_submission(path)
+            loaded = self.load_submission(path)
+            identity = loaded.attrs["SUBMISSION_ID"]
+            if identity in submissions and submissions[identity].attrs["SOURCE_SHA256"] != loaded.attrs["SOURCE_SHA256"]:
+                raise ValueError("Submission identity reused with different content.")
+            submissions[identity] = loaded
         return submissions
 
     # =================================================================
@@ -387,10 +415,12 @@ class SDMxRuleValidator:
         result_columns = [
             "TIME_SERIES_CODE", "DATE", "AGG_CODE", "OBS_VALUE", "OBS_STATUS",
             "OBS_CONF", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_STATUS",
+            "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES",
         ]
         if df.empty:
             return pd.DataFrame(columns=result_columns)
 
+        df = normalize_macro(df, self.dimension_order)
         expected_segments = len(self.dimension_order)
 
         # Per-row length check. A ragged split pads short keys with NaN and sizes the frame
@@ -414,6 +444,7 @@ class SDMxRuleValidator:
 
         # Per-row detection pass: records which rule(s) each row itself violated.
         df["_ROW_FAILED_RULES"] = [set() for _ in range(len(df))]
+        df["_NOT_EVALUATED"] = [set() for _ in range(len(df))]
 
         for rule in self.rules:
             context_dims = [dim for dim in self.dimension_order if dim not in rule.dim_names]
@@ -423,25 +454,27 @@ class SDMxRuleValidator:
                 if agg_rows.empty:
                     continue  # Aggregate series not reported in this context; not applicable.
 
-                rhs_sum = 0.0
+                rhs_parts = []
                 rhs_reported = False
                 for component in rule.components:
                     comp_rows = self._filter_rows(group, component)
                     if not comp_rows.empty:
                         rhs_reported = True
-                        rhs_sum += comp_rows["OBS_VALUE"].sum()
+                        rhs_parts.extend(comp_rows["OBS_VALUE"].tolist())
 
                 if not rhs_reported:
+                    for index in agg_rows.index:
+                        df.at[index, "_NOT_EVALUATED"].add(rule.check_no)
                     continue  # No breakdown reported for this check; not applicable.
 
-                lhs_sum = agg_rows["OBS_VALUE"].sum()
-                if abs(lhs_sum - rhs_sum) >= EQUALITY_TOLERANCE:
+                difference = decimal_sum(agg_rows["OBS_VALUE"].tolist() + [value.copy_negate() for value in rhs_parts])
+                if difference.copy_abs() >= EQUALITY_TOLERANCE:
                     for idx in agg_rows.index:
                         df.at[idx, "_ROW_FAILED_RULES"].add(rule.check_no)
 
         # Atomic country-quarter batch evaluation: a single violation quarantines
         # the entire (reporting country, reporting quarter) submission batch.
-        batch_keys = ["L_REP_CTY", "DATE"]
+        batch_keys = ["L_REP_CTY", "DATE", "AGG_CODE"]
         batch_rules = (
             df.groupby(batch_keys, sort=False)["_ROW_FAILED_RULES"]
             .apply(lambda rule_sets: sorted(set().union(*rule_sets)) if len(rule_sets) else [])
@@ -467,7 +500,15 @@ class SDMxRuleValidator:
             dtype=object,
         )
 
-        return df[result_columns]
+        df["BATCH_FAILED_RULE_ID"] = df["_BATCH_FAILED_RULES"].map(lambda rules: ",".join(rules) or None)
+        df["VALIDATION_NOTES"] = df["_NOT_EVALUATED"].map(
+            lambda rules: "Not evaluated (no reported breakdown): " + ",".join(sorted(rules)) if rules else None
+        )
+        unsupported = "Cross-collection checks not implemented: " + ",".join(sorted(UNIMPLEMENTED_CROSS_COLLECTION_RULES))
+        df["VALIDATION_NOTES"] = df["VALIDATION_NOTES"].map(lambda note: f"{note}; {unsupported}" if note else unsupported)
+        result = df[result_columns].copy()
+        result.attrs = dict(df_macro.attrs)
+        return result
 
     @staticmethod
     def _filter_rows(group: pd.DataFrame, code_map: Dict[str, str]) -> pd.DataFrame:

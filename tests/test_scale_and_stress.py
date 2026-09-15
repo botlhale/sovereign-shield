@@ -266,15 +266,29 @@ def test_spark_scd2_merge_throughput(tmp_path, stress_corpus):
 
     try:
         table_name = "stress_agg_sdmx_history"
-        source = stress_corpus.drop(columns=["VALID_FROM", "VALID_TO", "IS_CURRENT"])
-        df = spark.createDataFrame(source)
+        from datetime import datetime, timezone
+        from submission_history import TIME_COLUMNS, SubmissionContext, prepare_submission, stable_hash
+        from spark_submission_history import HISTORY_SCHEMA
+
+        source = stress_corpus[stress_corpus["IS_CURRENT"]].copy()
+        source["_country"] = source["TIME_SERIES_CODE"].str.split(".").str[8]
+        source = max((group for _, group in source.groupby(["_country", "DATE", "AGG_CODE"])), key=len).drop(columns=["_country"])
+        now = datetime.now(timezone.utc)
+        context = SubmissionContext("stress-baseline", stable_hash(["stress-baseline"]), now, now)
+        prepared = prepare_submission(source, context)
+        records = prepared.to_dict("records")
+        for record in records:
+            for name in TIME_COLUMNS:
+                record[name] = None if pd.isna(record[name]) else pd.Timestamp(record[name]).to_pydatetime()
+        spark.createDataFrame([], schema=HISTORY_SCHEMA).write.format("delta").saveAsTable(table_name)
+        df = spark.createDataFrame(records, schema=HISTORY_SCHEMA)
 
         start = time.perf_counter()
         scd2_merge_engine.merge_scd2_macro(
             spark, df, target_table_name=table_name, date_scope="2026-Q1", agg_scope="LBSR"
         )
         elapsed = time.perf_counter() - start
-        print(f"\nSCD2 macro merge: {len(source):,} rows in {elapsed:.1f}s")
+        print(f"\nOne-scope SCD2 macro merge: {len(source):,} rows in {elapsed:.1f}s; local Delta, not UC policy evidence")
 
         merged = spark.table(table_name)
 

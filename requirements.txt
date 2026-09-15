@@ -1,5 +1,7 @@
 # SDMx 3.0 Processing Engine
-pysdmx[xml]>=1.18.0
+pysdmx[xml]==1.18.0
+simplejson>=3.19.3
+jsonschema>=4.23.0
 
 # Data Manipulation & Analytical Engine
 pandas>=2.2.0
@@ -14,6 +16,7 @@ xlrd>=2.0.1
 pyspark>=3.5.0
 delta-spark>=3.1.0
 deltalake
+filelock>=3.16.0
 
 # Portal & API runtime.
 # Duplicated rather than "-r src/requirements.txt" because Databricks job
@@ -29,4 +32,5 @@ databricks-sdk>=0.30.0
 
 # Testing & Utilities
 pytest>=8.0.0
+PyYAML>=6.0.2
 python-dotenv>=1.0.0

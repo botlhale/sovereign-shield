@@ -1,10 +1,9 @@
 """Query layer between the portal and the governed Delta history.
 
-Every read goes to ``agg_sdmx_history`` **as the caller**, never through a
-pre-filtered view, because the Unity Catalog row filter and column mask are the
-only things deciding what a persona may see. A Unity Catalog view resolves
-group membership against the view owner, so filtering in a view would hand
-every visitor the owner's entitlement.
+Every read goes to ``agg_sdmx_history`` as the caller. Table policies decide
+persona visibility, including direct SQL access. Unity Catalog dynamic views
+also support caller-aware membership; the base table is used here to support
+both current-state and audit queries.
 
 Nothing here re-implements the persona matrix against the warehouse: the SQL
 this module builds is deliberately naive about confidentiality, and the
@@ -29,6 +28,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import pandas as pd
+
+from decimal_measures import decimal_value
 
 LOGGER = logging.getLogger(__name__)
 
@@ -81,7 +82,18 @@ RESULT_COLUMNS: List[str] = [
     "QUALITY_STATUS",
     "BATCH_STATUS",
     "IS_CURRENT",
+    "FAILED_RULE_ID",
+    "BATCH_FAILED_RULE_ID",
+    "VALIDATION_NOTES",
+    "SUBMISSION_ID",
+    "SUBMITTED_AT",
+    "RECEIVED_AT",
+    "SOURCE_SHA256",
+    "VALID_FROM",
+    "VALID_TO",
 ]
+
+AUDIT_COLUMNS = RESULT_COLUMNS[9:]
 
 MAX_ROWS = int(os.getenv("SOVEREIGNSHIELD_MAX_ROWS", "20000"))
 DEFAULT_ROWS = 500
@@ -111,6 +123,11 @@ class SeriesFilter:
     date_to: Optional[str] = None
     include_quarantined: bool = False
     limit: int = DEFAULT_ROWS
+    lifecycle: Optional[str] = None
+
+    @property
+    def view_mode(self) -> str:
+        return self.lifecycle or ("all" if self.include_quarantined else "published")
 
     @classmethod
     def build(
@@ -128,6 +145,7 @@ class SeriesFilter:
         date_to: Optional[str] = None,
         include_quarantined: bool = False,
         limit: int = DEFAULT_ROWS,
+        lifecycle: Optional[str] = None,
     ) -> "SeriesFilter":
         raw = {
             "frequency": frequency,
@@ -145,12 +163,15 @@ class SeriesFilter:
             if codes:
                 dimensions[FILTER_DIMENSIONS[name]] = codes
 
+        if lifecycle not in (None, "published", "all", "quarantine"):
+            raise QueryError("lifecycle must be published, all, or quarantine.")
         return cls(
             dimensions=dimensions,
             date_from=_clean_period("date_from", date_from),
             date_to=_clean_period("date_to", date_to),
             include_quarantined=include_quarantined,
             limit=_clean_limit(limit),
+            lifecycle=lifecycle,
         )
 
 
@@ -212,12 +233,16 @@ def build_search_sql(series_filter: SeriesFilter) -> Tuple[str, Dict[str, Any]]:
     predicates: List[str] = []
     parameters: Dict[str, Any] = {}
 
-    if series_filter.include_quarantined:
+    if series_filter.view_mode == "quarantine":
+        predicates.append("BATCH_STATUS = 'QUARANTINE'")
+    elif series_filter.view_mode == "all":
         # Quarantined revisions are written closed (IS_CURRENT = false) so they
         # can never supersede a published value; they are surfaced only on request.
-        predicates.append("(IS_CURRENT = true OR BATCH_STATUS = 'QUARANTINE')")
+        predicates.append("((IS_CURRENT = true AND BATCH_STATUS = 'PUBLISHED') OR BATCH_STATUS = 'QUARANTINE')")
+    elif series_filter.view_mode == "published":
+        predicates.append("IS_CURRENT = true AND BATCH_STATUS = 'PUBLISHED'")
     else:
-        predicates.append("IS_CURRENT = true")
+        raise QueryError("Unknown lifecycle view.")
 
     for dimension, codes in series_filter.dimensions.items():
         markers = []
@@ -242,7 +267,7 @@ def build_search_sql(series_filter: SeriesFilter) -> Tuple[str, Dict[str, Any]]:
         f"SELECT {projection}\n"
         f"  FROM {HISTORY_TABLE}\n"
         f" WHERE {where_clause}\n"
-        f" ORDER BY TIME_SERIES_CODE, DATE\n"
+        f" ORDER BY TIME_SERIES_CODE, DATE, RECEIVED_AT, SUBMISSION_ID\n"
         f" LIMIT {series_filter.limit}"
     )
     return sql, parameters
@@ -431,7 +456,7 @@ class LocalDeltaBackend:
         for column in RESULT_COLUMNS:
             if column not in frame.columns:
                 frame[column] = pd.NA
-        frame["OBS_VALUE"] = pd.to_numeric(frame["OBS_VALUE"], errors="coerce")
+        frame["OBS_VALUE"] = frame["OBS_VALUE"].map(lambda value: decimal_value(value, allow_missing=True))
         self._frame = frame
         return frame
 
@@ -443,10 +468,15 @@ class LocalDeltaBackend:
     def search(self, series_filter: SeriesFilter, principal: Principal) -> pd.DataFrame:
         frame = self._apply_persona(self._load(), principal)
 
-        if series_filter.include_quarantined and principal.may_see_quarantine:
-            mask = (frame["IS_CURRENT"] == True) | (frame["BATCH_STATUS"] == "QUARANTINE")  # noqa: E712
+        if series_filter.view_mode != "published" and not principal.may_see_quarantine:
+            raise QueryError("This identity cannot request quarantine views.")
+        published = frame["IS_CURRENT"].eq(True) & frame["BATCH_STATUS"].eq("PUBLISHED")
+        if series_filter.view_mode == "quarantine":
+            mask = frame["BATCH_STATUS"].eq("QUARANTINE")
+        elif series_filter.view_mode == "all":
+            mask = published | frame["BATCH_STATUS"].eq("QUARANTINE")
         else:
-            mask = frame["IS_CURRENT"] == True  # noqa: E712
+            mask = published
         frame = frame[mask]
 
         for dimension, codes in series_filter.dimensions.items():
@@ -480,7 +510,7 @@ class LocalDeltaBackend:
         frame = frame.copy()
         reporting = frame["TIME_SERIES_CODE"].astype(str).str.split(".").str[8]
         published = frame["BATCH_STATUS"].astype(str).str.upper() == "PUBLISHED"
-        free = frame["OBS_CONF"].astype(str).str.upper() == "F"
+        free = frame["OBS_CONF"].astype(str).str.strip().str.upper() == "F"
         groups = principal.groups
 
         visible = pd.Series(False, index=frame.index)
@@ -504,7 +534,7 @@ class LocalDeltaBackend:
         own = own[visible]
 
         if "sg-sovereignshield-admin" not in groups:
-            restricted = frame["OBS_CONF"].astype(str).str.upper().isin(["C", "N"]) & ~own
+            restricted = ~free[visible] & ~own
             frame.loc[restricted, "OBS_VALUE"] = float("nan")
         return frame
 

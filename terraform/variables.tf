@@ -100,7 +100,7 @@ variable "reporting_jurisdictions" {
 variable "github_repository" {
   description = "owner/repo permitted to assume the deployment identity via OIDC."
   type        = string
-  default     = "botnt/sovereign-shield"
+  default     = "botlhale/sovereign-shield"
 
   validation {
     condition     = can(regex("^[^/]+/[^/]+$", var.github_repository))

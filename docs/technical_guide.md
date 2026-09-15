@@ -153,9 +153,9 @@ model can be tested without a workspace. Compare the two line by line. **When th
 disagree, the SQL is correct and the mirror is a bug** — the `--live` run exists to
 catch exactly that drift.
 
-Note the module docstring's explanation of why reads go to the base table and never
-to a view: a Unity Catalog view resolves group membership against the *view owner*,
-so filtering in a view would hand every visitor the owner's entitlement.
+The base table supports current and audit reads. Unity Catalog dynamic views also
+support caller-aware group membership; underlying-object definer privileges do not
+make those functions evaluate as the view owner.
 
 ### 3.4 The proof
 
@@ -212,7 +212,7 @@ and documented in its docstring; the fixture creates its own tables. Do not
 | Read | Why |
 | --- | --- |
 | [src/api_gateway.py](../src/api_gateway.py) | Docstring first — the two-tier consumption model |
-| [src/sdmx_ml_exporter.py](../src/sdmx_ml_exporter.py) | SDMX-ML 3.0, SDMX-JSON, SDMX-CSV serialisation, with a dependency-free fallback writer |
+| [src/sdmx_ml_exporter.py](../src/sdmx_ml_exporter.py) | Current-snapshot standard exports and separate audit CSV, using pinned offline metadata and exact decimal formatting |
 | [src/portal_ui.py](../src/portal_ui.py) | Only the shell renders server-side |
 | [README.md § 7 The Public Data Portal](../README.md) | The portal and REST gateway in context |
 
@@ -221,9 +221,9 @@ and documented in its docstring; the fixture creates its own tables. Do not
 > The gateway decides *which identity* a query runs as; Unity Catalog decides *what
 > that identity may see*.
 
-There is no persona filtering anywhere in `api_gateway.py`. That absence is the
-design. If this file were fully compromised, the metastore would still refuse to
-return a quarantined or confidential observation to an unentitled caller.
+Table policies enforce row and value entitlement. The API also controls lifecycle
+selection and feedback fields. It handles elevated bearer tokens and returned data,
+so a compromised gateway can misuse them; its integrity remains trusted.
 
 **On anonymity:** a Databricks App always sits behind workspace SSO, so the "public"
 tier there is an authenticated visitor with no sovereign entitlement. Genuinely
@@ -487,7 +487,7 @@ Collected so you do not have to rediscover them.
 | --- | --- |
 | `Principal.persona` returns `"public"` for a group-less caller ([uc_query.py L283](../src/uc_query.py#L283)) | A *display label only*. The row filter still returns zero rows. Cosmetic, not a leak — `may_see_quarantine` correctly returns `False` |
 | "Public means unauthenticated" | Public is the explicit group `sg-sovereignshield-public`. The app's own service principal is a member; that is why anonymous visitors see anything |
-| Filtering in a Unity Catalog view | Views resolve membership against the **view owner**. Per-caller entitlement must read the base table |
+| Filtering in a Unity Catalog view | Caller-aware dynamic views are supported. This gateway reads the base table to support lifecycle audit modes |
 | RLS appears not to work | Row filters and column masks are not evaluated on `SINGLE_USER` compute. `USER_ISOLATION` is mandatory |
 | `*_secret_id` Terraform variables | Pointers, not secrets. Excluded from the secret scanner by design |
 | Individual imperative helpers | Useful for demos and recovery; use `sovereignshield_up.ps1` and `sovereignshield_down.ps1` for the supported lifecycle |

@@ -46,6 +46,9 @@ param(
     [int]$StopAfterStage = 8,
 
     [switch]$SkipTests,
+    [ValidateSet("Auto", "Bootstrap", "SteadyState")]
+    [string]$DeploymentMode = "Auto",
+    [switch]$ApproveComputeScale,
     [switch]$ConfigureGitHub,
     [string]$GitHubRepository = "",
     [string[]]$GitHubReviewers = @(),
@@ -65,6 +68,7 @@ if ($StartAtStage -gt $StopAfterStage) {
     throw "StartAtStage cannot be greater than StopAfterStage."
 }
 
+$lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
 Push-Location $repoRoot
 try {
     function Invoke-Stage {
@@ -131,14 +135,18 @@ try {
             -Arguments @("init", "-input=false", "-backend-config=$TerraformBackendConfig") | Out-Null
         Invoke-SovereignShieldTerraform -Terraform $terraform -RepoRoot $repoRoot `
             -Arguments @("validate") | Out-Null
-        $foundationVariables = @(
-            "account_groups_ready=false",
-            "grant_tables=false",
-            "deploy_dissemination_gateway=false"
-        )
+        $settings = Get-SovereignShieldDeploymentSettings -Terraform $terraform -RepoRoot $repoRoot
+        if ($DeploymentMode -eq "SteadyState" -and $settings.mode -ne "steady-state") {
+            throw "SteadyState requires an already bootstrapped deployment."
+        }
+        if ($DeploymentMode -eq "Bootstrap" -and $settings.mode -eq "steady-state") {
+            throw "Bootstrap cannot reset an established deployment. Use Auto or SteadyState."
+        }
+        Write-Host "Lifecycle path: $($settings.mode); preserving established readiness flags."
+        $foundationVariables = @(Get-SovereignShieldReadinessVariables -Settings $settings)
         try {
             Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
-                -VarFile $TerraformVarFile -Variables $foundationVariables
+                -VarFile $TerraformVarFile -Variables $foundationVariables -ApproveComputeScale:$ApproveComputeScale
         }
         catch {
             # During a fresh create the Databricks provider host is unknown until
@@ -146,12 +154,13 @@ try {
             # URL instead of requiring the operator to restart at Stage 1.
             $workspaceHost = (& az databricks workspace list --resource-group $ResourceGroup `
                 --query "[?name=='$WorkspaceName'].workspaceUrl | [0]" -o tsv | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0 -or $settings.mode -eq "steady-state") { throw }
             if ([string]::IsNullOrWhiteSpace($workspaceHost)) { throw }
 
             Write-Warning "Foundation apply stopped after workspace creation. Retrying against https://$workspaceHost."
             Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost
             Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
-                -VarFile $TerraformVarFile -Variables $foundationVariables
+                -VarFile $TerraformVarFile -Variables $foundationVariables -ApproveComputeScale:$ApproveComputeScale
         }
     }
 
@@ -159,6 +168,11 @@ try {
     $warehouseId = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "sql_warehouse_id"
     $submissionVolume = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "submission_volume_path"
     $keyVaultName = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "key_vault_name"
+    $deploymentSettings = Get-SovereignShieldDeploymentSettings -Terraform $terraform -RepoRoot $repoRoot
+    $env:BUNDLE_VAR_run_as_service_principal = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "cicd_client_id"
+    $clusterJson = & $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" output -json ingestion_job_cluster
+    if ($LASTEXITCODE -ne 0) { throw "The Terraform ingestion compute specification is unavailable." }
+    $env:BUNDLE_VAR_ingestion_cluster = ($clusterJson | ConvertFrom-Json | ConvertTo-Json -Depth 15 -Compress)
     Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceUrl
     if ($StopAfterStage -eq 1) { return }
 
@@ -166,12 +180,10 @@ try {
         & (Join-Path $repoRoot "sh\databricks_account_setup.ps1") `
             -AccountId $AccountId -ResourceGroup $ResourceGroup `
             -WorkspaceName $WorkspaceName -TenantDomain $TenantDomain
+        $deploymentSettings.account_groups_ready = $true
         Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
-            -VarFile $TerraformVarFile -Variables @(
-                "account_groups_ready=true",
-                "grant_tables=false",
-                "deploy_dissemination_gateway=false"
-            )
+            -VarFile $TerraformVarFile -Variables @(Get-SovereignShieldReadinessVariables -Settings $deploymentSettings) `
+            -ApproveComputeScale:$ApproveComputeScale
     }
 
     Invoke-Stage 3 "Databricks Asset Bundle deployment" {
@@ -187,12 +199,10 @@ try {
     }
 
     Invoke-Stage 5 "Terraform table grants" {
+        $deploymentSettings.grant_tables = $true
         Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
-            -VarFile $TerraformVarFile -Variables @(
-                "account_groups_ready=true",
-                "grant_tables=true",
-                "deploy_dissemination_gateway=false"
-            )
+            -VarFile $TerraformVarFile -Variables @(Get-SovereignShieldReadinessVariables -Settings $deploymentSettings) `
+            -ApproveComputeScale:$ApproveComputeScale
     }
 
     Invoke-Stage 6 "Databricks App activation" {
@@ -206,6 +216,10 @@ try {
     }
 
     Invoke-Stage 7 "Azure Container Apps public and signed-in gateway" {
+        if ($deploymentSettings.deploy_dissemination_gateway) {
+            Write-Host "Gateway is Terraform-owned; the script-managed gateway path is skipped."
+            return
+        }
         $containerArguments = @{
             KeyVaultName  = $keyVaultName
             DatabricksHost = $workspaceUrl.Replace("https://", "")
@@ -300,4 +314,5 @@ try {
 }
 finally {
     Pop-Location
+    $lifecycleLock.Dispose()
 }

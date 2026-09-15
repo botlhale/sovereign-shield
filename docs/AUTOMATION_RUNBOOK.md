@@ -28,6 +28,22 @@ Changing repository defaults neither renames nor revokes existing accounts.
 Keep the `sg-sovereignshield-submitter-ca` and `sg-sovereignshield-submitter-us`
 policy groups unchanged and review their memberships during migration.
 
+**Release migration gate:** existing DOUBLE history and per-user bundle paths must
+follow [the explicit migration procedure](RELEASE_EVIDENCE.md#mandatory-migration-gate).
+This revision was tested locally, not redeployed. Do not run `up` expecting it to
+convert historical tables or adopt an existing job from another bundle path.
+
+`-DeploymentMode Auto` inspects Terraform state. Fresh/partial bootstrap preserves
+any ready grants; steady-state never resets them. `-DeploymentMode SteadyState`
+refuses incomplete bootstrap. A checkout-level lock prevents overlapping `up`/`down`
+operations; one authorized controller is still required across machines. Unique
+temporary plans are inspected for destructive changes before apply. The obsolete
+PR federation credential is the only permitted automatic deletion.
+
+The bundle consumes `ingestion_job_cluster` and `cicd_client_id` outputs for governed
+compute and stable `run_as`. Raising worker counts or enabling Photon requires
+`-ApproveComputeScale`; defaults remain single-node and no Photon.
+
 ## Complete setup
 
 ```powershell
@@ -41,20 +57,24 @@ The default run executes:
 | Stage | Action | Typical evaluation time |
 | ---: | --- | ---: |
 | 0 | Validate tools, config, Azure session, providers, persona users and offline tests | 2–5 min |
-| 1 | Terraform foundation with deferred grants/gateway disabled; automatically reconverges after first workspace creation when needed | 8–20 min |
+| 1 | State-aware foundation; preserve established readiness and gateway ownership; guard the plan | Historical: 8–20 min |
 | 2 | Databricks account wiring, persona SQL entitlements and traversal/warehouse grants | 2–5 min |
 | 3 | Validate and deploy the Databricks Asset Bundle | 1–3 min |
 | 4 | Run security DDL, SDMx generation, validation and SCD2 pipeline | 8–15 min |
-| 5 | Bind Terraform table grants; Stage 4 already applied policy-function execution grants | 1–3 min |
+| 5 | Bind Terraform table grants; schema EXECUTE is also Terraform-owned | Historical: 1–3 min |
 | 6 | Start the Databricks App and bind its public identity | 2–5 min |
 | 7 | Build and deploy Container Apps with anonymous + Entra access | 8–18 min |
 | 8 | Verify both portals, persona SQL entitlements, 13-row anonymous fixture, Easy Auth/token store, and optionally configure GitHub | 1–3 min |
 
-First-run duration is normally 30–70 minutes. Regional capacity, RBAC
+The earlier deployment's planning range was 30–70 minutes, not a measured guarantee for this revision. Regional capacity, RBAC
 propagation, cluster start and ACR build queues are the main sources of variance.
 The repository `.dockerignore` restricts the ACR upload to the portal runtime
 files; local environments, Terraform providers, data, documentation and demo
 media are never sent as image-build context.
+
+The runtime allowlist now includes the extracted structure/code contract and
+compiled local CSS, but not the BIS PDFs or workbook. Rebuild CSS with
+`.venv\Scripts\python.exe sh/build_portal_css.py` after template style changes.
 
 ### Resume or bound a run
 
@@ -102,6 +122,9 @@ Pause compute while retaining data, identities and infrastructure:
 
 This stops the Databricks App and sets the Container App minimum replicas to
 zero. The SQL warehouse and job cluster retain their existing auto-stop behavior.
+Zero minimum replicas does not force immediate shutdown: traffic can keep replicas
+running. Storage, logs, identity artifacts and other retained resources can still
+cost money. Verify tagged actual usage rather than calling Pause zero-cost.
 
 ## Workload teardown
 
@@ -140,6 +163,9 @@ The default workload teardown preserves:
 
 These resources make rebuilding reliable and do not run compute. Human users are
 never deleted by the orchestration script.
+Script-created Entra application registrations, credentials and token-store grants
+need a separate identity inventory; an empty Azure resource group does not prove
+that every identity artifact was removed.
 
 ## Safety boundaries
 

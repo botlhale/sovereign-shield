@@ -7,13 +7,14 @@ for both sovereign micro-transaction tables and central macro history tables in 
 from typing import Dict, List
 
 import glob
+import hashlib
 import os
 
 import pandas as pd
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
-    DoubleType,
+    DecimalType,
     StringType,
     StructField,
     StructType,
@@ -24,6 +25,9 @@ from delta import configure_spark_with_delta_pip
 import datetime
 
 from sdmx_rule_validator import DATA_DIR, SDMxRuleValidator
+from decimal_measures import decimal_value
+from spark_submission_history import HISTORY_SCHEMA
+from submission_history import TIME_COLUMNS, SubmissionContext, prepare_submission, stable_hash
 
 # Explicit schema for the validated macro batch: FAILED_RULE_ID is null for every row of a
 # fully clean run, which Spark cannot type-infer from pandas on its own.
@@ -31,12 +35,14 @@ VALIDATED_MACRO_SCHEMA = StructType([
     StructField("TIME_SERIES_CODE", StringType(), False),
     StructField("DATE", StringType(), False),
     StructField("AGG_CODE", StringType(), False),
-    StructField("OBS_VALUE", DoubleType(), True),
+    StructField("OBS_VALUE", DecimalType(38, 3), True),
     StructField("OBS_STATUS", StringType(), True),
     StructField("OBS_CONF", StringType(), True),
     StructField("QUALITY_STATUS", StringType(), True),
     StructField("FAILED_RULE_ID", StringType(), True),
     StructField("BATCH_STATUS", StringType(), True),
+    StructField("BATCH_FAILED_RULE_ID", StringType(), True),
+    StructField("VALIDATION_NOTES", StringType(), True),
 ])
 
 #: BIS LBS counterparty sector codelist. B/M/F/C/G/H are the reported institutional
@@ -69,7 +75,7 @@ MICRO_STRUCT = StructType([
     StructField("bank_type", StringType(), True),
     StructField("counterpart_country", StringType(), True),
     StructField("sector_code", StringType(), True),
-    StructField("transaction_amount", DoubleType(), True),
+    StructField("transaction_amount", DecimalType(38, 3), True),
     StructField("obs_conf", StringType(), True),
     StructField("agg_scope", StringType(), True),
     StructField("date_scope", StringType(), True),
@@ -110,7 +116,12 @@ def ingest_submitted_micro(
 
     frames = []
     for path in sorted(glob.glob(os.path.join(submission_dir, "micro_transactions_*.csv"))):
-        frames.append(pd.read_csv(path))
+        raw_frame = pd.read_csv(path, dtype={"OBS_VALUE": "string"})
+        with open(path, "rb") as source:
+            digest = hashlib.sha256(source.read()).hexdigest()
+        file_identity = stable_hash([os.path.normpath(os.path.abspath(path)), digest])
+        raw_frame["_transaction_id"] = [stable_hash([file_identity, index]) for index in range(len(raw_frame))]
+        frames.append(raw_frame)
     if not frames:
         raise FileNotFoundError(
             f"No micro-data accompanying the submissions in {submission_dir!r}."
@@ -126,16 +137,11 @@ def ingest_submitted_micro(
     segments.columns = DSD_SEGMENTS
 
     # cycle is the arrival's path under the volume; only its leaf belongs in an identifier.
-    arrival_label = cycle.rstrip("/").split("/")[-1].upper()
-
     ledger = pd.DataFrame(
         {
             # Deterministic from the filing rather than a UUID, so re-running a cycle
             # replays the same identities instead of inventing a new set each time.
-            "transaction_id": [
-                f"{arrival_label}_{row.L_REP_CTY}_{index:04d}"
-                for index, row in enumerate(segments.itertuples(), start=1)
-            ],
+            "transaction_id": raw["_transaction_id"],
             "reporting_country": segments["L_REP_CTY"],
             "reporting_institution": raw["BANK_CODE"],
             "position_type": segments["L_POSITION"],
@@ -146,10 +152,10 @@ def ingest_submitted_micro(
             "bank_type": segments["L_REP_BANK_TYPE"],
             "counterpart_country": segments["L_CP_COUNTRY"],
             "sector_code": segments["L_CP_SECTOR"],
-            "transaction_amount": raw["OBS_VALUE"].astype(float),
+            "transaction_amount": raw["OBS_VALUE"].map(decimal_value),
             # Carried down from the series the transaction fed, so the ledger records
             # which contributions ended up inside a restricted aggregate.
-            "obs_conf": raw["TIME_SERIES_CODE"].map(obs_conf_by_series).fillna("F"),
+            "obs_conf": raw["TIME_SERIES_CODE"].map(obs_conf_by_series).fillna("N"),
             "agg_scope": raw["AGG_CODE"],
             "date_scope": raw["DATE"],
             "transaction_timestamp": batch_timestamp,
@@ -179,8 +185,12 @@ def ingest_submitted_micro(
 
     # Write incoming micro transactions to Delta; mergeSchema evolves pre-existing tables
     # deployed before these institutional attribute columns were added.
-    df_micro.write.format("delta").mode("append").option("mergeSchema", "true") \
-        .saveAsTable("dbw_sovereignshield.sovereign_intake.lbs_micro_transactions")
+    target = "dbw_sovereignshield.sovereign_intake.lbs_micro_transactions"
+    if not spark.catalog.tableExists(target):
+        raise RuntimeError("Protected micro table is missing; run policy deployment first.")
+    DeltaTable.forName(spark, target).alias("target").merge(
+        df_micro.alias("source"), "target.transaction_id = source.transaction_id"
+    ).whenNotMatchedInsertAll().execute()
     print(f"Multi-country micro transactions ingested successfully (cycle={cycle}).")
 
 
@@ -215,151 +225,10 @@ def merge_scd2_macro(
     date_scope: str = "2026-Q1",
     agg_scope: str = "LBSR"
 ) -> None:
-    """
-    Executes SCD2 Upsert and Scoped Logical Delete for Centralized Macro Data.
-    Composite Key: TIME_SERIES_CODE, DATE, AGG_CODE
+    """Atomically commit one prepared full-snapshot submission; scope comes from the rows."""
+    from spark_submission_history import merge_submission
 
-    Quarantined revisions never mutate active state. Rows arriving with
-    BATCH_STATUS = 'QUARANTINE' are appended as IS_CURRENT = false audit records
-    only: they do not expire, supersede, or logically delete the previously
-    published version, so `v_agg_sdmx_published` keeps serving the last valid
-    state for that reporting period. Only PUBLISHED rows drive the standard SCD2
-    close-and-insert lifecycle.
-    """
-    payload_cols = ["OBS_VALUE", "OBS_STATUS", "OBS_CONF", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_STATUS"]
-    df_source = add_version_hash(df_incoming, payload_cols)
-
-    df_published = df_source.filter(F.col("BATCH_STATUS") == "PUBLISHED")
-    df_quarantined = df_source.filter(F.col("BATCH_STATUS") != "PUBLISHED")
-
-    # 1. Initialize or load Delta Table
-    # Column names must match the agg_sdmx_history DDL (unity_catalog_triple_lock.sql): VALID_FROM/VALID_TO/IS_CURRENT.
-    if not spark.catalog.tableExists(target_table_name):
-        df_init = df_source \
-            .withColumn("VALID_FROM", F.current_timestamp()) \
-            .withColumn("VALID_TO", F.to_timestamp(F.lit("9999-12-31 00:00:00"))) \
-            .withColumn("IS_CURRENT", F.col("BATCH_STATUS") == "PUBLISHED")
-        df_init.write.format("delta").mode("overwrite").saveAsTable(target_table_name)
-        print(f"Initialized new target table: {target_table_name}")
-        return
-
-    delta_target = DeltaTable.forName(spark, target_table_name)
-
-    # Patch tables created before version-hash change tracking existed (e.g. via the DDL script).
-    if "version_hash" not in delta_target.toDF().columns:
-        spark.sql(f"ALTER TABLE {target_table_name} ADD COLUMNS (version_hash STRING)")
-
-    # 2. Stage 1: Expire changed records (Match key, active status, but hash differs)
-    join_key_cond = """
-        target.TIME_SERIES_CODE = source.TIME_SERIES_CODE AND
-        target.DATE = source.DATE AND
-        target.AGG_CODE = source.AGG_CODE AND
-        target.IS_CURRENT = true
-    """
-
-    delta_target.alias("target").merge(
-        source=df_published.alias("source"),
-        condition=join_key_cond
-    ).whenMatchedUpdate(
-        condition="target.version_hash != source.version_hash",
-        set={
-            "IS_CURRENT": "false",
-            "VALID_TO": "current_timestamp()"
-        }
-    ).execute()
-
-    # 3. Stage 2: Insert new active records (New keys OR superseded versions)
-    active_target = delta_target.toDF().filter("IS_CURRENT = true")
-
-    df_to_insert = df_published.alias("src").join(
-        active_target.alias("tgt"),
-        on=["TIME_SERIES_CODE", "DATE", "AGG_CODE"],
-        how="left"
-    ).filter(
-        "tgt.TIME_SERIES_CODE IS NULL OR tgt.version_hash != src.version_hash"
-    ).select("src.*") \
-     .withColumn("VALID_FROM", F.current_timestamp()) \
-     .withColumn("VALID_TO", F.to_timestamp(F.lit("9999-12-31 00:00:00"))) \
-     .withColumn("IS_CURRENT", F.lit(True))
-
-    # Materialized so the count check and the write see one identical result set; the lazy
-    # plan would otherwise re-read the table and could observe a concurrent commit.
-    df_to_insert = df_to_insert.cache()
-    insert_count = df_to_insert.count()
-    if insert_count > 0:
-        df_to_insert.write.format("delta").mode("append").saveAsTable(target_table_name)
-        print(f"Inserted {insert_count} new active version(s).")
-    df_to_insert.unpersist()
-
-    # 4. Stage 2b: Append quarantined revisions as closed audit-only rows.
-    # VALID_TO equals VALID_FROM so the row is never visible as an active version.
-    # The anti-join keeps re-runs idempotent: replaying the same rejected submission must
-    # not stack duplicate audit records.
-    already_logged = delta_target.toDF().select("TIME_SERIES_CODE", "DATE", "AGG_CODE", "version_hash")
-
-    df_quarantine_audit = df_quarantined.join(
-        already_logged,
-        on=["TIME_SERIES_CODE", "DATE", "AGG_CODE", "version_hash"],
-        how="left_anti"
-    ) \
-        .withColumn("VALID_FROM", F.current_timestamp()) \
-        .withColumn("VALID_TO", F.current_timestamp()) \
-        .withColumn("IS_CURRENT", F.lit(False))
-
-    df_quarantine_audit = df_quarantine_audit.cache()
-    quarantined_count = df_quarantine_audit.count()
-    if quarantined_count > 0:
-        df_quarantine_audit.write.format("delta").mode("append").saveAsTable(target_table_name)
-        print(
-            f"Appended {quarantined_count} quarantined revision(s) as IS_CURRENT=false audit records; "
-            "previously published versions remain active."
-        )
-    df_quarantine_audit.unpersist()
-
-    # 5. Stage 3: Scoped Logical Delete
-    # Expire active records within (DATE, AGG_CODE) scope missing from the incoming batch.
-    # Restricted to reporting-period batches that actually published: a quarantined batch must
-    # not retire its own previously published series just because the revision was rejected.
-    published_batches = df_published.select(
-        F.element_at(F.split(F.col("TIME_SERIES_CODE"), "\\."), 9).alias("REP_CTY"),
-        F.col("DATE")
-    ).distinct()
-
-    df_incoming_keys = df_published.select("TIME_SERIES_CODE").distinct()
-
-    # Re-read rather than reusing the pre-insert snapshot, otherwise rows written in Stage 2
-    # would be treated as missing from the batch and immediately expired.
-    deleted_keys = delta_target.toDF().filter(
-        (F.col("IS_CURRENT") == True) & (F.col("DATE") == date_scope) & (F.col("AGG_CODE") == agg_scope)
-    ).withColumn(
-        "REP_CTY", F.element_at(F.split(F.col("TIME_SERIES_CODE"), "\\."), 9)
-    ).join(
-        published_batches, on=["REP_CTY", "DATE"], how="inner"
-    ).join(
-        df_incoming_keys,
-        on="TIME_SERIES_CODE",
-        how="left_anti"
-    ).select("TIME_SERIES_CODE", "DATE", "AGG_CODE")
-
-    deleted_keys = deleted_keys.cache()
-    deleted_count = deleted_keys.count()
-    if deleted_count > 0:
-        delta_target.alias("target").merge(
-            source=deleted_keys.alias("deleted"),
-            condition="""
-                target.TIME_SERIES_CODE = deleted.TIME_SERIES_CODE AND
-                target.DATE = deleted.DATE AND
-                target.AGG_CODE = deleted.AGG_CODE AND
-                target.IS_CURRENT = true
-            """
-        ).whenMatchedUpdate(
-            set={
-                "IS_CURRENT": "false",
-                "VALID_TO": "current_timestamp()"
-            }
-        ).execute()
-        print(f"Logically deleted {deleted_count} missing records in scope ({date_scope}, {agg_scope}).")
-    deleted_keys.unpersist()
+    merge_submission(spark, df_incoming, target_table_name)
 
 
 def merge_scd2_micro(
@@ -503,32 +372,20 @@ def process_and_publish_macro_batch(
     # OBS_STATUS is an SDMx attribute rather than a dimension; absent means normal.
     df_submitted["OBS_STATUS"] = df_submitted["OBS_STATUS"].fillna("A")
 
-    df_macro_final = spark.createDataFrame(
-        # Records rather than the pandas frame itself. validator.validate() inherits
-        # df_submitted's provenance as one CSV per country concatenated together,
-        # which under pandas 3 backs each string column with a multi-chunk Arrow
-        # ChunkedArray - the same shape createDataFrame cannot turn into a
-        # RecordBatch that broke ingest_submitted_micro above.
-        validator.validate(df_submitted).to_dict("records"),
-        schema=VALIDATED_MACRO_SCHEMA,
-    )
-
-    # Log the verdict before committing. FAILED_RULE_ID names only the observations that
-    # actually broke a check, so a quarantined batch shows its cause rather than a blanket.
-    batch_summary = df_macro_final.withColumn(
-        "REP_CTY", F.element_at(F.split(F.col("TIME_SERIES_CODE"), "\\."), 9)
-    ).groupBy("REP_CTY", "DATE", "BATCH_STATUS").count()
-    print(f"Macro batch routing for cycle '{cycle}' (atomic per country-quarter):")
-    batch_summary.show(truncate=False)
-
-    offenders = df_macro_final.filter(F.col("FAILED_RULE_ID").isNotNull())
-    if offenders.count():
-        print("Observations that failed a BIS consistency check:")
-        offenders.select(
-            "TIME_SERIES_CODE", "DATE", "OBS_VALUE", "FAILED_RULE_ID"
-        ).show(truncate=False)
-
-    merge_scd2_macro(spark, df_macro_final, date_scope=date_scope, agg_scope=agg_scope)
+    ordered = sorted(submissions.values(), key=lambda frame: (frame.attrs["SUBMITTED_AT"], frame.attrs["SUBMISSION_ID"]))
+    for submitted in ordered:
+        validated = validator.validate(submitted)
+        context = SubmissionContext(
+            submitted.attrs["SUBMISSION_ID"], submitted.attrs["SOURCE_SHA256"],
+            submitted.attrs["SUBMITTED_AT"].to_pydatetime(), datetime.datetime.now(datetime.timezone.utc),
+        )
+        prepared = prepare_submission(validated, context)
+        records = prepared.to_dict("records")
+        for record in records:
+            for name in TIME_COLUMNS:
+                record[name] = None if pd.isna(record[name]) else pd.Timestamp(record[name]).to_pydatetime()
+        df_macro_final = spark.createDataFrame(records, schema=HISTORY_SCHEMA)
+        merge_scd2_macro(spark, df_macro_final, date_scope=date_scope, agg_scope=agg_scope)
 
 
 def run_pipeline(

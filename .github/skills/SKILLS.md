@@ -38,7 +38,7 @@ Every row in the sections below corresponds to code in this repository, not to a
 | DSD resolution | Live `BIS_LBS` dimension fetch, with a pinned 11-dimension fallback when the registry is unreachable | `sdmx_rule_validator.py` |
 | 11-dimension composite key | `FREQ.L_MEASURE.L_POSITION.L_INSTR.L_DENOM.L_CURR_TYPE.L_PARENT_CTY.L_REP_BANK_TYPE.L_REP_CTY.L_CP_SECTOR.L_CP_COUNTRY` | `scd2_merge_engine.py` |
 | Signed observations | Negative positions are valid (asset vs. liability direction) and are never a failure on their own | Aggregation layer |
-| Zero suppression | Positions netting to exactly `0` are filtered, never published as an observation | Aggregation layer |
+| Zero retention | Genuine zero remains distinct from missing or masked observations | Aggregation layer |
 | Confidentiality escalation | Most-restrictive-wins rollup: any `C` → `C`; else any `N` → `N`; else `F` | Aggregation layer |
 | Codelist enforcement | Sector codes constrained to BIS breakdowns `{B,M,F,C,G,H}` + aggregates `{A,N,U}` | `_assert_valid_sector_codes` |
 | Disclosure control | Dominance computed on **absolute** contributions (`\|bank\| / Σ\|bank\|`), threshold `0.60` → `OBS_CONF = 'N'` | `aggregate_micro_to_macro` |
@@ -93,7 +93,7 @@ Operational competencies exercised:
 * **Type-compatible masking.** A mask returns the masked column's own type — `OBS_VALUE` is `DOUBLE`, so `NULL` is the only valid redaction; a `'xxx'` sentinel is not representable.
 * **Ownership ≠ exemption.** Object ownership does not lift a row filter. The pipeline SPN must hold admin group membership or the merge reads an empty target and silently duplicates history.
 * **Defense in depth.** Protecting the aggregate while leaving the raw ledger open is not sovereignty; both tables carry filters.
-* **Idempotent, non-destructive DDL.** Security re-executes on every run without erasing state: `CREATE TABLE IF NOT EXISTS` guards, detach → replace → re-attach sequencing for policy-bound functions, and per-statement `-- @tolerate-failure` markers with fail-fast defaults.
+* **Protected deployment.** Content-addressed immutable functions, no policy detachment, definition/binding verification, and failure propagation. Legacy incompatible schemas require explicit migration. See [release evidence](../../docs/RELEASE_EVIDENCE.md).
 
 ---
 
@@ -124,7 +124,7 @@ The governing principle: **validation failure degrades to stale data, never to m
 | Credential rotation | `kv_spn_remediation.sh` deletes the app registration, mints fresh credentials, and overwrites stored secrets |
 | Compute topology | Single Node (`num_workers: 0`, `ResourceClass: SingleNode`, `spark.master: local[*, 4]`) on `Standard_DS3_v2` |
 | Cost posture | `SPOT_WITH_FALLBACK_AZURE` — safe because the pipeline is idempotent and a re-run reproduces the same end state |
-| Security mode | `USER_ISOLATION` — a hard prerequisite, as Unity Catalog will not evaluate RLS/DDM on `SINGLE_USER` compute |
+| Security mode | This deployment pins `USER_ISOLATION`; other access modes have documented runtime/serverless requirements |
 | Immutable execution | `spark_python_task` against the synced `src/` directory, avoiding intermediate `.whl` builds |
 
 ---

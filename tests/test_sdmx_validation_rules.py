@@ -303,6 +303,7 @@ def test_observations_are_grouped_into_series():
             ("Q.S.C.A.USD.F.5J.A.CA.A.5J", 150.0),
         ]
     )
+    frame.loc[1, "DATE"] = "2026-Q2"
 
     xml = sdmx.to_sdmx_ml_3_0(frame, validate=True)
 

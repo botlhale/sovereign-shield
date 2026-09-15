@@ -125,8 +125,7 @@ foreach ($name in $Reviewers) {
 }
 
 if ($reviewerPayload.Count -eq 0) {
-    Write-Host "  [warn]   No reviewers supplied. The environment will exist but" -ForegroundColor Yellow
-    Write-Host "           every merge deploys unattended - the gate is nominal." -ForegroundColor Yellow
+    throw "At least one independent reviewer is required; existing protection was not changed."
 }
 
 Write-Host "`n=== 2. Environment '$EnvironmentName' ===" -ForegroundColor Cyan
@@ -196,7 +195,7 @@ Write-Host ("  prevent self-review: {0}" -f $(if ($reviewerRule) { $reviewerRule
 Write-Host ("  protected branches : {0}" -f $(if ($branchRule) { $branchRule.protected_branches } else { "NO" }))
 
 if (-not $reviewerRule) {
-    Write-Host "`n  The human gate is NOT active. Re-run with -Reviewers." -ForegroundColor Yellow
+    throw "The required reviewer gate was not verified."
 }
 
 Write-Host "`nStill manual: protect the 'main' branch itself." -ForegroundColor DarkGray

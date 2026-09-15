@@ -1,10 +1,15 @@
 SovereignShield
 Copyright 2026 Botlhale Mosweu / Augmenta Systems (13668754 Canada Inc.)
 
+Author: Botlhale Mosweu.
+Project steward: Augmenta Systems, operated through 13668754 Canada Inc.
+Stewardship and author credit do not assert a new copyright assignment.
+
 SovereignShield is an independent reference implementation. References to BIS,
-SDMX, Azure, Databricks, and other organizations or products identify public
+SDMx, Azure, Databricks, and other organizations or products identify public
 standards or compatible technologies and do not imply affiliation or endorsement.
 
-Third-party standards artifacts under docs/reference_standards remain subject to
+Third-party standards artifacts under docs/reference_standards and the source
+schemas/metadata under src/reference_data remain subject to
 their original publishers' terms. The Apache License 2.0 applies to the
 SovereignShield work and does not relicense those artifacts.

@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { letter-spacing: 0; }
+.lifecycle-control { display: flex; flex-wrap: wrap; gap: 1px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; }
+.lifecycle-control label { position: relative; cursor: pointer; }
+.lifecycle-control input { position: absolute; opacity: 0; }
+.lifecycle-control span { display: block; padding: 6px 10px; color: #334155; background: #f8fafc; }
+.lifecycle-control input:checked + span { color: #ffffff; background: #0f766e; }
+.lifecycle-control input:focus-visible + span { outline: 2px solid #0e7490; outline-offset: -3px; }
+.audit-feedback { min-width: 10rem; max-width: 22rem; overflow-wrap: anywhere; }
+a[aria-disabled="true"] { cursor: not-allowed; }
+@media (max-width: 639px) {
+  .lifecycle-control { width: 100%; }
+  .lifecycle-control label { flex: 1 1 100%; }
+}

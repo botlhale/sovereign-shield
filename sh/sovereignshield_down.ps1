@@ -42,6 +42,7 @@ Import-Module (Join-Path $PSScriptRoot "lib\SovereignShield.Orchestration.psm1")
 $repoRoot = Get-SovereignShieldRepoRoot
 $terraform = Get-SovereignShieldTerraform
 
+$lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
 Push-Location $repoRoot
 try {
     foreach ($command in @("az", "databricks")) {
@@ -67,7 +68,7 @@ try {
         if ($WhatIfPreference) {
             Write-Host "SovereignShield pause preview complete; no resources were changed." -ForegroundColor Green
         } else {
-            Write-Host "SovereignShield is paused. Data, identities and infrastructure are retained." -ForegroundColor Green
+            Write-Host "Low-cost settings requested. Scale-to-zero is demand-driven, not a guarantee of zero running replicas or charges." -ForegroundColor Green
         }
         return
     }
@@ -117,6 +118,11 @@ try {
     }
 
     if ($workspaceHost -and $PSCmdlet.ShouldProcess("Databricks bundle resources", "Destroy job, app and uploaded files")) {
+        $env:BUNDLE_VAR_run_as_service_principal = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "cicd_client_id"
+        $clusterJson = & $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" output -json ingestion_job_cluster
+        if ($LASTEXITCODE -eq 0) {
+            $env:BUNDLE_VAR_ingestion_cluster = ($clusterJson | ConvertFrom-Json | ConvertTo-Json -Depth 15 -Compress)
+        }
         Invoke-SovereignShieldNative -FilePath "databricks" `
             -Arguments @("bundle", "destroy", "-t", $Target, "--auto-approve") -AllowFailure | Out-Null
     }
@@ -193,7 +199,13 @@ try {
         throw "Workload teardown left Terraform state entries behind:`n  $($remainingState -join "`n  ")"
     }
 
-    $remainingResources = @(& az resource list --resource-group $ResourceGroup --query "[].id" -o tsv)
+    $groupExists = (& az group exists --name $ResourceGroup --output tsv | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Resource group existence could not be verified." }
+    $remainingResources = @()
+    if ($groupExists -eq "true") {
+        $remainingResources = @(& az resource list --resource-group $ResourceGroup --query "[].id" -o tsv)
+        if ($LASTEXITCODE -ne 0) { throw "Remaining resources could not be verified." }
+    }
     if ($remainingResources.Count -gt 0) {
         throw "Workload teardown left Azure resources behind:`n  $($remainingResources -join "`n  ")"
     }
@@ -208,4 +220,5 @@ try {
 }
 finally {
     Pop-Location
+    $lifecycleLock.Dispose()
 }

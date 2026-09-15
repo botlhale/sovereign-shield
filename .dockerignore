@@ -7,5 +7,11 @@ src/**
 !src/portal_ui.py
 !src/uc_query.py
 !src/sdmx_ml_exporter.py
+!src/decimal_measures.py
+!src/lbs_contract.py
+!src/reference_data/
+!src/reference_data/lbs_structure.json
+!src/static/
+!src/static/**
 !src/templates/
 !src/templates/**

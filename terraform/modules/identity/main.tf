@@ -76,15 +76,6 @@ resource "azuread_application_federated_identity_credential" "github_environment
   subject = "repo:${var.github_repository}:environment:${var.github_environment}"
 }
 
-resource "azuread_application_federated_identity_credential" "github_pull_request" {
-  application_id = azuread_application.cicd.id
-  display_name   = "github-pull-request"
-  description    = "Plan-only identity for pull requests"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_repository}:pull_request"
-}
-
 resource "azurerm_role_assignment" "cicd_contributor" {
   scope                = data.azurerm_resource_group.main.id
   role_definition_name = "Contributor"
@@ -124,9 +115,8 @@ resource "azuread_group_member" "public_proxy_is_public" {
 }
 
 # The Container Apps deployment authenticates as this principal and cannot use
-# OIDC, so it needs a secret. Rotation is automatic and the value never leaves
-# Key Vault - the container resolves it through a keyvaultref, so it is not
-# passed on a command line or written to a file.
+# OIDC in this configuration, so it needs a secret. A subsequent Terraform apply
+# performs due rotation; sensitive values remain in protected state and plans.
 resource "time_rotating" "public_proxy" {
   rotation_days = 90
 }

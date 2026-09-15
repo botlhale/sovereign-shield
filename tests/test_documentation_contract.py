@@ -40,6 +40,7 @@ def test_whitepaper_tables_and_sql_stay_inside_print_groups():
     assert not IMAGE_LINK.search(outside_groups)
     assert not re.search(r"^```sql|^\|", outside_groups, re.MULTILINE)
     assert paper.count("```sql") == 2
+    assert paper.index("## Appendix A:") < paper.index("```sql")
     assert len(re.findall(r'^\| Schema |^\| Persona ', paper, re.MULTILINE)) == 2
 
 

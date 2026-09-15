@@ -26,6 +26,48 @@ function Assert-SovereignShieldCommand {
     }
 }
 
+function Get-SovereignShieldPython {
+    param([string]$RepoRoot)
+    foreach ($relative in @(".venv\Scripts\python.exe", ".venv/bin/python")) {
+        $candidate = Join-Path $RepoRoot $relative
+        if (Test-Path $candidate) { return $candidate }
+    }
+    foreach ($name in @("python", "python3")) {
+        $candidate = Get-Command $name -ErrorAction SilentlyContinue
+        if ($candidate) { return $candidate.Source }
+    }
+    throw "Python is required for lifecycle state and plan verification."
+}
+
+function Enter-SovereignShieldLifecycleLock {
+    param([string]$RepoRoot)
+    $directory = Join-Path $RepoRoot ".pytest_cache"
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    try {
+        return [System.IO.File]::Open((Join-Path $directory "sovereignshield.lifecycle.lock"),
+            [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    } catch {
+        throw "Another lifecycle operation holds this checkout's lock."
+    }
+}
+
+function Get-SovereignShieldDeploymentSettings {
+    param([string]$Terraform, [string]$RepoRoot)
+    $stateJson = & $Terraform "-chdir=$(Join-Path $RepoRoot 'terraform')" show -json
+    if ($LASTEXITCODE -ne 0) { throw "Terraform state inspection failed; readiness was not assumed." }
+    $python = Get-SovereignShieldPython -RepoRoot $RepoRoot
+    $settings = $stateJson | & $python (Join-Path $RepoRoot "sh/deployment_state.py") inspect
+    if ($LASTEXITCODE -ne 0) { throw "Could not determine deployment readiness." }
+    return ($settings | ConvertFrom-Json)
+}
+
+function Get-SovereignShieldReadinessVariables {
+    param([object]$Settings)
+    foreach ($name in @("account_groups_ready", "grant_tables", "deploy_dissemination_gateway")) {
+        "${name}=$($Settings.$name.ToString().ToLowerInvariant())"
+    }
+}
+
 function Invoke-SovereignShieldNative {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
@@ -74,15 +116,23 @@ function Invoke-SovereignShieldTerraformApply {
         [Parameter(Mandatory = $true)][string]$Terraform,
         [Parameter(Mandatory = $true)][string]$RepoRoot,
         [Parameter(Mandatory = $true)][string]$VarFile,
-        [string[]]$Variables = @()
+        [string[]]$Variables = @(),
+        [switch]$ApproveComputeScale
     )
 
-    $planName = ".sovereignshield-orchestration.tfplan"
+    $planName = ".sovereignshield-$([guid]::NewGuid().ToString('N')).tfplan"
     $planArguments = @("plan", "-input=false", "-var-file=$VarFile", "-out=$planName")
     foreach ($variable in $Variables) { $planArguments += "-var=$variable" }
 
     try {
         Invoke-SovereignShieldTerraform -Terraform $Terraform -RepoRoot $RepoRoot -Arguments $planArguments | Out-Null
+        $planJson = & $Terraform "-chdir=$(Join-Path $RepoRoot 'terraform')" show -json $planName
+        if ($LASTEXITCODE -ne 0) { throw "Could not inspect the plan; apply was refused." }
+        $python = Get-SovereignShieldPython -RepoRoot $RepoRoot
+        $guardArguments = @((Join-Path $RepoRoot "sh/deployment_state.py"), "check-plan")
+        if ($ApproveComputeScale) { $guardArguments += "--approve-compute-scale" }
+        $planJson | & $python @guardArguments
+        if ($LASTEXITCODE -ne 0) { throw "Lifecycle plan guard refused apply." }
         Invoke-SovereignShieldTerraform -Terraform $Terraform -RepoRoot $RepoRoot `
             -Arguments @("apply", "-input=false", $planName) | Out-Null
     }
@@ -140,6 +190,10 @@ function Test-SovereignShieldEntraUsers {
 Export-ModuleMember -Function @(
     "Get-SovereignShieldRepoRoot",
     "Get-SovereignShieldTerraform",
+    "Get-SovereignShieldPython",
+    "Enter-SovereignShieldLifecycleLock",
+    "Get-SovereignShieldDeploymentSettings",
+    "Get-SovereignShieldReadinessVariables",
     "Assert-SovereignShieldCommand",
     "Invoke-SovereignShieldNative",
     "Invoke-SovereignShieldTerraform",

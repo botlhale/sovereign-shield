@@ -6,9 +6,7 @@
 -- doing so silently erases the entire SCD2 lineage and leaves the platform
 -- unable to protect a published record from a quarantined revision.
 --
--- Statements annotated with "-- @tolerate-failure" are expected to fail on one
--- of the two lifecycle paths (fresh create vs. re-apply) and are skipped by
--- apply_security.py rather than aborting the deployment.
+-- apply_security.py assigns content-addressed names to immutable policy functions.
 -- =====================================================================
 
 USE CATALOG dbw_sovereignshield;
@@ -26,34 +24,6 @@ CREATE SCHEMA IF NOT EXISTS sovereign_intake;
 USE SCHEMA sovereign_shield;
 
 -- =====================================================================
--- 1. DETACH POLICIES SO THE UDFs CAN BE REPLACED
--- Unity Catalog refuses to replace a function bound to a live row filter or
--- column mask. Fails harmlessly on the very first deployment.
--- =====================================================================
--- @tolerate-failure
-ALTER TABLE agg_sdmx_history DROP ROW FILTER;
--- @tolerate-failure
-ALTER TABLE agg_sdmx_history ALTER COLUMN OBS_VALUE DROP MASK;
--- @tolerate-failure
-ALTER TABLE sovereign_intake.lbs_micro_transactions DROP ROW FILTER;
-
--- The single-column filter is superseded by fn_rls_multi_persona_lock.
--- Dropping it keeps the metastore free of an unbound policy that still
--- compiles and could be re-attached by mistake.
--- @tolerate-failure
-DROP FUNCTION IF EXISTS fn_rls_lbs_country_lock;
-
--- Pre-generalization object names. A workspace provisioned before the macro
--- layer was renamed still holds these; detaching lets the operator drop them
--- without the metastore refusing on a live policy binding.
--- @tolerate-failure
-ALTER TABLE lbs_sdmx_history DROP ROW FILTER;
--- @tolerate-failure
-ALTER TABLE lbs_sdmx_history ALTER COLUMN OBS_VALUE DROP MASK;
--- @tolerate-failure
-DROP FUNCTION IF EXISTS fn_rls_lbs_multi_persona_lock;
-
--- =====================================================================
 -- 2. DYNAMIC DATA MASKING (DDM) FUNCTION
 --
 -- Confidential observations (OBS_CONF 'C' = confidential, 'N' = not for
@@ -65,19 +35,19 @@ DROP FUNCTION IF EXISTS fn_rls_lbs_multi_persona_lock;
 -- unmask every other jurisdiction's restricted cells. Segment 9 is L_REP_CTY.
 -- =====================================================================
 CREATE OR REPLACE FUNCTION fn_ddm_obs_conf_mask(
-  obs_val DOUBLE,
+  obs_val DECIMAL(38,3),
   obs_conf STRING,
   time_series_code STRING
 )
-RETURNS DOUBLE
+RETURNS DECIMAL(38,3)
 RETURN CASE
   WHEN is_account_group_member('sg-sovereignshield-admin') THEN obs_val
   WHEN is_account_group_member('sg-sovereignshield-submitter-ca')
     AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'CA', FALSE) THEN obs_val
   WHEN is_account_group_member('sg-sovereignshield-submitter-us')
     AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'US', FALSE) THEN obs_val
-  WHEN upper(coalesce(obs_conf, '')) IN ('C', 'N') THEN NULL
-  ELSE obs_val
+  WHEN upper(trim(coalesce(obs_conf, ''))) = 'F' THEN obs_val
+  ELSE NULL
 END;
 
 -- =====================================================================
@@ -131,7 +101,7 @@ RETURN
       OR is_account_group_member('sg-sovereignshield-submitter-us')
     )
     AND upper(coalesce(batch_status, '')) = 'PUBLISHED'
-    AND upper(coalesce(obs_conf, '')) = 'F'
+    AND upper(trim(coalesce(obs_conf, ''))) = 'F'
   )
   OR (
     is_account_group_member('sg-sovereignshield-submitter-ca')
@@ -180,13 +150,14 @@ CREATE TABLE IF NOT EXISTS sovereign_intake.lbs_micro_transactions (
   bank_type STRING,
   counterpart_country STRING,
   sector_code STRING,
-  transaction_amount DOUBLE,
+  transaction_amount DECIMAL(38,3),
   obs_conf STRING,
   agg_scope STRING,
   date_scope STRING,
   transaction_timestamp TIMESTAMP
 )
-WITH ROW FILTER sovereign_intake.fn_rls_micro_country_lock ON (reporting_country);
+WITH ROW FILTER sovereign_intake.fn_rls_micro_country_lock ON (reporting_country)
+TBLPROPERTIES ('delta.isolationLevel' = 'Serializable');
 
 -- =====================================================================
 -- 6. MACRO SDMX HISTORY TABLE (SCD2, WITH RLS & DDM APPLIED)
@@ -204,29 +175,32 @@ CREATE TABLE IF NOT EXISTS agg_sdmx_history (
   TIME_SERIES_CODE STRING,
   DATE STRING,
   AGG_CODE STRING,
-  OBS_VALUE DOUBLE MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE),
+  OBS_VALUE DECIMAL(38,3) MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE),
   OBS_STATUS STRING,
   OBS_CONF STRING,
   QUALITY_STATUS STRING,
   FAILED_RULE_ID STRING,
   BATCH_STATUS STRING,
+  BATCH_FAILED_RULE_ID STRING,
+  VALIDATION_NOTES STRING,
+  SUBMISSION_ID STRING,
+  SOURCE_SHA256 STRING,
+  RECORD_ID STRING,
+  SUBMITTED_AT TIMESTAMP,
+  RECEIVED_AT TIMESTAMP,
   version_hash STRING,
   VALID_FROM TIMESTAMP,
   VALID_TO TIMESTAMP,
   IS_CURRENT BOOLEAN
 )
-WITH ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
+WITH ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)
+TBLPROPERTIES ('delta.isolationLevel' = 'Serializable');
 
 -- =====================================================================
--- 7. RE-ATTACH POLICIES ON PRE-EXISTING TABLES
--- No-ops (hence tolerated failures) when the CREATE TABLE statements above
--- just built the tables with their policies already inline.
+-- 7. REPLACE BINDINGS WITHOUT DETACHING THE PREVIOUS POLICY
 -- =====================================================================
--- @tolerate-failure
 ALTER TABLE agg_sdmx_history ALTER COLUMN OBS_VALUE SET MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE);
--- @tolerate-failure
 ALTER TABLE agg_sdmx_history SET ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
--- @tolerate-failure
 ALTER TABLE sovereign_intake.lbs_micro_transactions SET ROW FILTER sovereign_intake.fn_rls_micro_country_lock ON (reporting_country);
 
 -- =====================================================================
@@ -235,9 +209,8 @@ ALTER TABLE sovereign_intake.lbs_micro_transactions SET ROW FILTER sovereign_int
 -- written to agg_sdmx_history with IS_CURRENT = false, so it can never surface
 -- here and never interrupts consumers of the prior published value.
 --
--- The portal and API deliberately query the base table instead of this view: a
--- Unity Catalog view resolves group membership against the view owner, so the
--- per-caller persona filter only means something when the table is read directly.
+-- The portal queries the base table to support both current and audit views.
+-- Unity Catalog dynamic views also support caller-aware group membership.
 -- =====================================================================
 CREATE OR REPLACE VIEW v_agg_sdmx_published AS
 SELECT 

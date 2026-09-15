@@ -14,11 +14,9 @@ force the UI to make a network hop back to its own host.
   warehouse, so the row filter and column mask resolve against that caller's own
   Entra ID groups and the elevated personas unlock.
 
-**Neither tier carries an entitlement.** The gateway decides *which identity* a
-query runs as; Unity Catalog decides *what that identity may see*. There is no
-code path here that filters rows by persona - if this file were compromised, the
-metastore would still refuse to return a quarantined or confidential observation
-to an unentitled caller.
+The gateway selects the SQL identity and lifecycle query. Unity Catalog enforces
+table-level entitlement. The gateway handles bearer tokens and entitled results,
+so its integrity remains trusted; a compromise is not harmless.
 
 Token carriers, in precedence order:
 
@@ -31,8 +29,8 @@ Token carriers, in precedence order:
 
 Credentials are never read from a literal. The app's own identity arrives as
 platform-injected environment references; on Container Apps those resolve from
-Key Vault through a managed identity, so no value passes on a command line or
-enters infrastructure state.
+Key Vault through a managed identity. Terraform-managed secret values still
+reside in sensitive state and saved plans.
 
 Note on anonymity: a Databricks App always sits behind workspace SSO, so the
 "public" tier there is an authenticated visitor with no sovereign entitlement.
@@ -52,10 +50,12 @@ import time
 import urllib.request
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from threading import Lock
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 # Databricks Apps and Container Apps launch this module under different names
 # (`api_gateway` vs `src.api_gateway`); make the sibling modules importable either way.
@@ -63,6 +63,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import sdmx_ml_exporter as sdmx  # noqa: E402
 from uc_query import (  # noqa: E402
+    AUDIT_COLUMNS,
     DEFAULT_ROWS,
     DIMENSION_SEGMENTS,
     FILTER_DIMENSIONS,
@@ -73,6 +74,7 @@ from uc_query import (  # noqa: E402
     QueryError,
     SeriesFilter,
 )
+from decimal_measures import decimal_text
 
 LOGGER = logging.getLogger(__name__)
 
@@ -92,7 +94,11 @@ SOVEREIGN_SENDERS = {
 
 def _json_records(frame):
     """Convert pandas missing values to JSON nulls for API responses."""
-    return frame.astype(object).where(frame.notna(), None).to_dict(orient="records")
+    records = frame.astype(object).where(frame.notna(), None).to_dict(orient="records")
+    for record in records:
+        if record.get("OBS_VALUE") is not None:
+            record["OBS_VALUE"] = decimal_text(record["OBS_VALUE"])
+    return records
 
 DEFAULT_SENDER = ("SOVEREIGNSHIELD", "SovereignShield Dissemination Gateway")
 
@@ -100,7 +106,7 @@ app = FastAPI(
     title="SovereignShield Public Dissemination Gateway",
     version="1.0.0",
     description=(
-        "Standards-compliant public access to BIS Locational Banking Statistics, "
+        "Reference dissemination of synthetic BIS LBS-shaped observations, "
         "served from 100% synthetic data. Entitlement is enforced by Unity Catalog "
         "row filters and column masks, not by this service."
     ),
@@ -120,6 +126,18 @@ if ALLOWED_ORIGINS:
 gateway = CatalogGateway()
 
 _identity_cache: Dict[str, Tuple[float, Principal]] = {}
+_identity_lock = Lock()
+IDENTITY_CACHE_MAX = 512
+
+
+@app.middleware("http")
+async def private_responses(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Authorization, Cookie, X-Forwarded-Access-Token, X-MS-TOKEN-AAD-ACCESS-TOKEN"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -198,9 +216,13 @@ def _resolve_identity(token: str) -> Principal:
     token fails there, so no JWT signature checking is reimplemented here.
     """
     digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    cached = _identity_cache.get(digest)
-    if cached and cached[0] > time.monotonic():
-        return replace(cached[1], access_token=token)
+    with _identity_lock:
+        now = time.monotonic()
+        for key in [key for key, entry in _identity_cache.items() if entry[0] <= now]:
+            del _identity_cache[key]
+        cached = _identity_cache.get(digest)
+        if cached:
+            return replace(cached[1], access_token=token)
 
     host = os.getenv("DATABRICKS_HOST") or os.getenv("DATABRICKS_SERVER_HOSTNAME")
     if not host:
@@ -220,7 +242,7 @@ def _resolve_identity(token: str) -> Principal:
         # indistinguishable 401 on every call, for every caller, always.
         me = WorkspaceClient(host=host, token=token, auth_type="pat").current_user.me()
     except Exception as exc:  # noqa: BLE001 - any failure is an auth failure
-        LOGGER.warning("Identity resolution rejected a caller token: %s: %s", type(exc).__name__, exc)
+        LOGGER.warning("Identity resolution rejected a caller token: %s", type(exc).__name__)
         raise HTTPException(status_code=401, detail="Invalid or expired access token.") from exc
 
     groups = frozenset(
@@ -232,7 +254,10 @@ def _resolve_identity(token: str) -> Principal:
         authenticated=True,
         access_token=token,
     )
-    _identity_cache[digest] = (time.monotonic() + IDENTITY_TTL, principal)
+    with _identity_lock:
+        while len(_identity_cache) >= IDENTITY_CACHE_MAX:
+            _identity_cache.pop(next(iter(_identity_cache)))
+        _identity_cache[digest] = (time.monotonic() + IDENTITY_TTL, replace(principal, access_token=None))
     return principal
 
 
@@ -240,6 +265,8 @@ def current_principal(request: Request) -> Principal:
     """FastAPI dependency resolving the caller once per request."""
     token = _extract_token(request)
     if not token:
+        if request.headers.get("X-MS-CLIENT-PRINCIPAL"):
+            raise HTTPException(status_code=401, detail="Signed-in credentials are unavailable. Sign in again.")
         return PUBLIC_PRINCIPAL
     return _resolve_identity(token)
 
@@ -262,6 +289,7 @@ def search_filter(
     date_from: Optional[str] = Query(None, description="Inclusive lower bound, e.g. 2026-Q1"),
     date_to: Optional[str] = Query(None, description="Inclusive upper bound, e.g. 2026-Q4"),
     include_quarantined: bool = Query(False, description="Include the caller's own quarantined batches"),
+    lifecycle: Optional[str] = Query(None, pattern="^(published|all|quarantine)$"),
 ) -> SeriesFilter:
     """Validates the filter query string once, for every route that accepts it.
 
@@ -269,7 +297,7 @@ def search_filter(
     export want very different defaults.
     """
     try:
-        return SeriesFilter.build(
+        selection = SeriesFilter.build(
             frequency=frequency,
             parent_country=parent_country,
             reporting_country=reporting_country,
@@ -283,22 +311,27 @@ def search_filter(
             # Asking for quarantine is not the same as being allowed it. The row
             # filter would drop the rows regardless; this keeps the query honest
             # rather than relying on the metastore to clean up after the API.
-            include_quarantined=include_quarantined and principal.may_see_quarantine,
+            include_quarantined=include_quarantined,
+            lifecycle=lifecycle,
         )
+        if selection.view_mode != "published" and not principal.may_see_quarantine:
+            raise HTTPException(status_code=403, detail="Quarantine views require a submitter or administrator identity.")
+        return selection
     except QueryError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _run(series_filter: SeriesFilter, principal: Principal):
     try:
-        return gateway.search(series_filter, principal)
+        frame = gateway.search(series_filter, principal)
+        return frame if principal.may_see_quarantine else frame.drop(columns=AUDIT_COLUMNS, errors="ignore")
     except QueryError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail="The catalog is unavailable or not configured.") from exc
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Query failed")
-        raise HTTPException(status_code=502, detail=f"Catalog query failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Catalog query failed.") from exc
 
 
 @app.get("/api/v1/search", tags=["data"])
@@ -336,10 +369,10 @@ def facets(principal: Principal = Depends(current_principal)):
         values = gateway.facets(sorted(set(FILTER_DIMENSIONS.values())), principal)
         periods = gateway.periods(principal)
     except QueryError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail="The catalog is unavailable or not configured.") from exc
     except Exception as exc:  # noqa: BLE001
         LOGGER.exception("Facet query failed")
-        raise HTTPException(status_code=502, detail=f"Catalog query failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="Catalog query failed.") from exc
 
     return {
         "dimensions": {name: values.get(dim, []) for name, dim in FILTER_DIMENSIONS.items()},
@@ -359,9 +392,11 @@ def _export(
     principal: Principal,
     **serializer_kwargs,
 ) -> Response:
+    if wire_format.startswith("sdmx-") and series_filter.view_mode != "published":
+        raise HTTPException(status_code=400, detail="Standard SDMx exports require the Published view. Use audit CSV for quarantine records.")
     frame = _run(series_filter, principal)
     if frame.empty:
-        raise HTTPException(status_code=404, detail="No observations matched the filter.")
+        return Response(status_code=204)
 
     try:
         payload, media_type, extension = sdmx.serialize(frame, wire_format, **serializer_kwargs)
@@ -379,6 +414,15 @@ def _export(
             "X-SovereignShield-Rows": str(len(frame)),
         },
     )
+
+
+@app.get("/api/v1/export/audit-csv", tags=["export"])
+def export_audit_csv(
+    principal: Principal = Depends(current_principal),
+    series_filter: SeriesFilter = Depends(search_filter),
+    limit: int = Query(MAX_ROWS, ge=1, le=MAX_ROWS),
+):
+    return _export("audit-csv", replace(series_filter, limit=limit), principal)
 
 
 @app.get("/api/v1/export/sdmx-ml", tags=["export"])
@@ -472,7 +516,7 @@ def health(principal: Principal = Depends(current_principal)):
     """Catalog connectivity and structure availability."""
     status = gateway.health(principal)
     status["structure"] = sdmx.structure_urn()
-    status["structure_resolved"] = sdmx.fetch_lbs_components() is not None
+    status["structure_resolved"] = bool(sdmx.pinned_components())
     status["status"] = "ok" if status.get("catalog_reachable") else "degraded"
     return status
 
@@ -480,6 +524,7 @@ def health(principal: Principal = Depends(current_principal)):
 from portal_ui import router as portal_router  # noqa: E402  (registered last, owns "/")
 
 app.include_router(portal_router)
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static"), check_dir=False), name="static")
 
 
 if __name__ == "__main__":

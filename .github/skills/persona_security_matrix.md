@@ -158,7 +158,7 @@ single-country corpus cannot verify cross-sovereign masking.
 
 ### A note on views
 
-A Unity Catalog view resolves group membership against the **view owner**, not the caller. Per-caller entitlement must therefore be evaluated against the base table, which is why the gateway queries `agg_sdmx_history` directly rather than serving from a pre-filtered view. `v_agg_sdmx_published` remains a convenience for BI tools with a uniform audience.
+Unity Catalog dynamic views support caller-aware membership functions. The gateway reads the base table to support current and audit modes; the published view is a current-state convenience. Do not confuse underlying-object privileges with the identity evaluated by a membership function.
 
 ---
 
@@ -190,7 +190,7 @@ A Unity Catalog view resolves group membership against the **view owner**, not t
 1. Groups must exist at the Databricks **account** level. `is_account_group_member` does not resolve workspace-scoped groups, which look identical in the UI and silently match nothing.
 2. `spn-sovereignshield-cicd` must be in `sg-sovereignshield-admin`.
 3. The dissemination gateway's own managed service principal must be in `sg-sovereignshield-public`. On Databricks Apps this is a Databricks-managed principal distinct from the Entra `spn-sovereignshield-public`, which serves the Container Apps deployment.
-4. Compute must run `data_security_mode: USER_ISOLATION`. Unity Catalog will not evaluate RLS or DDM on `SINGLE_USER` compute.
+4. This deployment fixes `data_security_mode: USER_ISOLATION`. Other access modes have version-specific requirements, not a blanket RLS/DDM bypass.
 
 ---
 

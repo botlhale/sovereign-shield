@@ -16,12 +16,9 @@ What it faithfully reproduces:
 Where it deliberately differs, and why it does not matter for the fixture's
 purpose:
 
-* **Column naming.** This module uses `effective_start_date` /
-  `effective_end_date` / `is_current`, while the macro path and
-  `unity_catalog_triple_lock.sql` use `VALID_FROM` / `VALID_TO` / `IS_CURRENT`.
-  The tables are created by this module's own merge function, so the two
-  conventions never meet; do not "harmonise" one into the other without moving
-  every consumer.
+* **Column naming.** New local history uses `VALID_FROM`, `VALID_TO` and
+    `IS_CURRENT`, matching the macro contract. Legacy local tables require an
+    explicit migration or a separately generated synthetic catalog.
 * **Per-country tables.** Writes to `data/local_delta_catalog/lbs_micro_<cc>`
   rather than a single governed table, so sovereign isolation is expressed by
   file layout instead of a row filter. Unity Catalog is the enforcement point
@@ -36,8 +33,7 @@ Related skill: `.github/skills/scd2_engine.md`.
 import pandas as pd
 import hashlib
 from datetime import datetime
-from deltalake import DeltaTable, write_deltalake
-import os
+from deltalake import DeltaTable
 
 def create_version_hash(row, payload_cols):
     """Generates a SHA256 hash for the payload columns."""
@@ -51,109 +47,33 @@ def merge_scd2_micro_pandas(
     date_scope: str = "2026-Q1", 
     agg_scope: str = "LBSR"
 ):
-    """Local pandas/delta-rs SCD2 merge mirroring the Spark macro engine's state protection.
+    """Compatibility fixture using the atomic history contract and uppercase history fields.
 
-    Rows whose BATCH_STATUS is not 'PUBLISHED' are appended as is_current = False audit
-    records only: they never expire or supersede the previously published version, so
-    downstream consumers keep reading the last valid state. Inputs without a BATCH_STATUS
-    column are treated as fully published.
+    Supply SUBMISSION_ID, SOURCE_SHA256 and SUBMITTED_AT in DataFrame.attrs for
+    arrival-aware replay. Without them, content identity is a legacy fixture
+    convenience and cannot distinguish identical new filings.
     """
-    target_path = f"{table_path}_{country_code.lower()}"
+    from datetime import timezone
+    from submission_history import SubmissionContext, merge_local_submission, stable_hash
 
-    # 1. Prepare Incoming Data
-    df_source = df_incoming.copy()
-    if "BATCH_STATUS" not in df_source.columns:
-        df_source["BATCH_STATUS"] = "PUBLISHED"
-    payload_cols = [c for c in ["OBS_VALUE", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_STATUS"] if c in df_source.columns]
-    df_source['version_hash'] = df_source.apply(lambda r: create_version_hash(r, payload_cols), axis=1)
-
-    is_published = df_source["BATCH_STATUS"] == "PUBLISHED"
-    df_published = df_source[is_published]
-    df_quarantined = df_source[~is_published]
-
-    current_time = pd.Timestamp.now('UTC')
-    end_of_time = pd.Timestamp("9999-12-31 00:00:00")
-
-    # 2. Initialize Table if it doesn't exist
-    if not os.path.exists(target_path):
-        df_init = df_source.copy()
-        df_init['effective_start_date'] = current_time
-        # Quarantined rows are closed on arrival so they never present as an active version.
-        df_init['effective_end_date'] = pd.Series(end_of_time, index=df_init.index).where(is_published, current_time)
-        df_init['is_current'] = is_published
-        
-        write_deltalake(target_path, df_init, mode="overwrite")
-        print(f"Initialized new Delta table at {target_path}")
-        return
-
-    # 3. Load Existing Delta Table
-    dt = DeltaTable(target_path)
-    df_target = dt.to_pandas()
-    
-    # Filter for active records
-    active_target = df_target[df_target['is_current'] == True]
-
-    # 4. Stage 1: Expire Changed Records (published revisions only)
-    # Find records where composite keys match but hash differs
-    merged = pd.merge(
-        active_target, 
-        df_published, 
-        on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE"], 
-        suffixes=('_tgt', '_src')
+    source = df_incoming.copy()
+    if not source["TIME_SERIES_CODE"].str.split(".").str[8].eq(country_code.upper()).all():
+        raise ValueError("Local country scope disagrees with the submission.")
+    if "BATCH_STATUS" not in source:
+        source["BATCH_STATUS"] = "PUBLISHED"
+    if "QUALITY_STATUS" not in source:
+        source["QUALITY_STATUS"] = source["BATCH_STATUS"].map({"PUBLISHED": "PASS", "QUARANTINE": "FAIL"})
+    for name, default in (("OBS_STATUS", "A"), ("OBS_CONF", "N")):
+        if name not in source:
+            source[name] = default
+    content_hash = stable_hash(source.sort_values(["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE"]).astype(str).to_numpy().ravel().tolist())
+    now = datetime.now(timezone.utc)
+    context = SubmissionContext(
+        source.attrs.get("SUBMISSION_ID", f"local-content:{content_hash}"),
+        source.attrs.get("SOURCE_SHA256", content_hash),
+        pd.Timestamp(source.attrs.get("SUBMITTED_AT", now)).to_pydatetime(), now,
     )
-    changed_records = merged[merged['version_hash_tgt'] != merged['version_hash_src']]
-    
-    if not changed_records.empty:
-        # Use delta-rs native merge to update the old records
-        dt.merge(
-            source=changed_records[['TIME_SERIES_CODE', 'BANK_CODE', 'DATE', 'AGG_CODE']],
-            predicate="s.TIME_SERIES_CODE = t.TIME_SERIES_CODE AND s.BANK_CODE = t.BANK_CODE AND t.is_current = true",
-            source_alias="s",
-            target_alias="t"
-        ).when_matched_update(
-            updates={
-                "is_current": "false",
-                "effective_end_date": f"'{current_time}'"
-            }
-        ).execute()
-
-    # 5. Stage 2: Insert New/Updated Records
-    # Find records in source that are not in target, OR have a new hash
-    merged_all = pd.merge(
-        df_published, 
-        active_target, 
-        on=["TIME_SERIES_CODE", "BANK_CODE", "DATE", "AGG_CODE"], 
-        how="left", 
-        suffixes=('', '_tgt')
-    )
-    to_insert = merged_all[
-        merged_all['version_hash_tgt'].isna() | 
-        (merged_all['version_hash'] != merged_all['version_hash_tgt'])
-    ].copy()
-    
-    if not to_insert.empty:
-        # Clean up joined columns
-        cols_to_keep = df_source.columns.tolist()
-        to_insert = to_insert[cols_to_keep]
-        to_insert['effective_start_date'] = current_time
-        to_insert['effective_end_date'] = end_of_time
-        to_insert['is_current'] = True
-        
-        write_deltalake(target_path, to_insert, mode="append")
-
-    # 6. Stage 2b: Append quarantined revisions as closed, audit-only rows.
-    if not df_quarantined.empty:
-        audit_rows = df_quarantined.copy()
-        audit_rows['effective_start_date'] = current_time
-        audit_rows['effective_end_date'] = current_time
-        audit_rows['is_current'] = False
-        write_deltalake(target_path, audit_rows, mode="append")
-        print(
-            f"Appended {len(audit_rows)} quarantined revision(s) as is_current=False audit records; "
-            "previously published versions remain active."
-        )
-
-    print(f"Processed SCD2 Merge for {country_code.upper()}.")
+    return merge_local_submission(f"{table_path}_{country_code.lower()}", source, context)
 
 if __name__ == "__main__":
     try:
