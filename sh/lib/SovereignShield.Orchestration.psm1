@@ -123,7 +123,7 @@ function Set-SovereignShieldWorkspaceAuth {
 function Test-SovereignShieldEntraUsers {
     param(
         [Parameter(Mandatory = $true)][string]$TenantDomain,
-        [string[]]$Prefixes = @("admin_lead", "boc_analyst", "fed_analyst", "econ_researcher")
+        [string[]]$Prefixes = @("admin_lead", "submitter_ca", "submitter_us", "econ_researcher")
     )
 
     $missing = @()

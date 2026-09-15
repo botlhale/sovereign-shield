@@ -89,7 +89,7 @@ END;
 -- published data.
 --
 -- The tiers are composed with OR rather than CASE/WHEN so that privileges are
--- ADDITIVE. A principal holding two memberships (e.g. a Bank of Canada analyst
+-- ADDITIVE. A principal holding two memberships (e.g. a Canadian regional submitter
 -- who is also a researcher) receives the union of both entitlements instead of
 -- whichever branch happens to be evaluated first.
 --

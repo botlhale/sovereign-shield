@@ -4,6 +4,18 @@
 **Format:** 3–5 minute LinkedIn video  
 **Companions:** [Executive vision](executive_vision.md) · [Technical vision](technical_vision.md) · [Whitepaper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md)
 
+## Reference Captures
+
+The historical submitter captures use neutral persona labels and include an
+anonymization footer. Only the labels were edited; displayed data and filters
+are unchanged. They are not fresh live verifications.
+
+| Persona | Capture |
+| --- | --- |
+| Canadian Regional Submitter (CA), published | [Published view](../demo/submitter_ca_view.png) |
+| Canadian Regional Submitter (CA), quarantine included | [All submissions view](../demo/submitter_ca_all_submissions.png) |
+| US Regional Submitter (US), published | [Published view](../demo/submitter_us_view.png) |
+
 ---
 
 ## Positioning
@@ -105,15 +117,15 @@ SovereignShield currently demonstrates visibility of published and quarantined v
 
 ### 1:50–2:45 — Reporting-authority assurance
 
-**Screen:** Bank of Canada view, then Federal Reserve view.
+**Screen:** Canadian Regional Submitter (CA) view, then US Regional Submitter (US) view.
 
 **Narration:**
 
-> A reporting authority needs a different form of confidence. The Bank of Canada analyst sees Canadian restricted values in full, but foreign protected observations remain outside its entitlement. The Federal Reserve analyst receives the mirror image.
+> A reporting authority needs a different form of confidence. The Canadian Regional Submitter (CA) sees Canadian restricted values in full, but foreign protected observations remain outside its entitlement. The US Regional Submitter (US) receives the mirror image.
 
 > This is useful when several filings exist for the same period. The analyst can verify what the international organisation currently holds and what remains published. Sovereignty restricts depth, not access to data that is already public.
 
-**Screen:** In the Bank of Canada view, turn on `Include quarantine`.
+**Screen:** In the Canadian Regional Submitter (CA) view, turn on `Include quarantine`.
 
 > The analyst can also include its own quarantined revision. A rejected filing is retained for diagnosis, but it does not replace the last accepted version. That means a failed revision degrades to stale data, never missing data.
 
@@ -175,9 +187,9 @@ SovereignShield currently demonstrates visibility of published and quarantined v
 | --- | --- | --- | --- |
 | 1 | Public | 13 published/free observations | Open dissemination is explicit and fail-closed |
 | 2 | Researcher | 22 published rows, 9 values restricted | Series are discoverable without disclosure |
-| 3 | Bank of Canada | 14 published rows; own restricted values visible | A submitter sees its jurisdiction in full |
-| 4 | Federal Reserve | 17 published rows; own restricted values visible | Sovereignty is symmetric between submitters |
-| 5 | Bank of Canada | Include quarantine enabled | A submitter can inspect its rejected revision |
+| 3 | Canadian Regional Submitter (CA) | 14 published rows; own restricted values visible | A submitter sees its jurisdiction in full |
+| 4 | US Regional Submitter (US) | 17 published rows; own restricted values visible | Sovereignty is symmetric between submitters |
+| 5 | Canadian Regional Submitter (CA) | Include quarantine enabled | A submitter can inspect its rejected revision |
 | 6 | Administrator | 22 published rows, then 44 with quarantine | Full oversight and complete audit history |
 | 7 | Architecture | Triple-lock and identity flow | The platform, not the page, enforces entitlement |
 

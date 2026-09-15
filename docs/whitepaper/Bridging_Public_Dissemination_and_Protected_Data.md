@@ -4,10 +4,13 @@
 
 **Author:** Botlhale Mosweu  
 **Role:** Enterprise Data Platform Architect  
-**Organization:** 13668754 Canada Inc.
+**Affiliation:** Independent Reference Architecture  
 **Classification:** Public Reference Architecture  
 **Standards:** SDMx 3.0 | BIS Locational Banking Statistics (LBS) | Azure Databricks Unity Catalog  
-**Implementation status:** End-to-end reference deployment validated with synthetic data
+**Implementation status:** End-to-end reference deployment validated with synthetic data  
+
+> **Independent Reference Architecture Notice:**  
+> This publication and associated reference implementations were developed in a personal capacity using synthetic data fixtures and publicly available international statistical standards (SDMx 3.0, BIS Locational Banking Statistics). This work is not affiliated with, sponsored by, or representative of the Bank of Canada, the Federal Reserve System, the Bank for International Settlements, or any official statistical institution.
 
 ---
 
@@ -19,12 +22,21 @@ International financial institutions, central banks, and sovereign statistical b
 
 Modernizing legacy statistical platforms to hyperscaler lakehouses typically stalls on **The Contractor Dilemma**: *How can an enterprise engage external systems integrators, specialized consultants, or autonomous engineering agents to build, tune, and test complex data governance and temporal merge engines without exposing confidential sovereign microdata or granting access to production environments?*
 
-![Sovereign Shield Executive Architecture](../sovereign-shield_executive.jpg)
+<div style="page-break-inside: avoid;">
 
-*Figure 1 — An external contractor zone holding only a synthetic dataset, separated by an OIDC-federated promotion path from the sovereign production plane, which in turn feeds a public dissemination gateway.*
+![Executive Architecture](../sovereign-shield_executive.jpg)
 
+*Figure 1 — Executive Architecture: synthetic submissions, validation, governed storage, and differentiated consumer access.*
+
+</div>
+
+<div style="page-break-inside: avoid;">
 
 ![The Contractor Dilemma](../the_contractor_dilemma.png)
+
+*Figure 2 — The Contractor Dilemma: specialist delivery without access to confidential production records.*
+
+</div>
 
 
 To resolve this bottleneck, I architected **Sovereign Shield**—an independent, open-source reference implementation combining **SDMx 3.0** open statistical standards with **Azure Databricks Unity Catalog**. 
@@ -42,7 +54,13 @@ International statistical organizations receive data across diverse cadences—r
 Rather than fragmenting data into separate physical databases for public and internal use, I implemented a **Unified Storage, Dual-Tier Consumption Model** powered by Unity Catalog and a decoupled gateway.
 
 
+<div style="page-break-inside: avoid;">
+
 ![The Dual Consumption Model](../dual_consumption_model.png)
+
+*Figure 3 — The Dual Consumption Model: public and entitled consumers access one governed data platform.*
+
+</div>
 
 
 ### The Perimeter Identity Problem
@@ -61,12 +79,13 @@ The gateway chooses an identity, never rows. Unity Catalog applies `is_account_g
 
 At the core of the data plane sits the **Triple-Lock Governance Architecture**, implemented natively within Unity Catalog SQL functions and Entra ID security claims.
 
-![Triple-Lock Technical Architecture](../sovereign-shield_technical_vision.jpg)
+<div style="page-break-inside: avoid;">
 
-*Figure 2 — The Unity Catalog policy enforcement point: row filter and column mask signatures above the persona list, ending in "no group — zero rows, fails closed".*
+![Triple-Lock Policy Enforcement Point](../triple-lock-architecture.png)
 
+*Figure 4 — Triple-Lock Policy Enforcement Point: jurisdictional row filtering, confidentiality masking, and publication-state controls.*
 
-![Triple Lock Architecture](../triple-lock-architecture.png)
+</div>
 
 
 ### The Persona Matrix
@@ -75,7 +94,7 @@ I established four entitled enterprise roles, mapped to Entra ID Security Groups
 1. **Public Consumer (`sg-sovereignshield-public`):**
   The anonymous browser is not itself a Databricks identity; the Container Apps gateway maps it to the dedicated public service principal. Access is restricted strictly to published observations explicitly marked free for publication (`OBS_CONF = 'F'`). Confidential rows are excluded from the query result by Unity Catalog.
 2. **Authenticated Researcher (`sg-sovereignshield-researchers`):**  
-   Access extends across all published macro-aggregates. However, any record where `OBS_CONF` is `C` or `N` has its `OBS_VALUE` dynamically replaced with `NULL` — the universal statistical standard for redacted observations.
+  Access extends across all published macro-aggregates. However, any record where `OBS_CONF` is `C` or `N` has its `OBS_VALUE` dynamically replaced with `NULL`, preserving the observation's dimensions without disclosing its value.
 3. **Regional Reporting Submitter (`sg-sovereignshield-submitter-{cty}`):**  
    Row-Level Security grants full, unmasked access strictly to observations originating from the submitter's designated jurisdiction, read from segment 9 of the SDMx key. For foreign jurisdictions the submitter inherits the public tier: published, free-to-publish observations only.
 4. **Central Auditor / Administrator (`sg-sovereignshield-admin`):**  
@@ -85,6 +104,8 @@ I established four entitled enterprise roles, mapped to Entra ID Security Groups
 
 The implementation below is the one that ships, reproduced verbatim from
 `src/unity_catalog_triple_lock.sql`:
+
+<div style="page-break-inside: avoid;">
 
 ```sql
 -- Dynamic column mask.
@@ -107,7 +128,13 @@ RETURN CASE
   WHEN upper(coalesce(obs_conf, '')) IN ('C', 'N') THEN NULL
   ELSE obs_val
 END;
+```
 
+</div>
+
+<div style="page-break-inside: avoid;">
+
+```sql
 -- Multi-column row-level filter. Tiers are composed with OR rather than
 -- CASE/WHEN so privileges are additive: a principal holding two memberships
 -- receives the union, not whichever branch evaluates first.
@@ -142,29 +169,47 @@ RETURN
   );
 ```
 
+</div>
+
 Two details carry disproportionate weight. `try_element_at` is used instead of `element_at` because under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`, which would abort every query against the table if a malformed key were ever persisted; the `coalesce` turns the resulting `NULL` into `FALSE`, so a malformed row is invisible rather than universally visible. The mask also re-checks segment 9 rather than trusting the group name, preventing a submitter entitlement from revealing another jurisdiction's restricted values.
 
 Memberships compose additively. A principal who is both a submitter and a researcher receives the union of the matching row entitlements, while the mask still reveals restricted values only for the principal's own jurisdiction. This is why the functions use independent `OR` branches rather than a first-match `CASE` expression.
 
 ### Demonstrated Persona Outcomes
 
-The screenshots below are from one deployed synthetic fixture, not design mock-ups. Every persona queries the same governed history table through the same API.
+The screenshots below document one deployed synthetic fixture. Every persona queries the same governed history table through the same API. The regional submitter capture has been anonymized: only persona labels were changed, the image is marked accordingly, and displayed data is unchanged. It is historical evidence, not a new live verification.
 
-![Public portal showing 13 published, free-to-publish observations](../../demo/public_view.png)
+<div style="page-break-inside: avoid;">
 
-*Figure 3 — Anonymous public access resolves to the explicit public proxy identity and returns 13 published, free-to-publish observations.*
+![Anonymous Public Portal View](../../demo/public_view.png)
 
-![Researcher portal showing 22 published observations with nine masked values](../../demo/researcher_view.png)
+*Figure 5 — Anonymous Public Portal View: the explicit public proxy identity receives 13 published, free-to-publish observations.*
 
-*Figure 4 — The researcher receives all 22 published series, while Unity Catalog masks nine restricted values.*
+</div>
 
-![Bank of Canada analyst filtering a foreign jurisdiction](../../demo/boc_analyst_all_submissions.png)
+<div style="page-break-inside: avoid;">
 
-*Figure 5 — A Canadian submitter filtering for Great Britain receives only the three foreign observations marked free for publication; foreign restricted values remain absent.*
+![Authenticated Researcher View with Masking](../../demo/researcher_view.png)
 
-![Administrator portal showing published and quarantined revisions](../../demo/admin_view_with_quarantine_data.png)
+*Figure 6 — Authenticated Researcher View with Masking: 22 published observations are visible, with nine restricted values masked.*
 
-*Figure 6 — The administrator can include quarantine and inspect all 44 published and audit-only rows without changing what downstream personas receive.*
+</div>
+
+<div style="page-break-inside: avoid;">
+
+![Regional Submitter Jurisdictional Isolation View](../../demo/submitter_ca_all_submissions.png)
+
+*Figure 7 — Regional Submitter Jurisdictional Isolation View: the Canadian Regional Submitter (CA) sees 18 observations with quarantine enabled, combining its own published and rejected records with foreign public observations. Persona labels are anonymized; data is unchanged.*
+
+</div>
+
+<div style="page-break-inside: avoid;">
+
+![Central Administrator Audit and Quarantine View](../../demo/admin_view_with_quarantine_data.png)
+
+*Figure 8 — Central Administrator Audit & Quarantine View: 44 published and audit-only observations are available without widening downstream personas' access.*
+
+</div>
 
 ---
 
@@ -173,9 +218,6 @@ The screenshots below are from one deployed synthetic fixture, not design mock-u
 ## 4. Declarative Governance: Separation of Concerns
 
 To prevent declarative state drift and pipeline locks, I enforced a strict architectural separation of concerns between infrastructure provisioning and data plane modeling.
-
-
-![Separation of Concerns](../separation_of_concerns.png)
 
 
 * **Terraform owns the Infrastructure Control Plane:** Entra groups and deployment identities, Azure resources, the Databricks workspace, Unity Catalog storage credentials and external locations, catalogs, schemas, SQL warehouses, and grants. The workspace resolves its existing regional metastore attachment through the Databricks provider; this configuration does not create or bind an account-level metastore. Terraform never manages table DDL, row-filter bindings, or column-mask bindings.
@@ -195,11 +237,15 @@ Statistical reporting data is non-destructive; retrospective revisions are commo
 The catalog is divided by what each object represents and who can safely
 traverse it:
 
+<div style="page-break-inside: avoid;">
+
 | Schema | Contents | Access boundary |
 | --- | --- | --- |
 | `sovereign_submissions` | Governed volume containing SDMx-ML filings and accompanying synthetic micro files | Administrator only; volumes cannot carry row filters or column masks |
 | `sovereign_intake` | Institution-level transaction ledger before aggregation and confidentiality decisions | Administrator plus reporting submitters; `fn_rls_micro_country_lock` restricts each submitter to its own country |
 | `sovereign_shield` | Macro SCD2 history, policy functions, and published view | All recognised personas can traverse; multi-column RLS and DDM determine rows and values |
+
+</div>
 
 This separation prevents a broad schema grant intended for disseminated
 aggregates from accidentally making raw files or institution-identifying rows
@@ -207,7 +253,13 @@ reachable. The public portal and researcher persona never receive access to the
 submission volume or micro ledger.
 
 
-![SCD2 Merge](../scd2.png)
+<div style="page-break-inside: avoid;">
+
+![Temporal SCD2 Delta Merge](../scd2.png)
+
+*Figure 9 — Temporal SCD2 Delta Merge: accepted revisions update the current state; rejected revisions remain audit-only and preserve the last accepted observation.*
+
+</div>
 
 
 * **Distributed Delta Merge:** The engine (`scd2_merge_engine.py`) executes high-efficiency PySpark Delta Lake `MERGE` operations, tracking temporal validity through `valid_from`, `valid_to`, and `is_current` flags without row duplication.
@@ -224,6 +276,10 @@ Data arrives as SDMx and leaves as SDMx. The governed result of a query is seria
 
 The samples in [`demo/sdmx/`](../../demo/sdmx) were produced by the deployed portal's exporter for the administrator persona, reference period `2026-Q1`. The same 22 observations are emitted in SDMx-ML 3.0, SDMx-JSON 2.0.0 and SDMx-CSV 2.0.0, plus a non-standard tidy CSV for analysts; the three standard formats are mutually equivalent observation-for-observation.
 
+These saved samples contain the published slice, not the 44-row quarantine-inclusive audit view. The JSON sample was regenerated locally from the same observations after a serializer correction; it is not an untouched browser capture. They demonstrate cross-format data equivalence, not independent verification of every persona or formal standards certification.
+
+<div style="page-break-inside: avoid;">
+
 ```xml
 <Series FREQ="Q" L_MEASURE="S" L_POSITION="C" L_INSTR="A" L_DENOM="USD"
         L_CURR_TYPE="D" L_PARENT_CTY="5J" L_REP_BANK_TYPE="A" L_REP_CTY="US"
@@ -232,20 +288,30 @@ The samples in [`demo/sdmx/`](../../demo/sdmx) were produced by the deployed por
 </Series>
 ```
 
+</div>
+
 Every dimension of the eleven-part key is written out, so the reporting jurisdiction the row filter keyed on (`L_REP_CTY="US"`, segment 9) is visible to the receiving system rather than implied. The SDMx-CSV rows carry the same structural identity on every line, which is what makes the file self-describing rather than order-dependent:
+
+<div style="page-break-inside: avoid;">
 
 ```text
 STRUCTURE,STRUCTURE_ID,ACTION,FREQ,...,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF
 dataflow,BIS:WS_LBS_D_PUB(1.0),I,Q,...,2026-Q1,400,A,N
 ```
 
-**The entitlement travels with the export.** These files are the strongest available evidence that the persona matrix is enforced below the presentation layer, because the payload changes with the caller and not with the format:
+</div>
+
+**Entitlement is enforced before serialization.** The expected published-slice outcomes are listed below; the saved admin artifacts alone do not prove the other two personas. Downloaded files do not themselves enforce continuing access restrictions.
+
+<div style="page-break-inside: avoid;">
 
 | Persona | Observations exported | Restricted values |
 | --- | ---: | --- |
 | Public proxy | 13 | none present — confidential rows never enter the result |
 | Researcher | 22 | 9 serialised as **absent**, not zero |
 | Administrator | 22 | 9 present, because `OBS_CONF = 'N'` is readable at this tier |
+
+</div>
 
 The distinction between an absent observation and a zero one is not cosmetic. Writing `0` for a redacted value would convert a confidentiality control into a false data point that reconciles incorrectly downstream; the exporter therefore omits the measure entirely, and `tests/test_sdmx_validation_rules.py` asserts that a masked value never serialises as `0`.
 
@@ -256,7 +322,13 @@ The distinction between an absent observation and a zero one is not cosmetic. Wr
 ## 6. Operational Playbook & Scale Strategy
 
 
-![Scaling Strategy](../scale_strategy.png)
+<div style="page-break-inside: avoid;">
+
+![Scalability and Compute Strategy](../scale_strategy.png)
+
+*Figure 10 — Scalability & Compute Strategy: ingestion and dissemination compute can be sized independently while preserving the configured policy model.*
+
+</div>
 
 
 ### The Minimal Viable Synthetic Dataset (MVSD) Protocol

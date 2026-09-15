@@ -151,7 +151,7 @@ RETURN CASE
 END;
 ```
 
-Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is. Any submitter membership would then unmask every jurisdiction's restricted cells — a Bank of Canada analyst reading Federal Reserve confidential positions. The mask therefore repeats the segment-9 test rather than trusting the group name alone.
+Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is. Any submitter membership would then unmask every jurisdiction's restricted cells, such as a Canadian Regional Submitter (CA) reading restricted US positions. The mask therefore repeats the segment-9 test rather than trusting the group name alone.
 
 The MVSD therefore includes confidential rows in more than one jurisdiction; a
 single-country corpus cannot verify cross-sovereign masking.

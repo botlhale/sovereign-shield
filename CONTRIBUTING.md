@@ -1,6 +1,6 @@
 # Contributing to SovereignShield
 
-Thank you for helping improve SovereignShield. The project is stewarded by **13668754 Canada Inc.** as an open reference implementation for governed statistical-data platforms. Issues, documentation improvements, tests, and focused pull requests are welcome.
+Thank you for helping improve SovereignShield. The project is developed in a personal capacity as an independent reference implementation for governed statistical-data platforms. Issues, documentation improvements, tests, and focused pull requests are welcome.
 
 ## Before You Start
 
@@ -80,6 +80,6 @@ Maintainers may ask for changes or decline a proposal that expands operational s
 
 Unless explicitly stated otherwise, contributions intentionally submitted for inclusion are licensed under the [Apache License 2.0](LICENSE), consistent with section 5 of that license.
 
-Participation in this repository does not create a client, employment, support, warranty, or procurement relationship with 13668754 Canada Inc. Production implementation, institutional assessment, and contracted support are separate engagements from community contribution review.
+Participation in this repository does not create a client, employment, support, warranty, or procurement relationship with the author, maintainers, or copyright holders. Production implementation, institutional assessment, and contracted support are separate engagements from community contribution review.
 
 By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

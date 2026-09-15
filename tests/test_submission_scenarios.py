@@ -20,6 +20,7 @@ import pytest
 from generate_sovereign_submissions import (
     DOMINANCE_THRESHOLD,
     SUBMISSION_CYCLES,
+    SOVEREIGN_SENDERS,
     aggregate_micro_to_macro,
     generate_micro_transactions,
 )
@@ -48,6 +49,21 @@ def _by_country(result: pd.DataFrame) -> pd.Series:
 
 def test_cycles_are_declared_in_filing_order():
     assert SUBMISSION_CYCLES == ("baseline", "revision")
+
+
+@pytest.mark.parametrize(
+    "country, name",
+    [
+        ("ca", "Canadian Regional Submitter (CA)"),
+        ("us", "US Regional Submitter (US)"),
+        ("gb", "UK Regional Submitter (GB)"),
+    ],
+)
+def test_submission_sender_identifies_a_synthetic_jurisdiction(country, name):
+    sender = SOVEREIGN_SENDERS[country]
+
+    assert sender.id == f"SUBMITTER_{country.upper()}"
+    assert sender.name == name
 
 
 def test_baseline_reconciles_for_every_country(validator):

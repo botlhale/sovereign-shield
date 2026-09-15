@@ -146,8 +146,8 @@ def test_dual_membership_still_masks_foreign_confidential(corpus):
     becomes the control of record.
 
     An early draft of the mask keyed on group membership alone, without testing
-    segment 9, which would have let a Bank of Canada analyst read Federal
-    Reserve confidential positions. It was caught in development, on synthetic
+    segment 9, which would have let a Canadian regional submitter read US
+    confidential positions. It was caught in development, on synthetic
     data, and never reached a deployment - but only because this fixture spans
     more than one jurisdiction. This test fails against that implementation;
     the single-membership tests above do not.

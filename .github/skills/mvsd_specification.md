@@ -124,9 +124,9 @@ distinguishable and a filter that accidentally returns everything is detectable.
 
 | `L_REP_CTY` | Sender | Purpose |
 | --- | --- | --- |
-| `CA` | Bank of Canada | Submitter persona under test |
-| `US` | Federal Reserve System | Foreign sovereign — must stay restricted |
-| `GB` | Bank of England | Third party, proves isolation is not a two-way special case |
+| `CA` | Canadian Regional Submitter (CA) | Submitter persona under test |
+| `US` | US Regional Submitter (US) | Foreign sovereign — must stay restricted |
+| `GB` | UK Regional Submitter (GB) | Third party, proves isolation is not a two-way special case |
 
 The corpus uses `GB` as its third jurisdiction; `CHF` appears only as a currency
 denomination. Adding a fourth jurisdiction requires a new Entra group, a new

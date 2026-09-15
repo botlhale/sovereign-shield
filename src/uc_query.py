@@ -305,8 +305,8 @@ class Principal:
     def access_label(self) -> str:
         return {
             "admin": "Platform Administrator (All Jurisdictions)",
-            "submitter-ca": "Bank of Canada Analyst (Full Sovereign Access)",
-            "submitter-us": "Federal Reserve Analyst (Full Sovereign Access)",
+            "submitter-ca": "Canadian Regional Submitter (CA)",
+            "submitter-us": "US Regional Submitter (US)",
             "researcher": "Researcher (Published Series, Confidential Values Masked)",
             "public": "Public (Free to Publish Only)",
         }[self.persona]

@@ -299,3 +299,4 @@ Before the engagement closes:
 * [`.github/skills/contractor_zero_trust_workflow.md`](../.github/skills/contractor_zero_trust_workflow.md) — the same pattern for the engineer
 * [`docs/ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md) — renderable topology
 * [`AUTOMATION_RUNBOOK.md`](AUTOMATION_RUNBOOK.md) — one-command setup, recovery, pause, and teardown
+* [Persona demo reference captures](PERSONA_DEMO_SCRIPT.md#reference-captures) - anonymized jurisdiction-based screenshots and their provenance

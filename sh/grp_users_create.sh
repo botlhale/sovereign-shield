@@ -40,8 +40,8 @@ GROUPS=(
 # upn-prefix : display name : group
 USERS=(
   "admin_lead:Admin Lead:sg-sovereignshield-admin"
-  "boc_analyst:BOC Analyst:sg-sovereignshield-submitter-ca"
-  "fed_analyst:Fed Analyst:sg-sovereignshield-submitter-us"
+  "submitter_ca:Canadian Regional Submitter (CA):sg-sovereignshield-submitter-ca"
+  "submitter_us:US Regional Submitter (US):sg-sovereignshield-submitter-us"
   "econ_researcher:Econ Researcher:sg-sovereignshield-researchers"
 )
 

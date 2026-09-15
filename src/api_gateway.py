@@ -85,8 +85,8 @@ IDENTITY_TTL = int(os.getenv("SOVEREIGNSHIELD_IDENTITY_TTL", "300"))
 ALLOWED_ORIGINS = [o for o in os.getenv("SOVEREIGNSHIELD_CORS_ORIGINS", "").split(",") if o]
 
 SOVEREIGN_SENDERS = {
-    "submitter-ca": ("BOC", "Bank of Canada"),
-    "submitter-us": ("FRB", "Federal Reserve System"),
+    "submitter-ca": ("SUBMITTER_CA", "Canadian Regional Submitter (CA)"),
+    "submitter-us": ("SUBMITTER_US", "US Regional Submitter (US)"),
 }
 
 
@@ -389,9 +389,8 @@ def export_sdmx_ml(
 ):
     """Streams the filtered series as an SDMX-ML 3.0 structure-specific message.
 
-    The sender organisation is taken from the caller's own persona, so a Bank of
-    Canada analyst's download is attributed to the Bank of Canada rather than to
-    the portal that served it.
+    The sender identifies the caller's synthetic jurisdiction persona, not an
+    official statistical institution.
     """
     sender_id, sender_name = SOVEREIGN_SENDERS.get(principal.persona, DEFAULT_SENDER)
     return _export(

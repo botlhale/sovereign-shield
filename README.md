@@ -4,13 +4,8 @@ Zero-Trust governance for SDMx 3.0 submissions to international bodies.
 
 > **What this is:** a working reference implementation exploring how **Azure Databricks and Unity Catalog** can express the security obligations of **international statistical data exchange** as platform-level constraints — the submission of confidential national banking statistics to an international body (BIS Locational Banking Statistics) under the **SDMx 3.0** standard. It complements, rather than replaces, the mature SDMx tooling institutions already operate.
 
-> **Disclaimer**
->
-> This is an **independent reference architecture**, inspired by the design of public statistical portals such as the BIS Data Explorer. It is **not** a system of, affiliated with, or endorsed by the Bank for International Settlements or any central bank.
->
-> It operates on **100% synthetic mock data**. No real submission, observation or institution identifier exists anywhere in this repository. The BIS Locational Banking Statistics data structure and the consistency rulebook it uses are **published public standards artefacts**; the numbers flowing through them are generated.
->
-> BIS and SDMx are referenced as typeset text throughout, never as reproduced logos.
+> **Independent Reference Architecture Notice:**  
+> This publication and associated reference implementations were developed in a personal capacity using synthetic data fixtures and publicly available international statistical standards (SDMx 3.0, BIS Locational Banking Statistics). This work is not affiliated with, sponsored by, or representative of the Bank of Canada, the Federal Reserve System, the Bank for International Settlements, or any official statistical institution.
 
 ![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions submit standardised documents along a pathway; an automated rule check deflects one submission into a "held for correction" tray while the rest continue into a governed data vault wrapped in three policy rings labelled "who you are", "what you may see" and "what is published"; four audiences (public, researcher, national analyst, auditor) draw from that single source through beams of increasing width.](docs/sovereign-shield_executive.jpg)
 
@@ -38,7 +33,7 @@ The validation rulebook is treated as **metadata, not code** — an approach the
 
 > **Status:** a complete, deployed, end-to-end reference architecture on Azure, running the genuine BIS LBS rulebook and real SDMx 3.0 message structures against realistic **synthetic** submissions. It is not connected to live reporting data, and it is an independent piece of work — not a production system of, nor endorsed by, any central bank or international organisation. It is published for scrutiny, and critique from SDMx practitioners is genuinely welcome.
 
-> **Stewardship:** SovereignShield is developed and maintained by **13668754 Canada Inc.** as a public demonstration of secure cloud data-platform architecture, SDMx engineering, and reproducible delivery practices. Community participation is welcome under the [Apache License 2.0](LICENSE); production implementation and contracted support are separate from the public contribution process.
+> **Authorship:** Developed by Botlhale Mosweu in a personal capacity. Community participation is welcome under the [Apache License 2.0](LICENSE). Copyright attribution is recorded in [NOTICE](NOTICE); the reference implementation does not imply a support contract, institutional approval, or production certification.
 
 ---
 

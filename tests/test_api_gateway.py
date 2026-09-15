@@ -5,9 +5,40 @@ from io import BytesIO
 from unittest.mock import patch
 
 import pandas as pd
+import pytest
 from starlette.requests import Request
 
-from api_gateway import _easy_auth_access_token, _easy_auth_identities, _extract_token, _json_records
+from api_gateway import _easy_auth_access_token, _easy_auth_identities, _extract_token, _json_records, export_sdmx_ml
+from uc_query import Principal, SeriesFilter
+
+
+@pytest.mark.parametrize(
+    "jurisdiction, label",
+    [
+        ("ca", "Canadian Regional Submitter (CA)"),
+        ("us", "US Regional Submitter (US)"),
+    ],
+)
+def test_submitter_label_and_export_sender_are_jurisdiction_based(jurisdiction, label):
+    principal = Principal(
+        display_name=label,
+        groups=frozenset({f"sg-sovereignshield-submitter-{jurisdiction}"}),
+        authenticated=True,
+    )
+    series_filter = SeriesFilter(limit=10)
+
+    assert principal.access_label == label
+    with patch("api_gateway._export") as serialize_export:
+        export_sdmx_ml(principal=principal, series_filter=series_filter, limit=10)
+
+    serialize_export.assert_called_once_with(
+        "sdmx-ml",
+        series_filter,
+        principal,
+        sender_id=f"SUBMITTER_{jurisdiction.upper()}",
+        sender_name=label,
+        validate=True,
+    )
 
 
 def test_masked_numeric_values_are_json_nulls():

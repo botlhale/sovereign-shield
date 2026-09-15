@@ -287,8 +287,8 @@ Open the app URL from `databricks apps get`. What to check, in order:
 |---|---|---|
 | Public | Public (Free to Publish Only) | 13 current `PUBLISHED/F` rows |
 | `econ_researcher` | Researcher (Published Series, Confidential Values Masked) | 22 published rows; 9 values show `restricted` |
-| `boc_analyst` | Bank of Canada Analyst (Full Sovereign Access) | 14 rows; CA confidential values visible; foreign data public-only |
-| `fed_analyst` | Federal Reserve Analyst (Full Sovereign Access) | 17 rows; US confidential values visible; foreign data public-only |
+| `submitter_ca` | Canadian Regional Submitter (CA) | 14 rows; CA confidential values visible; foreign data public-only |
+| `submitter_us` | US Regional Submitter (US) | 17 rows; US confidential values visible; foreign data public-only |
 | `admin_lead` | Platform Administrator (All Jurisdictions) | 22 published rows unmasked; quarantine available on request |
 
 Then click **Export SDMX-ML 3.0**. The download is round-tripped through the
@@ -512,7 +512,7 @@ needs metastore-admin surgery. See the troubleshooting section.
 | Resource | Why | Remove with |
 | --- | --- | --- |
 | Databricks **account** groups and service principals | Account scope, outside the workspace | Account console, or reverse `databricks_account_setup.ps1` |
-| Entra persona **users** | Membership is an administrative act with its own approval path | `az ad user delete --id boc_analyst@<tenant>` |
+| Entra persona **users** | Membership is an administrative act with its own approval path | `az ad user delete --id submitter_ca@<tenant>` |
 | Key Vault (soft-deleted) | Purge protection stops an accidental delete discarding secrets other environments reference | `az keyvault purge` |
 | The Unity Catalog catalog | Metastore-scoped; deleting the workspace does not remove it | Step 2 above |
 

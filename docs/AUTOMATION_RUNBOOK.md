@@ -17,10 +17,16 @@ Before setup:
 - `terraform/terraform.tfvars` and `terraform/backend.hcl` exist and are complete.
 - The remote Terraform state backend already exists.
 - The four persona users already exist in Entra ID:
-  `admin_lead`, `boc_analyst`, `fed_analyst`, `econ_researcher`.
+  `admin_lead`, `submitter_ca`, `submitter_us`, `econ_researcher`.
 - The operator has Azure subscription permissions, Databricks account-admin
   rights and permission to grant Entra consent for Container Apps sign-in.
 - No password, client secret or token is passed to either orchestration script.
+
+Existing deployments must migrate any earlier demo usernames and display names
+in both Entra ID and Databricks before running preflight with the neutral names.
+Changing repository defaults neither renames nor revokes existing accounts.
+Keep the `sg-sovereignshield-submitter-ca` and `sg-sovereignshield-submitter-us`
+policy groups unchanged and review their memberships during migration.
 
 ## Complete setup
 

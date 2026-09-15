@@ -2,7 +2,7 @@
 
 ## Our Commitment
 
-SovereignShield is stewarded by 13668754 Canada Inc. We are committed to a professional, inclusive, and harassment-free community for everyone, regardless of background, identity, experience, education, nationality, appearance, disability, race, religion, sex characteristics, gender identity or expression, or sexual orientation.
+SovereignShield is an independently maintained reference implementation. We are committed to a professional, inclusive, and harassment-free community for everyone, regardless of background, identity, experience, education, nationality, appearance, disability, race, religion, sex characteristics, gender identity or expression, or sexual orientation.
 
 We expect participation to reflect the care appropriate to security, statistical standards, public institutions, and sovereign data systems.
 
@@ -28,7 +28,7 @@ Unacceptable behavior includes:
 
 ## Scope
 
-This policy applies in repository issues, pull requests, discussions, code review, project events, and public spaces where someone is representing SovereignShield or 13668754 Canada Inc. as its steward.
+This policy applies in repository issues, pull requests, discussions, code review, project events, and public spaces where someone is representing SovereignShield.
 
 ## Enforcement
 

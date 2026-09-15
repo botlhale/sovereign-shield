@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-SovereignShield is a reference implementation rather than a versioned production product. Security fixes are made on the default branch. Older commits, forks, screenshots, exported demo data, and independently deployed environments are not maintained by 13668754 Canada Inc.
+SovereignShield is a reference implementation rather than a versioned production product. Security fixes are made on the default branch. Older commits, forks, screenshots, exported demo data, and independently deployed environments are not maintained by the project maintainers.
 
 | Version | Supported |
 | --- | --- |
@@ -47,4 +47,4 @@ General bugs, documentation errors, feature requests, and deployment questions b
 
 ## Deployment Responsibility
 
-This repository uses synthetic data and is not a production accreditation or managed service. Operators are responsible for threat modelling, privacy and legal review, identity governance, network design, monitoring, backup, recovery, and secure configuration of their own deployments. Public disclosure of this architecture does not grant access to any deployment operated by 13668754 Canada Inc. or another organization.
+This repository uses synthetic data and is not a production accreditation or managed service. Operators are responsible for threat modelling, privacy and legal review, identity governance, network design, monitoring, backup, recovery, and secure configuration of their own deployments. Public disclosure of this architecture does not grant access to any deployment operated by the author, maintainers, or another organization.

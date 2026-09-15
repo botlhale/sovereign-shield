@@ -473,8 +473,8 @@ Open the app URL from `databricks apps get`. What to check, in order:
 |---|---|---|
 | Public | Public (Free to Publish Only) | 13 current `PUBLISHED/F` rows |
 | `econ_researcher` | Researcher (Published Series, Confidential Values Masked) | 22 published rows; 9 values show `restricted` |
-| `boc_analyst` | Bank of Canada Analyst (Full Sovereign Access) | 14 rows; CA confidential values visible; foreign data public-only |
-| `fed_analyst` | Federal Reserve Analyst (Full Sovereign Access) | 17 rows; US confidential values visible; foreign data public-only |
+| `submitter_ca` | Canadian Regional Submitter (CA) | 14 rows; CA confidential values visible; foreign data public-only |
+| `submitter_us` | US Regional Submitter (US) | 17 rows; US confidential values visible; foreign data public-only |
 | `admin_lead` | Platform Administrator (All Jurisdictions) | 22 published rows unmasked; quarantine available on request |
 
 Then click **Export SDMX-ML 3.0**. The download is round-tripped through the
@@ -783,7 +783,7 @@ az keyvault list-deleted --query "[].{name:name,purgeable:properties.purgeProtec
 | Resource | Why Terraform leaves it | Remove with |
 | --- | --- | --- |
 | Databricks **account** groups and service principals | Account scope; the provider is workspace-scoped | Account console, or reverse `databricks_account_setup.ps1` |
-| Entra persona **users** | Never created by Terraform — membership is an administrative act with its own approval path | `az ad user delete --id boc_analyst@<tenant>` |
+| Entra persona **users** | Never created by Terraform — membership is an administrative act with its own approval path | `az ad user delete --id submitter_ca@<tenant>` |
 | Terraform state storage account | Bootstrap resource, created before the configuration existed | `az group delete -n rg-sovereignshield-tfstate` |
 | Key Vault (soft-deleted) | `purge_protection_enabled` is deliberate — it stops an accidental or malicious destroy discarding secrets permanently | **Nothing.** A purge-protected vault cannot be purged early; it self-deletes after 90 days |
 | The resource group, when `create_resource_group = false` | Terraform never owned it, so it does not destroy it | `az group delete -n rg-sovereignshield` |

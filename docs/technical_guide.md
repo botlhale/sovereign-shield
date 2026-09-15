@@ -81,7 +81,7 @@ you know what segment 9 is.
 | --- | --- |
 | [.github/skills/mvsd_specification.md](../.github/skills/mvsd_specification.md) | The Minimal Viable Synthetic Dataset — what the fixture must contain and why |
 | [.github/skills/sdmx_lbs_validation.md](../.github/skills/sdmx_lbs_validation.md) | SDMX 3.0 and the BIS LBS structure in brief |
-| [data/ca_submission_2026_Q1.xml](../data/ca_submission_2026_Q1.xml) | An actual submission. Read one. |
+| [Sample SDMx-ML export](../demo/sdmx/sovereignshield_lbs_20260912T025728Z.xml) | A committed synthetic data message for inspecting the structure-specific format. |
 | [src/generate_sovereign_submissions.py](../src/generate_sovereign_submissions.py) | Docstring first — it defines the clean baseline and the CA/US/GB revision failures |
 
 **Key detail:** `TIME_SERIES_CODE` is a dot-separated SDMX key. Segment 9 is the

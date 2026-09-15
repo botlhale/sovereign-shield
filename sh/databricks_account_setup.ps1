@@ -67,8 +67,8 @@ $GROUPS = @(
 
 $USERS = @(
     @{ Prefix = "admin_lead";      Display = "Admin Lead";      Group = "sg-sovereignshield-admin" },
-    @{ Prefix = "boc_analyst";     Display = "BOC Analyst";     Group = "sg-sovereignshield-submitter-ca" },
-    @{ Prefix = "fed_analyst";     Display = "Fed Analyst";     Group = "sg-sovereignshield-submitter-us" },
+    @{ Prefix = "submitter_ca";    Display = "Canadian Regional Submitter (CA)"; Group = "sg-sovereignshield-submitter-ca" },
+    @{ Prefix = "submitter_us";    Display = "US Regional Submitter (US)"; Group = "sg-sovereignshield-submitter-us" },
     @{ Prefix = "econ_researcher"; Display = "Econ Researcher"; Group = "sg-sovereignshield-researchers" }
 )
 

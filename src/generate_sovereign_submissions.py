@@ -110,9 +110,9 @@ DATASET_CODE: str = "LBS"
 
 #: Sovereign sender metadata (SDMx Header `sender`), keyed by lower-case country code.
 SOVEREIGN_SENDERS: Dict[str, Organisation] = {
-    "ca": Organisation(id="BOC", name="Bank of Canada"),
-    "us": Organisation(id="FRB", name="Federal Reserve System"),
-    "gb": Organisation(id="BOE", name="Bank of England"),
+    "ca": Organisation(id="SUBMITTER_CA", name="Canadian Regional Submitter (CA)"),
+    "us": Organisation(id="SUBMITTER_US", name="US Regional Submitter (US)"),
+    "gb": Organisation(id="SUBMITTER_GB", name="UK Regional Submitter (GB)"),
 }
 
 #: Data lifecycle states supported by `generate_sdmx_ml`, mapped to their SDMx `ActionType`.
@@ -434,8 +434,8 @@ def generate_sdmx_ml(
     """Serializes an aggregated macro DataFrame into a sovereign SDMx 3.0 XML (ML) payload.
 
     Unpacks the dot-separated `TIME_SERIES_CODE` into its 11 primary BIS_LBS
-    dimensions, builds a sovereign sender `Header` (Bank of Canada / Federal
-    Reserve System, keyed by `country_code`), configures the dataset lifecycle
+    dimensions, builds a synthetic regional submitter `Header` keyed by
+    `country_code`, configures the dataset lifecycle
     action (`Information`, `Append`, or `Replace`) and `OBS_STATUS` according to
     `submission_type`, and writes the resulting structure-specific SDMx-ML 3.0
     data message as `{country_code}_submission_{YYYY-MM-DD}_{HHMMSS}.xml`.
