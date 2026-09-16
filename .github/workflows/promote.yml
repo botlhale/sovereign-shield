@@ -276,7 +276,7 @@ jobs:
       DATABRICKS_AUTH_TYPE: azure-cli
       BUNDLE_VAR_warehouse_id: ${{ needs.apply.outputs.warehouse_id }}
       BUNDLE_VAR_run_as_service_principal: ${{ needs.apply.outputs.run_as }}
-      BUNDLE_VAR_ingestion_cluster: ${{ needs.apply.outputs.cluster }}
+      SOVEREIGNSHIELD_INGESTION_CLUSTER: ${{ needs.apply.outputs.cluster }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -287,6 +287,9 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - uses: databricks/setup-cli@602f285bac0c85e5985bf4c16d5a2befed0578d9 # v1.14.1
+
+      - name: Configure complex bundle variables
+        run: python sh/configure_bundle.py --target dev --from-environment
 
       # Table DDL, the policy UDFs and the row filter / mask bindings are the
       # bundle's, not Terraform's. Applying them here keeps one writer per

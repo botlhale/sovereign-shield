@@ -42,10 +42,13 @@ variables:
 
 targets:
   dev:
-    mode: development
+    mode: production
     default: true
+    permissions:
+      - group_name: "sg-sovereignshield-admin"
+        level: "CAN_MANAGE"
     workspace:
-      root_path: /Workspace/Shared/sovereignshield/${bundle.target}
+      root_path: /Workspace/SovereignShield/${bundle.target}
       # host is intentionally omitted here; 
       # DABs automatically picks up $env:DATABRICKS_HOST from pre_auth.ps1
     
@@ -83,8 +86,6 @@ targets:
           # the app; Unity Catalog's row filter and column mask still decide
           # what that session can see once inside.
           permissions:
-            - group_name: "sg-sovereignshield-admin"
-              level: "CAN_MANAGE"
             - group_name: "sg-sovereignshield-submitter-ca"
               level: "CAN_USE"
             - group_name: "sg-sovereignshield-submitter-us"
@@ -133,6 +134,15 @@ targets:
               job_cluster_key: sovereign_cluster
               spark_python_task:
                 python_file: "src/scd2_merge_engine.py"
+              libraries:
+                - requirements: requirements.txt
+
+            - task_key: verify_synthetic_runtime
+              depends_on:
+                - task_key: run_scd2_merge
+              job_cluster_key: sovereign_cluster
+              spark_python_task:
+                python_file: "src/live_runtime_checks.py"
               libraries:
                 - requirements: requirements.txt
 

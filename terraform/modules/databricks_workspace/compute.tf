@@ -17,7 +17,7 @@
 locals {
   # A driver-only cluster must declare local execution explicitly; Spark
   # otherwise waits forever for workers that will never be requested.
-  single_node_overrides = var.worker_count_max == 0 ? {
+  single_node_overrides = jsondecode(var.worker_count_max == 0 ? jsonencode({
     "spark_conf.spark.master" = {
       type  = "fixed"
       value = "local[*, 4]"
@@ -34,7 +34,7 @@ locals {
       type  = "fixed"
       value = 0
     }
-    } : {
+    }) : jsonencode({
     "autoscale.min_workers" = {
       type         = "range"
       minValue     = var.worker_count_min
@@ -47,7 +47,7 @@ locals {
       maxValue     = var.worker_count_max
       defaultValue = var.worker_count_max
     }
-  }
+  }))
 
   base_policy = {
     "data_security_mode" = {

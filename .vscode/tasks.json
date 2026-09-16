@@ -1,0 +1,110 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "SovereignShield: resume account and bundle deployment",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\n@('ARM_CLIENT_ID','ARM_CLIENT_SECRET','ARM_USE_OIDC','DATABRICKS_ACCOUNT_ID','DATABRICKS_TOKEN','DATABRICKS_CLIENT_ID','DATABRICKS_CLIENT_SECRET','DATABRICKS_CONFIG_PROFILE') | ForEach-Object { Remove-Item \"Env:$_\" -ErrorAction SilentlyContinue }\n& .\\sh\\sovereignshield_up.ps1 -AccountId 'c57cd54e-a755-4a30-92f7-84fb60463af7' -TenantDomain '13668754CANADAINC.onmicrosoft.com' -StartAtStage 2 -StopAfterStage 3",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: resume account and bundle deployment",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\n@('ARM_CLIENT_ID','ARM_CLIENT_SECRET','ARM_USE_OIDC','DATABRICKS_ACCOUNT_ID','DATABRICKS_TOKEN','DATABRICKS_CLIENT_ID','DATABRICKS_CLIENT_SECRET','DATABRICKS_CONFIG_PROFILE') | ForEach-Object { Remove-Item \"Env:$_\" -ErrorAction SilentlyContinue }\n& .\\sh\\sovereignshield_up.ps1 -AccountId 'c57cd54e-a755-4a30-92f7-84fb60463af7' -TenantDomain '13668754CANADAINC.onmicrosoft.com' -StartAtStage 2 -StopAfterStage 3",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: deploy and run data pipeline",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\n@('ARM_CLIENT_ID','ARM_CLIENT_SECRET','ARM_USE_OIDC','DATABRICKS_ACCOUNT_ID','DATABRICKS_TOKEN','DATABRICKS_CLIENT_ID','DATABRICKS_CLIENT_SECRET','DATABRICKS_CONFIG_PROFILE','BUNDLE_VAR_ingestion_cluster') | ForEach-Object { Remove-Item \"Env:$_\" -ErrorAction SilentlyContinue }\n& .\\sh\\sovereignshield_up.ps1 -AccountId 'c57cd54e-a755-4a30-92f7-84fb60463af7' -TenantDomain '13668754CANADAINC.onmicrosoft.com' -StartAtStage 3 -StopAfterStage 4",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: correct compute policy types",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\nRemove-Item Env:ARM_CLIENT_ID,Env:ARM_CLIENT_SECRET,Env:DATABRICKS_ACCOUNT_ID -ErrorAction SilentlyContinue\nImport-Module .\\sh\\lib\\SovereignShield.Orchestration.psm1 -Force\nInvoke-SovereignShieldTerraformApply -Terraform (Get-SovereignShieldTerraform) -RepoRoot $PWD.Path -VarFile terraform.tfvars -Variables @('account_groups_ready=true','grant_tables=false','deploy_dissemination_gateway=false')",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: build public gateway",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n& .\\sh\\container_apps_deploy.ps1 -KeyVaultName kv-sovereignshield-26171 -DatabricksHost adb-7405613190562799.19.azuredatabricks.net -WarehouseId 0dd3293934137b7b -ResourceGroup rg-sovereignshield -EnableEntraSignIn",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: repair ingestion and verify runtime",
+			"type": "shell",
+			"command": "$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\nRemove-Item Env:ARM_CLIENT_ID,Env:ARM_CLIENT_SECRET,Env:DATABRICKS_ACCOUNT_ID,Env:BUNDLE_VAR_ingestion_cluster -ErrorAction SilentlyContinue\ndatabricks bundle deploy -t dev\nif ($LASTEXITCODE -ne 0) { throw 'Bundle repair deployment failed.' }\ndatabricks jobs repair-run --json '{\"run_id\":504168656605624,\"rerun_tasks\":[\"run_scd2_merge\",\"verify_synthetic_runtime\"]}'\nif ($LASTEXITCODE -ne 0) { throw 'Ingestion repair failed.' }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: rebuild verified gateway image",
+			"type": "shell",
+			"command": "$ErrorActionPreference = 'Stop'\naz acr build --registry acrsovereignshield16555 --image sovereignshield-portal:live-20260915-repair --file Dockerfile . --output none\nif ($LASTEXITCODE -ne 0) { throw 'ACR build/push failed; no image update was attempted.' }\naz acr repository show --name acrsovereignshield16555 --image sovereignshield-portal:live-20260915-repair --query digest -o tsv\nif ($LASTEXITCODE -ne 0) { throw 'Image digest verification failed.' }\naz containerapp update --name ca-sovereignshield-portal --resource-group rg-sovereignshield --image acrsovereignshield16555.azurecr.io/sovereignshield-portal:live-20260915-repair --max-replicas 1 --output none\nif ($LASTEXITCODE -ne 0) { throw 'Verified gateway image update failed.' }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: monitor repaired runtime acceptance",
+			"type": "shell",
+			"command": ".\\.venv\\Scripts\\python.exe sh/wait_databricks_run.py --host https://adb-7405613190562799.19.azuredatabricks.net --run-id 504168656605624 --minutes 25\nif ($LASTEXITCODE -ne 0) { throw 'Repaired runtime acceptance did not succeed.' }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: activate verified gateway image",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n& .\\sh\\container_apps_deploy.ps1 -KeyVaultName kv-sovereignshield-26171 -DatabricksHost adb-7405613190562799.19.azuredatabricks.net -WarehouseId 0dd3293934137b7b -ResourceGroup rg-sovereignshield -RegistryName acrsovereignshield16555 -ImageTag sovereignshield-portal:live-20260915-repair -SkipImageBuild -EnableEntraSignIn",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: grant tables and activate Databricks app",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\nRemove-Item Env:ARM_CLIENT_ID,Env:ARM_CLIENT_SECRET,Env:DATABRICKS_ACCOUNT_ID,Env:BUNDLE_VAR_ingestion_cluster -ErrorAction SilentlyContinue\n& .\\sh\\sovereignshield_up.ps1 -AccountId 'c57cd54e-a755-4a30-92f7-84fb60463af7' -TenantDomain '13668754CANADAINC.onmicrosoft.com' -StartAtStage 5 -StopAfterStage 6",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: verify live persona matrix",
+			"type": "shell",
+			"command": "$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\nRemove-Item Env:ARM_CLIENT_ID,Env:ARM_CLIENT_SECRET,Env:DATABRICKS_TOKEN,Env:DATABRICKS_CLIENT_ID,Env:DATABRICKS_CLIENT_SECRET,Env:DATABRICKS_ACCOUNT_ID -ErrorAction SilentlyContinue\n.\\.venv\\Scripts\\python.exe sh/live_persona_checks.py --host https://adb-7405613190562799.19.azuredatabricks.net --warehouse 0dd3293934137b7b --account-id c57cd54e-a755-4a30-92f7-84fb60463af7\nif ($LASTEXITCODE -ne 0) { throw 'Live persona matrix failed; inspect cleanup output.' }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: final live readiness",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\nRemove-Item Env:ARM_CLIENT_ID,Env:ARM_CLIENT_SECRET,Env:DATABRICKS_ACCOUNT_ID,Env:BUNDLE_VAR_ingestion_cluster -ErrorAction SilentlyContinue\n& .\\sh\\sovereignshield_up.ps1 -AccountId 'c57cd54e-a755-4a30-92f7-84fb60463af7' -TenantDomain '13668754CANADAINC.onmicrosoft.com' -StartAtStage 8 -StopAfterStage 8",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: deploy gateway auth correction",
+			"type": "shell",
+			"command": "$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\nRemove-Item Env:ARM_CLIENT_ID,Env:ARM_CLIENT_SECRET,Env:DATABRICKS_ACCOUNT_ID,Env:BUNDLE_VAR_ingestion_cluster -ErrorAction SilentlyContinue\ndatabricks bundle deploy -t dev\nif ($LASTEXITCODE -ne 0) { throw 'App source deployment failed.' }\ndatabricks bundle run sovereignshield_portal -t dev\nif ($LASTEXITCODE -ne 0) { throw 'Databricks App update failed.' }\naz acr build --registry acrsovereignshield16555 --image sovereignshield-portal:live-20260915-auth --file Dockerfile . --output none\nif ($LASTEXITCODE -ne 0) { throw 'Gateway image build failed.' }\naz containerapp update --name ca-sovereignshield-portal --resource-group rg-sovereignshield --image acrsovereignshield16555.azurecr.io/sovereignshield-portal:live-20260915-auth --max-replicas 1 --output none\nif ($LASTEXITCODE -ne 0) { throw 'Gateway image rollout failed.' }",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: preview workload teardown",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\nRemove-Item Env:ARM_CLIENT_ID,Env:ARM_CLIENT_SECRET,Env:ARM_USE_OIDC,Env:DATABRICKS_ACCOUNT_ID,Env:DATABRICKS_TOKEN,Env:DATABRICKS_CLIENT_ID,Env:DATABRICKS_CLIENT_SECRET,Env:BUNDLE_VAR_ingestion_cluster -ErrorAction SilentlyContinue\n& .\\sh\\sovereignshield_down.ps1 -Mode Workload -WhatIf",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "SovereignShield: teardown tested workload",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\nRemove-Item Env:ARM_CLIENT_ID,Env:ARM_CLIENT_SECRET,Env:ARM_USE_OIDC,Env:DATABRICKS_ACCOUNT_ID,Env:DATABRICKS_TOKEN,Env:DATABRICKS_CLIENT_ID,Env:DATABRICKS_CLIENT_SECRET,Env:DATABRICKS_CONFIG_PROFILE,Env:BUNDLE_VAR_ingestion_cluster -ErrorAction SilentlyContinue\n& .\\sh\\sovereignshield_down.ps1 -Mode Workload -ConfirmWorkloadDestruction -Confirm:$false",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

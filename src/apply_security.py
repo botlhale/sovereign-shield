@@ -162,19 +162,25 @@ def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
         ("row_filters", "sovereign_intake", "lbs_micro_transactions", "filter", "fn_rls_micro_country_lock", "reporting_country", ""),
     )
     for relation, schema, table, kind, function, columns, extra in expected:
-        rows = spark.sql(
-            f"SELECT {kind}_catalog AS catalog, {kind}_schema AS schema, "
-            f"{kind}_name AS name, {kind}_col_usage AS columns "
-            f"FROM dbw_sovereignshield.information_schema.{relation} "
-            f"WHERE catalog_name = 'dbw_sovereignshield' "
-            f"AND schema_name = '{schema}' AND table_name = '{table}' {extra}"
+        metadata = spark.sql(
+            f"SELECT * FROM dbw_sovereignshield.information_schema.{relation} "
+            f"WHERE table_name = '{table}' {extra}"
         ).collect()
+        rows = [row.asDict() for row in metadata]
+        rows = [row for row in rows if row.get("table_catalog", row.get("catalog_name")) == "dbw_sovereignshield"
+                and row.get("table_schema", row.get("schema_name")) == schema]
         if len(rows) != 1:
             raise RuntimeError(f"Expected exactly one {kind} binding on {schema}.{table}.")
-        binding = rows[0].asDict()
-        actual_columns = re.sub(r"[\s`]", "", binding["columns"] or "").upper()
-        if (binding["catalog"] != "dbw_sovereignshield" or binding["schema"] != schema
-                or binding["name"] != versions[function] or actual_columns != columns.upper()):
+        binding = rows[0]
+        if "table_catalog" in binding:
+            qualified_function = binding[f"{kind}_name"]
+            arguments = binding["target_columns" if kind == "filter" else "using_columns"]
+        else:
+            qualified_function = ".".join(binding[f"{kind}_{part}"] for part in ("catalog", "schema", "name"))
+            arguments = binding[f"{kind}_col_usage"]
+        actual_columns = re.sub(r"[\s`]", "", arguments or "").upper()
+        expected_function = f"dbw_sovereignshield.{schema}.{versions[function]}"
+        if qualified_function != expected_function or actual_columns != columns.upper():
             raise RuntimeError(f"Unexpected {kind} binding on {schema}.{table}.")
 
 

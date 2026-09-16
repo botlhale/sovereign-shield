@@ -1,5 +1,8 @@
 """Atomic Spark/Delta transitions for the serialized ingestion job."""
 
+import re
+from uuid import uuid4
+
 from delta.tables import DeltaTable
 from pyspark.sql import functions as functions
 from pyspark.sql.types import BooleanType, DecimalType, StringType, StructField, StructType, TimestampType
@@ -15,6 +18,8 @@ HISTORY_SCHEMA = StructType(
 
 
 def merge_submission(spark, incoming, target_name):
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*){0,2}", target_name):
+        raise ValueError("Invalid target table identifier.")
     if not spark.catalog.tableExists(target_name):
         raise RuntimeError("Protected macro table is missing; run policy deployment first.")
     missing = set(HISTORY_COLUMNS) - set(incoming.columns)
@@ -59,10 +64,19 @@ def merge_submission(spark, incoming, target_name):
         staged = closes.unionByName(inserts)
     else:
         staged = inserts
-    delta_target.alias("target").merge(staged.alias("source"), "target.RECORD_ID = source.RECORD_ID").whenMatchedUpdate(
-        condition="source._operation = 'CLOSE' AND target.IS_CURRENT = true",
-        set={"IS_CURRENT": "false", "VALID_TO": "source.VALID_TO"},
-    ).whenNotMatchedInsert(
-        condition="source._operation = 'INSERT'", values={name: f"source.{name}" for name in HISTORY_COLUMNS},
-    ).execute()
+    staging_view = f"submission_stage_{uuid4().hex}"
+    staged.createOrReplaceTempView(staging_view)
+    try:
+        columns = ", ".join(f"`{name}`" for name in HISTORY_COLUMNS)
+        values = ", ".join(f"source.`{name}`" for name in HISTORY_COLUMNS)
+        spark.sql(
+            f"MERGE INTO {target_name} AS target USING {staging_view} AS source "
+            "ON target.RECORD_ID = source.RECORD_ID "
+            "WHEN MATCHED AND source._operation = 'CLOSE' AND target.IS_CURRENT = true "
+            "THEN UPDATE SET IS_CURRENT = false, VALID_TO = source.VALID_TO "
+            "WHEN NOT MATCHED AND source._operation = 'INSERT' "
+            f"THEN INSERT ({columns}) VALUES ({values})"
+        )
+    finally:
+        spark.catalog.dropTempView(staging_view)
     print(f"Committed one atomic submission transition: {scope['SUBMISSION_ID']}")

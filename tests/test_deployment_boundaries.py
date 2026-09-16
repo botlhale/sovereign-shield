@@ -45,6 +45,31 @@ def test_fresh_bootstrap_starts_without_grants():
     assert settings == {"mode": "bootstrap", "account_groups_ready": False, "grant_tables": False, "deploy_dissemination_gateway": False}
 
 
+def test_readiness_reads_terraform_without_a_powershell_stdin_pipe(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(stdout=json.dumps(state('module.unity_catalog_governance.databricks_grant.catalog_traversal["admin"]')))
+
+    monkeypatch.setattr(deployment.subprocess, "run", run)
+    monkeypatch.setattr(deployment.sys, "argv", ["deployment_state.py", "inspect", "--terraform", "terraform.exe", "--directory", "project/terraform"])
+    deployment.main()
+    assert json.loads(capsys.readouterr().out)["account_groups_ready"] is True
+    assert calls == [(["terraform.exe", "-chdir=project/terraform", "show", "-json"], {"capture_output": True, "text": True, "check": True})]
+
+
+def test_empty_native_terraform_output_fails_closed(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(deployment.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=""))
+    monkeypatch.setattr(deployment.sys, "argv", ["deployment_state.py", "inspect", "--terraform", "terraform.exe"])
+    with pytest.raises(RuntimeError, match="returned no JSON"):
+        deployment.main()
+
+
 def test_steady_state_preserves_existing_grants_and_gateway():
     settings = deployment.deployment_settings(state(
         'module.unity_catalog_governance.databricks_grant.catalog_traversal["admin"]',
@@ -82,6 +107,22 @@ def test_larger_compute_is_opt_in():
     deployment.check_plan(plan, approve_compute_scale=True)
 
 
+@pytest.mark.parametrize("workers", [0, "0"])
+def test_single_node_plan_accepts_numeric_and_string_worker_counts(workers):
+    deployment.check_plan({"resource_changes": [{"type": "databricks_cluster_policy", "change": {
+        "actions": ["create"], "after": {"definition": json.dumps({"num_workers": {"value": workers}})},
+    }}]})
+
+
+@pytest.mark.parametrize("workers", ["2", "invalid", None, True, -1, "0.5"])
+def test_encoded_worker_counts_cannot_bypass_cost_guard(workers):
+    plan = {"resource_changes": [{"type": "databricks_cluster_policy", "change": {
+        "actions": ["create"], "after": {"definition": json.dumps({"num_workers": {"value": workers}})},
+    }}]}
+    with pytest.raises(ValueError):
+        deployment.check_plan(plan)
+
+
 def test_bundle_has_no_duplicate_keys_and_uses_governed_compute():
     class UniqueLoader(yaml.SafeLoader):
         pass
@@ -96,6 +137,9 @@ def test_bundle_has_no_duplicate_keys_and_uses_governed_compute():
 
     UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, unique_mapping)
     bundle = yaml.load((ROOT / "databricks.yml").read_text(encoding="utf-8"), Loader=UniqueLoader)
+    assert bundle["targets"]["dev"]["mode"] == "production"
+    assert bundle["targets"]["dev"]["permissions"] == [{"group_name": "sg-sovereignshield-admin", "level": "CAN_MANAGE"}]
+    assert "/Workspace/Shared" not in bundle["targets"]["dev"]["workspace"]["root_path"]
     job = bundle["targets"]["dev"]["resources"]["jobs"]["sovereignshield_sdmx_pipeline"]
     assert job["max_concurrent_runs"] == 1
     assert job["run_as"]["service_principal_name"] == "${var.run_as_service_principal}"

@@ -30,7 +30,7 @@ policy groups unchanged and review their memberships during migration.
 
 **Release migration gate:** existing DOUBLE history and per-user bundle paths must
 follow [the explicit migration procedure](RELEASE_EVIDENCE.md#mandatory-migration-gate).
-This revision was tested locally, not redeployed. Do not run `up` expecting it to
+The [live evaluation](LIVE_DEPLOYMENT_2026_09_15.md) used an empty workload. Do not run `up` expecting it to
 convert historical tables or adopt an existing job from another bundle path.
 
 `-DeploymentMode Auto` inspects Terraform state. Fresh/partial bootstrap preserves
@@ -43,6 +43,17 @@ PR federation credential is the only permitted automatic deletion.
 The bundle consumes `ingestion_job_cluster` and `cicd_client_id` outputs for governed
 compute and stable `run_as`. Raising worker counts or enabling Photon requires
 `-ApproveComputeScale`; defaults remain single-node and no Photon.
+
+Complex compute variables are written to the ignored target-specific bundle
+override JSON; the CLI rejects complex BUNDLE_VAR environment values. The source
+directory is `/Workspace/SovereignShield/<target>`, restricted to the platform
+admin group and workspace administrators. Production-mode bundle semantics permit
+this stable non-personal path; the dev target still runs synthetic data only.
+
+After a failed ACR push, deployment stops. Resume from a verified image with
+`-RegistryName <existing-registry> -ImageTag <verified-tag> -SkipImageBuild`.
+Use job repair for failed data tasks; do not regenerate completed arrivals solely
+to repair ingestion.
 
 ## Complete setup
 

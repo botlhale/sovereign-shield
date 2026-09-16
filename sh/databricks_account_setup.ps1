@@ -46,12 +46,15 @@ param(
     [string]$ResourceGroup = "rg-sovereignshield",
     [string]$WorkspaceName = "dbw-sovshield",
     [string]$TenantDomain = $env:TENANT_DOMAIN,
+    [string]$CicdClientId = "",
+    [string]$PublicProxyClientId = "",
     [string]$AppName = "",
     [switch]$AppOnly
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+Import-Module (Join-Path $PSScriptRoot "lib\SovereignShield.Orchestration.psm1") -Force
 
 if (-not $AppOnly -and [string]::IsNullOrWhiteSpace($TenantDomain)) {
     throw "Provide -TenantDomain or set the TENANT_DOMAIN environment variable."
@@ -74,8 +77,8 @@ $USERS = @(
 
 # Entra app registrations that must exist as Databricks account service principals.
 $SERVICE_PRINCIPALS = @(
-    @{ Name = "spn-sovereignshield-cicd";   Group = "sg-sovereignshield-admin" },
-    @{ Name = "spn-sovereignshield-public"; Group = "sg-sovereignshield-public" }
+    @{ Name = "spn-sovereignshield-cicd";   Group = "sg-sovereignshield-admin"; ClientId = $CicdClientId },
+    @{ Name = "spn-sovereignshield-public"; Group = "sg-sovereignshield-public"; ClientId = $PublicProxyClientId }
 )
 
 # ---------------------------------------------------------------------
@@ -339,12 +342,7 @@ try {
     $cicdPrincipalId = $null
     $publicPrincipalId = $null
     foreach ($spn in $SERVICE_PRINCIPALS) {
-        $appId = az ad app list --display-name $spn.Name `
-            --query "[?displayName=='$($spn.Name)'].appId | [0]" -o tsv
-        if ([string]::IsNullOrWhiteSpace($appId)) {
-            Write-Host "  [warn]   $($spn.Name) not found in Entra ID - run sh/kv_spn_create.sh" -ForegroundColor Yellow
-            continue
-        }
+        $appId = Resolve-SovereignShieldApplicationId -Name $spn.Name -ClientId $spn.ClientId
 
         $found = @(Get-Resources (Invoke-Db @("account", "service-principals", "list", "--filter", "applicationId eq '$appId'")))
         if ($found.Count -gt 0) {

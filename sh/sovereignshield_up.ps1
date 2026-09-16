@@ -168,18 +168,18 @@ try {
     $warehouseId = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "sql_warehouse_id"
     $submissionVolume = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "submission_volume_path"
     $keyVaultName = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "key_vault_name"
+    $cicdClientId = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "cicd_client_id"
+    $publicProxyClientId = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "public_proxy_client_id"
     $deploymentSettings = Get-SovereignShieldDeploymentSettings -Terraform $terraform -RepoRoot $repoRoot
-    $env:BUNDLE_VAR_run_as_service_principal = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "cicd_client_id"
-    $clusterJson = & $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" output -json ingestion_job_cluster
-    if ($LASTEXITCODE -ne 0) { throw "The Terraform ingestion compute specification is unavailable." }
-    $env:BUNDLE_VAR_ingestion_cluster = ($clusterJson | ConvertFrom-Json | ConvertTo-Json -Depth 15 -Compress)
+    Set-SovereignShieldBundleVariables -Terraform $terraform -RepoRoot $repoRoot -Target $Target
     Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceUrl
     if ($StopAfterStage -eq 1) { return }
 
     Invoke-Stage 2 "Databricks account identities and persona grants" {
         & (Join-Path $repoRoot "sh\databricks_account_setup.ps1") `
             -AccountId $AccountId -ResourceGroup $ResourceGroup `
-            -WorkspaceName $WorkspaceName -TenantDomain $TenantDomain
+            -WorkspaceName $WorkspaceName -TenantDomain $TenantDomain `
+            -CicdClientId $cicdClientId -PublicProxyClientId $publicProxyClientId
         $deploymentSettings.account_groups_ready = $true
         Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
             -VarFile $TerraformVarFile -Variables @(Get-SovereignShieldReadinessVariables -Settings $deploymentSettings) `
@@ -187,6 +187,11 @@ try {
     }
 
     Invoke-Stage 3 "Databricks Asset Bundle deployment" {
+        $python = Get-SovereignShieldPython -RepoRoot $repoRoot
+        Invoke-SovereignShieldNative -FilePath $python -Arguments @(
+            (Join-Path $repoRoot "sh/configure_run_as.py"), "--account-id", $AccountId,
+            "--client-id", $cicdClientId, "--host", $workspaceUrl
+        ) | Out-Null
         Invoke-SovereignShieldNative -FilePath "databricks" `
             -Arguments @("bundle", "validate", "-t", $Target, "--var=warehouse_id=$warehouseId", "--var=submission_volume=$submissionVolume") | Out-Null
         Invoke-SovereignShieldNative -FilePath "databricks" `

@@ -118,11 +118,7 @@ try {
     }
 
     if ($workspaceHost -and $PSCmdlet.ShouldProcess("Databricks bundle resources", "Destroy job, app and uploaded files")) {
-        $env:BUNDLE_VAR_run_as_service_principal = Get-SovereignShieldTerraformOutput -Terraform $terraform -RepoRoot $repoRoot -Name "cicd_client_id"
-        $clusterJson = & $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" output -json ingestion_job_cluster
-        if ($LASTEXITCODE -eq 0) {
-            $env:BUNDLE_VAR_ingestion_cluster = ($clusterJson | ConvertFrom-Json | ConvertTo-Json -Depth 15 -Compress)
-        }
+        Set-SovereignShieldBundleVariables -Terraform $terraform -RepoRoot $repoRoot -Target $Target
         Invoke-SovereignShieldNative -FilePath "databricks" `
             -Arguments @("bundle", "destroy", "-t", $Target, "--auto-approve") -AllowFailure | Out-Null
     }

@@ -53,10 +53,9 @@ function Enter-SovereignShieldLifecycleLock {
 
 function Get-SovereignShieldDeploymentSettings {
     param([string]$Terraform, [string]$RepoRoot)
-    $stateJson = & $Terraform "-chdir=$(Join-Path $RepoRoot 'terraform')" show -json
-    if ($LASTEXITCODE -ne 0) { throw "Terraform state inspection failed; readiness was not assumed." }
     $python = Get-SovereignShieldPython -RepoRoot $RepoRoot
-    $settings = $stateJson | & $python (Join-Path $RepoRoot "sh/deployment_state.py") inspect
+    $settings = & $python (Join-Path $RepoRoot "sh/deployment_state.py") inspect `
+        --terraform $Terraform --directory (Join-Path $RepoRoot "terraform")
     if ($LASTEXITCODE -ne 0) { throw "Could not determine deployment readiness." }
     return ($settings | ConvertFrom-Json)
 }
@@ -66,6 +65,34 @@ function Get-SovereignShieldReadinessVariables {
     foreach ($name in @("account_groups_ready", "grant_tables", "deploy_dissemination_gateway")) {
         "${name}=$($Settings.$name.ToString().ToLowerInvariant())"
     }
+}
+
+function Set-SovereignShieldBundleVariables {
+    param([string]$Terraform, [string]$RepoRoot, [string]$Target)
+    Remove-Item Env:BUNDLE_VAR_ingestion_cluster, Env:BUNDLE_VAR_run_as_service_principal, `
+        Env:BUNDLE_VAR_warehouse_id -ErrorAction SilentlyContinue
+    $python = Get-SovereignShieldPython -RepoRoot $RepoRoot
+    & $python (Join-Path $RepoRoot "sh/configure_bundle.py") --terraform $Terraform --target $Target
+    if ($LASTEXITCODE -ne 0) { throw "Bundle variable configuration failed." }
+}
+
+function Resolve-SovereignShieldApplicationId {
+    param([string]$Name, [string]$ClientId = "")
+    if ($ClientId) {
+        $found = & az ad app show --id $ClientId --query appId -o tsv
+        if ($LASTEXITCODE -ne 0 -or ([string]$found).Trim() -ne $ClientId) {
+            throw "The configured application ID for '$Name' could not be verified."
+        }
+        return $ClientId
+    }
+    $json = & az ad app list --display-name $Name --query "[?displayName=='$Name'].appId" -o json
+    if ($LASTEXITCODE -ne 0) { throw "Could not resolve Entra application '$Name'." }
+    $parsed = ConvertFrom-Json -InputObject ($json | Out-String)
+    $applicationIds = if ($null -eq $parsed) { @() } else { @($parsed) }
+    if ($applicationIds.Count -ne 1) {
+        throw "Expected one Entra application named '$Name', found $($applicationIds.Count). Pass its explicit client ID."
+    }
+    return [string]$applicationIds[0]
 }
 
 function Invoke-SovereignShieldNative {
@@ -79,7 +106,10 @@ function Invoke-SovereignShieldNative {
     $previousErrorActionPreference = $ErrorActionPreference
     if ($AllowFailure) { $ErrorActionPreference = "Continue" }
     try {
-        & $FilePath @Arguments
+        & $FilePath @Arguments | ForEach-Object {
+            Write-Host $_
+            $_
+        }
         $exitCode = $LASTEXITCODE
     }
     catch {
@@ -126,12 +156,11 @@ function Invoke-SovereignShieldTerraformApply {
 
     try {
         Invoke-SovereignShieldTerraform -Terraform $Terraform -RepoRoot $RepoRoot -Arguments $planArguments | Out-Null
-        $planJson = & $Terraform "-chdir=$(Join-Path $RepoRoot 'terraform')" show -json $planName
-        if ($LASTEXITCODE -ne 0) { throw "Could not inspect the plan; apply was refused." }
         $python = Get-SovereignShieldPython -RepoRoot $RepoRoot
-        $guardArguments = @((Join-Path $RepoRoot "sh/deployment_state.py"), "check-plan")
+        $guardArguments = @((Join-Path $RepoRoot "sh/deployment_state.py"), "check-plan",
+            "--terraform", $Terraform, "--directory", (Join-Path $RepoRoot "terraform"), "--plan", $planName)
         if ($ApproveComputeScale) { $guardArguments += "--approve-compute-scale" }
-        $planJson | & $python @guardArguments
+        & $python @guardArguments
         if ($LASTEXITCODE -ne 0) { throw "Lifecycle plan guard refused apply." }
         Invoke-SovereignShieldTerraform -Terraform $Terraform -RepoRoot $RepoRoot `
             -Arguments @("apply", "-input=false", $planName) | Out-Null
@@ -194,6 +223,8 @@ Export-ModuleMember -Function @(
     "Enter-SovereignShieldLifecycleLock",
     "Get-SovereignShieldDeploymentSettings",
     "Get-SovereignShieldReadinessVariables",
+    "Set-SovereignShieldBundleVariables",
+    "Resolve-SovereignShieldApplicationId",
     "Assert-SovereignShieldCommand",
     "Invoke-SovereignShieldNative",
     "Invoke-SovereignShieldTerraform",

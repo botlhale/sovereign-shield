@@ -20,8 +20,10 @@ WORKDIR /app
 COPY src/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/api_gateway.py src/portal_ui.py src/uc_query.py src/sdmx_ml_exporter.py ./
+COPY src/api_gateway.py src/portal_ui.py src/uc_query.py src/sdmx_ml_exporter.py src/decimal_measures.py src/lbs_contract.py ./
 COPY src/templates ./templates
+COPY src/reference_data/lbs_structure.json ./reference_data/lbs_structure.json
+COPY src/static ./static
 
 # The portal never writes to disk and holds no credential on the filesystem;
 # it runs unprivileged so a serialization bug cannot become a container escape.

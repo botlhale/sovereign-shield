@@ -71,6 +71,34 @@ def test_missing_binding_aborts():
         apply_security.verify_policy_bindings(session, {})
 
 
+@pytest.mark.parametrize("wrong_field", [None, "function", "columns"])
+def test_current_runtime_metadata_preserves_strict_binding_checks(wrong_field):
+    versions = {name: name + "__verified" for name in ("fn_rls_multi_persona_lock", "fn_ddm_obs_conf_mask", "fn_rls_micro_country_lock")}
+
+    def query(statement):
+        micro = "lbs_micro_transactions" in statement
+        mask = "column_masks" in statement
+        schema = "sovereign_intake" if micro else "sovereign_shield"
+        kind = "mask" if mask else "filter"
+        function = "fn_rls_micro_country_lock" if micro else "fn_ddm_obs_conf_mask" if mask else "fn_rls_multi_persona_lock"
+        arguments = "reporting_country" if micro else "OBS_CONF,TIME_SERIES_CODE" if mask else "TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF"
+        row = {"table_catalog": "dbw_sovereignshield", "table_schema": schema,
+               f"{kind}_name": f"dbw_sovereignshield.{schema}.{versions[function]}",
+               "using_columns" if mask else "target_columns": arguments}
+        if wrong_field == "function":
+            row[f"{kind}_name"] = "other.schema.function"
+        if wrong_field == "columns":
+            row["using_columns" if mask else "target_columns"] = "WRONG_COLUMN"
+        return SimpleNamespace(collect=lambda: [SimpleNamespace(asDict=lambda: row)])
+
+    session = SimpleNamespace(sql=query)
+    if wrong_field:
+        with pytest.raises(RuntimeError, match="Unexpected"):
+            apply_security.verify_policy_bindings(session, versions)
+    else:
+        apply_security.verify_policy_bindings(session, versions)
+
+
 @pytest.mark.parametrize("classification", [None, "", "UNRECOGNIZED", "C", "N"])
 def test_unrecognized_classification_is_masked_for_researchers(classification):
     from uc_query import LocalDeltaBackend, Principal

@@ -121,7 +121,10 @@ def test_spark_macro_has_one_commit_and_no_unprotected_creation():
 
     source = inspect.getsource(merge_submission)
     calls = [node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Call)]
-    assert sum(isinstance(node.func, ast.Attribute) and node.func.attr == "execute" for node in calls) == 1
+    assert source.count("MERGE INTO") == 1
+    assert sum(isinstance(node.func, ast.Attribute) and node.func.attr == "sql" for node in calls) == 1
+    assert "createOrReplaceTempView" in source
+    assert "dropTempView" in source
     assert "saveAsTable" not in source
     session = SimpleNamespace(catalog=SimpleNamespace(tableExists=lambda name: False))
     with pytest.raises(RuntimeError, match="Protected macro table is missing"):

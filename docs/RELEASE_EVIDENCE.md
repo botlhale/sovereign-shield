@@ -1,6 +1,11 @@
 # Release Evidence and Migration
 
-**Scope:** Independent synthetic reference implementation, locally verified in September 2026. This revision has not been applied to Azure. Historical deployment screenshots and saved exports are not evidence that the changed policy, decimal schema, job ownership or CI workflow has run in Unity Catalog.
+**Scope:** Independent synthetic reference implementation. The initial local-only
+results below are followed by a [15 September live deployment and recovery record](LIVE_DEPLOYMENT_2026_09_15.md).
+The repaired pipeline, real persona matrix, public exports and authenticated CA
+API workflow passed on Azure. The user confirmed testing complete, and the
+post-test workload teardown was independently verified. Both cloud portals are
+now inactive. Historical screenshots and saved exports are not fresh release evidence.
 
 ## Reproducible Methods
 
@@ -65,7 +70,7 @@ The structure snapshot is an extracted component/code contract, not a full regis
 
 ## Mandatory Migration Gate
 
-**Do not deploy this release over the old DOUBLE history as a routine update.** The policy executor refuses incompatible existing schemas before changing bindings; the Spark writer also refuses missing or legacy tables. This session does not authorize or perform a cloud migration.
+**Do not deploy this release over the old DOUBLE history as a routine update.** The policy executor refuses incompatible existing schemas before changing bindings; the Spark writer also refuses missing or legacy tables. The live evaluation used a fresh empty workload, not an in-place legacy-history migration.
 
 For a retained environment, the platform owner must approve and rehearse a migration:
 

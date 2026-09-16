@@ -41,6 +41,8 @@ param(
     [string]$AppName = "ca-sovereignshield-portal",
     [string]$TokenStoreStorageName = "",
     [string]$RegistryName = "",
+    [string]$ImageTag = "",
+    [switch]$SkipImageBuild,
     [switch]$EnableEntraSignIn
 )
 
@@ -52,7 +54,7 @@ Set-StrictMode -Version Latest
 $AzureDatabricksResourceId = "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$imageTag = "sovereignshield-portal:$(Get-Date -Format yyyyMMddHHmmss)"
+if (-not $ImageTag) { $ImageTag = "sovereignshield-portal:$(Get-Date -Format yyyyMMddHHmmss)" }
 
 function Test-AzResourceExists {
     param(
@@ -105,16 +107,25 @@ else {
         --sku Basic `
         --location $Location `
         --output none
+    if ($LASTEXITCODE -ne 0) { throw "Container registry creation failed." }
 }
 
 Write-Host "==> 3/8 Building the image in ACR (no local Docker required)" -ForegroundColor Cyan
 # Always rebuilt: the point of re-running is to ship new code.
-az acr build `
-    --registry $RegistryName `
-    --image $imageTag `
-    --file (Join-Path $repoRoot "Dockerfile") `
-    $repoRoot `
-    --output none
+if (-not $SkipImageBuild) {
+    az acr build `
+        --registry $RegistryName `
+        --image $ImageTag `
+        --file (Join-Path $repoRoot "Dockerfile") `
+        $repoRoot `
+        --output none
+    if ($LASTEXITCODE -ne 0) { throw "Image build or push failed. Gateway deployment was stopped; retry the existing registry." }
+}
+$imageDigest = az acr repository show --name $RegistryName --image $ImageTag --query digest -o tsv
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($imageDigest)) {
+    throw "The selected image was not verified in ACR; deployment was refused."
+}
+Write-Host "Verified image digest: $imageDigest"
 
 Write-Host "==> 4/8 Container Apps environment" -ForegroundColor Cyan
 if (Test-AzResourceExists { az containerapp env show --name $EnvironmentName --resource-group $ResourceGroup --only-show-errors }) {
@@ -127,6 +138,7 @@ else {
         --resource-group $ResourceGroup `
         --location $Location `
         --output none
+    if ($LASTEXITCODE -ne 0) { throw "Container Apps environment creation failed." }
 }
 
 Write-Host "==> 5/8 Deploying the app with external ingress" -ForegroundColor Cyan
@@ -135,11 +147,30 @@ Write-Host "==> 5/8 Deploying the app with external ingress" -ForegroundColor Cy
 # cold start; the app holds no state, so scaling out is safe.
 if (Test-AzResourceExists { az containerapp show --name $AppName --resource-group $ResourceGroup --only-show-errors }) {
     Write-Host "    [update] App $AppName exists - rolling out the new image" -ForegroundColor Green
+    $pullPrincipal = az containerapp show --name $AppName --resource-group $ResourceGroup --query identity.principalId -o tsv
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($pullPrincipal)) {
+        throw "Existing Container App requires a system-assigned registry identity."
+    }
+    $registryId = az acr show --name $RegistryName --query id -o tsv
+    if ($LASTEXITCODE -ne 0) { throw "Registry scope lookup failed." }
+    $pullGrant = az role assignment list --assignee $pullPrincipal --scope $registryId `
+        --query "[?roleDefinitionName=='AcrPull'].id | [0]" -o tsv
+    if ($LASTEXITCODE -ne 0) { throw "Registry pull permission lookup failed." }
+    if (-not $pullGrant) {
+        az role assignment create --assignee-object-id $pullPrincipal --assignee-principal-type ServicePrincipal `
+            --role AcrPull --scope $registryId --output none
+        if ($LASTEXITCODE -ne 0) { throw "Registry pull permission assignment failed." }
+    }
+    az containerapp registry set --name $AppName --resource-group $ResourceGroup `
+        --server "$RegistryName.azurecr.io" --identity system --output none
+    if ($LASTEXITCODE -ne 0) { throw "Container App registry identity configuration failed." }
     az containerapp update `
         --name $AppName `
         --resource-group $ResourceGroup `
         --image "$RegistryName.azurecr.io/$imageTag" `
+        --max-replicas 1 `
         --output none
+    if ($LASTEXITCODE -ne 0) { throw "Container App image update failed." }
 }
 else {
     Write-Host "    [create] App $AppName" -ForegroundColor Green
@@ -155,10 +186,11 @@ else {
         --target-port 8000 `
         --transport auto `
         --min-replicas 1 `
-        --max-replicas 3 `
+        --max-replicas 1 `
         --cpu 0.5 `
         --memory 1.0Gi `
         --output none
+    if ($LASTEXITCODE -ne 0) { throw "Container App creation failed." }
 }
 
 $principalId = az containerapp show --name $AppName --resource-group $ResourceGroup `
