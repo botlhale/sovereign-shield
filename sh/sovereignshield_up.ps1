@@ -220,7 +220,7 @@ try {
         $python = Get-SovereignShieldPython -RepoRoot $repoRoot
         $activationArguments = @(
             (Join-Path $repoRoot "sh/activate_databricks_app.py"), "--host", $workspaceUrl,
-            "--app-name", $AppName, "--timeout-minutes", [string]$AppTimeoutMinutes
+            "--app-name", $AppName, "--target", $Target, "--timeout-minutes", [string]$AppTimeoutMinutes
         )
         if ($StartAtStage -eq 6) { $activationArguments += "--resume" }
         Invoke-SovereignShieldNative -FilePath $python -Arguments $activationArguments | Out-Null

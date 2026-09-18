@@ -2,6 +2,10 @@
 
 import argparse
 from datetime import timedelta
+import json
+import os
+from pathlib import Path
+import subprocess
 from uuid import uuid4
 
 from databricks.sdk import WorkspaceClient
@@ -13,12 +17,31 @@ def state_value(status):
     return getattr(state, "value", state)
 
 
-def activate_app(workspace, app_name, *, resume=False, timeout_minutes=20):
+def bundle_source_path(host, app_name, target):
+    environment = dict(os.environ, DATABRICKS_HOST=host, DATABRICKS_AUTH_TYPE="azure-cli")
+    result = subprocess.run(
+        ["databricks", "bundle", "validate", "-t", target, "-o", "json"],
+        cwd=Path(__file__).resolve().parents[1], env=environment,
+        capture_output=True, text=True, timeout=120,
+    )
+    if result.returncode:
+        raise RuntimeError(f"Bundle source resolution failed for target {target}: {result.stderr.strip()}")
+    configuration = json.loads(result.stdout)
+    resource = configuration.get("resources", {}).get("apps", {}).get("sovereignshield_portal")
+    if not resource or resource.get("name") != app_name:
+        raise RuntimeError(f"Bundle target {target} does not configure sovereignshield_portal as {app_name}.")
+    source_path = resource.get("source_code_path")
+    if not isinstance(source_path, str) or not source_path.startswith("/Workspace/"):
+        raise RuntimeError("The bundle app source did not resolve to a workspace path.")
+    return source_path
+
+
+def activate_app(workspace, app_name, *, source_code_path=None, resume=False, timeout_minutes=20):
     timeout = timedelta(minutes=timeout_minutes)
     app = workspace.apps.get(app_name)
-    source_path = app.default_source_code_path
+    source_path = source_code_path or app.default_source_code_path
     if not source_path:
-        raise RuntimeError("The app has no bundle source path. Complete Stage 3 first.")
+        raise RuntimeError("No app source path was supplied or recorded. Resolve the bundle source path before activation.")
     pending = app.pending_deployment
     deployment = pending
     if resume and deployment is None:
@@ -85,11 +108,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", required=True)
     parser.add_argument("--app-name", required=True)
+    parser.add_argument("--target", default="dev")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--timeout-minutes", type=int, choices=range(1, 61), default=20)
     args = parser.parse_args()
+    print(f"Resolving app source from bundle target {args.target}.", flush=True)
+    source_path = bundle_source_path(args.host, args.app_name, args.target)
     workspace = WorkspaceClient(host=args.host, auth_type="azure-cli")
-    activate_app(workspace, args.app_name, resume=args.resume, timeout_minutes=args.timeout_minutes)
+    activate_app(
+        workspace, args.app_name, source_code_path=source_path,
+        resume=args.resume, timeout_minutes=args.timeout_minutes,
+    )
 
 
 if __name__ == "__main__":

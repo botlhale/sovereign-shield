@@ -1,5 +1,7 @@
 from pathlib import Path
 import importlib.util
+import json
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -22,6 +24,7 @@ def test_stage6_assigns_public_identity_before_one_deployment():
     assert stage.count("sh/activate_databricks_app.py") == 1
     assert stage.index("-AppOnly") < stage.index("sh/activate_databricks_app.py")
     assert 'if ($StartAtStage -eq 6) { $activationArguments += "--resume" }' in stage
+    assert '"--target", $Target' in stage
 
 
 def deployment(identity="latest", state="SUCCEEDED", created="2026-09-18T15:52:12Z"):
@@ -109,6 +112,67 @@ def test_fresh_activation_submits_once():
     activation.activate_app(workspace, "portal")
     workspace.apps.deploy.assert_called_once()
     assert workspace.apps.deploy.call_args.args[1].source_code_path == SOURCE
+
+
+@pytest.mark.parametrize("resume,target,source_path", [
+    (False, "dev", SOURCE),
+    (True, "qa", "/Workspace/SovereignShield/qa/files/src"),
+])
+def test_new_app_uses_bundle_source_without_a_default_path(monkeypatch, resume, target, source_path):
+    latest = deployment()
+    latest.source_code_path = source_path
+    initial = app()
+    initial.default_source_code_path = None
+    initial.compute_status = App.from_dict({"compute_status": {"state": "STOPPED"}}).compute_status
+    workspace = client(initial, app(latest), latest)
+    workspace.apps.list_deployments.return_value = []
+    workspace.apps.deploy.return_value = SimpleNamespace(response=latest)
+    bundle = {"resources": {"apps": {"sovereignshield_portal": {
+        "name": "portal", "source_code_path": source_path,
+    }}}}
+    validate = Mock(return_value=SimpleNamespace(returncode=0, stdout=json.dumps(bundle), stderr=""))
+    monkeypatch.setattr(subprocess, "run", validate)
+    monkeypatch.setattr(activation, "WorkspaceClient", lambda **kwargs: workspace)
+    arguments = ["activate_databricks_app.py", "--host", "https://example.test", "--app-name", "portal", "--target", target]
+    if resume:
+        arguments.append("--resume")
+    monkeypatch.setattr("sys.argv", arguments)
+
+    activation.main()
+
+    validate.assert_called_once()
+    assert validate.call_args.args[0] == ["databricks", "bundle", "validate", "-t", target, "-o", "json"]
+    assert validate.call_args.kwargs["cwd"] == ROOT
+    assert validate.call_args.kwargs["env"]["DATABRICKS_HOST"] == "https://example.test"
+    assert validate.call_args.kwargs["env"]["DATABRICKS_AUTH_TYPE"] == "azure-cli"
+    workspace.apps.start.assert_called_once_with("portal")
+    workspace.apps.deploy.assert_called_once()
+    assert workspace.apps.deploy.call_args.args[1].source_code_path == source_path
+
+
+@pytest.mark.parametrize("resource", [
+    {},
+    {"name": "another-app", "source_code_path": SOURCE},
+    {"name": "portal"},
+    {"name": "portal", "source_code_path": "./src"},
+])
+def test_invalid_bundle_source_stops_before_app_activation(monkeypatch, resource):
+    bundle = {"resources": {"apps": {"sovereignshield_portal": resource}}}
+    validate = Mock(return_value=SimpleNamespace(returncode=0, stdout=json.dumps(bundle), stderr=""))
+    workspace = Mock()
+    monkeypatch.setattr(subprocess, "run", validate)
+    monkeypatch.setattr(activation, "WorkspaceClient", workspace)
+    monkeypatch.setattr("sys.argv", ["activate_databricks_app.py", "--host", "https://example.test", "--app-name", "portal"])
+    with pytest.raises(RuntimeError, match="does not configure|did not resolve"):
+        activation.main()
+    workspace.assert_not_called()
+
+
+def test_bundle_validation_failure_is_not_replaced_with_default_source(monkeypatch):
+    validate = Mock(return_value=SimpleNamespace(returncode=1, stdout="", stderr="validation failed"))
+    monkeypatch.setattr(subprocess, "run", validate)
+    with pytest.raises(RuntimeError, match="Bundle source resolution failed.*validation failed"):
+        activation.bundle_source_path("https://example.test", "portal", "dev")
 
 
 def test_stopped_compute_is_started_before_one_deployment():

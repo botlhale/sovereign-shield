@@ -119,7 +119,8 @@ Terraform configuration, resume stages 3-8:
 This reads the current Terraform outputs and skips stages 0-2. Add
 `-StopAfterStage 3` to validate and deploy only the bundle before continuing.
 
-For an app activation timeout, preserve completed data stages and resume at 6:
+For an app activation timeout or a missing default source path on a new App,
+preserve completed data stages and resume at 6:
 
 ```powershell
 ./sh/sovereignshield_up.ps1 `
@@ -130,6 +131,13 @@ For an app activation timeout, preserve completed data stages and resume at 6:
 ```
 
 Stage 6 assigns the managed app identity to the public group before activation.
+It resolves `source_code_path` from `databricks bundle validate` for the selected
+target. A newly created App can have no `default_source_code_path` until its
+first deployment, even though Stage 3 already uploaded the source. An absent
+App default is not a reason to tear down or repeat Stage 3. The resolved bundle
+resource must match the requested App and contain an absolute workspace path;
+resolution failures stop before compute is started.
+
 A fresh run submits one snapshot. A resume waits for the existing pending or
 latest deployment from the app's configured bundle source path, without submitting
 another snapshot. If no deployment exists yet, it creates one. Success requires
