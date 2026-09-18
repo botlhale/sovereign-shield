@@ -73,7 +73,7 @@ The default run executes:
 | 3 | Validate and deploy the Databricks Asset Bundle | 1–3 min |
 | 4 | Run security DDL, SDMx generation, validation and SCD2 pipeline | 8–15 min |
 | 5 | Bind Terraform table grants; schema EXECUTE is also Terraform-owned | Historical: 1–3 min |
-| 6 | Start the Databricks App and bind its public identity | 2–5 min |
+| 6 | Bind the managed public identity, activate one app snapshot, and verify that deployment | 2–5 min |
 | 7 | Build and deploy Container Apps with anonymous + Entra access | 8–18 min |
 | 8 | Verify both portals, persona SQL entitlements, 13-row anonymous fixture, Easy Auth/token store, and optionally configure GitHub | 1–3 min |
 
@@ -97,6 +97,35 @@ Every stage uses idempotent underlying operations. Resume at a failed stage:
   -TenantDomain "<tenant-domain>" `
   -StartAtStage 4
 ```
+
+For an app activation timeout, preserve completed data stages and resume at 6:
+
+```powershell
+./sh/sovereignshield_up.ps1 `
+  -AccountId "<databricks-account-guid>" `
+  -TenantDomain "<tenant-domain>" `
+  -StartAtStage 6 `
+  -AppTimeoutMinutes 20
+```
+
+Stage 6 assigns the managed app identity to the public group before activation.
+A fresh run submits one snapshot. A resume waits for the existing pending or
+latest deployment from the app's configured bundle source path, without submitting
+another snapshot. If no deployment exists yet, it creates one. Success requires
+that exact deployment to be successful and active, app compute to be active, the
+app to be running, and no replacement deployment to be pending. An older running
+app cannot conceal a failed latest deployment.
+
+`-AppTimeoutMinutes` accepts 1-60 minutes (default 20) for each compute-start or
+deployment wait. A timed-out wait checks the same deployment once more; it only
+recovers if the service reports success. Otherwise the script stops and prints
+the deployment ID. Failed or cancelled deployments remain failures. Inspect app
+logs and repair the source before deliberately deploying again; timeout recovery
+is not a source-update operation. The manual VS Code task
+`SovereignShield: resume app and gateway` runs stages 6-8 using current Terraform
+outputs instead of a stored workspace URL.
+The [18 September recovery record](LIVE_DEPLOYMENT_2026_09_18.md) documents the
+successful live resume and its verification limits.
 
 Run preflight only:
 

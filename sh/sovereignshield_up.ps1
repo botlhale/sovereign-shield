@@ -45,6 +45,9 @@ param(
     [ValidateRange(0, 8)]
     [int]$StopAfterStage = 8,
 
+    [ValidateRange(1, 60)]
+    [int]$AppTimeoutMinutes = 20,
+
     [switch]$SkipTests,
     [ValidateSet("Auto", "Bootstrap", "SteadyState")]
     [string]$DeploymentMode = "Auto",
@@ -211,13 +214,16 @@ try {
     }
 
     Invoke-Stage 6 "Databricks App activation" {
-        Invoke-SovereignShieldNative -FilePath "databricks" `
-            -Arguments @("bundle", "run", "sovereignshield_portal", "-t", $Target, "--var=warehouse_id=$warehouseId") | Out-Null
         & (Join-Path $repoRoot "sh\databricks_account_setup.ps1") `
             -AccountId $AccountId -ResourceGroup $ResourceGroup -WorkspaceName $WorkspaceName `
             -TenantDomain $TenantDomain -AppName $AppName -AppOnly
-        Invoke-SovereignShieldNative -FilePath "databricks" `
-            -Arguments @("bundle", "run", "sovereignshield_portal", "-t", $Target, "--var=warehouse_id=$warehouseId") | Out-Null
+        $python = Get-SovereignShieldPython -RepoRoot $repoRoot
+        $activationArguments = @(
+            (Join-Path $repoRoot "sh/activate_databricks_app.py"), "--host", $workspaceUrl,
+            "--app-name", $AppName, "--timeout-minutes", [string]$AppTimeoutMinutes
+        )
+        if ($StartAtStage -eq 6) { $activationArguments += "--resume" }
+        Invoke-SovereignShieldNative -FilePath $python -Arguments $activationArguments | Out-Null
     }
 
     Invoke-Stage 7 "Azure Container Apps public and signed-in gateway" {

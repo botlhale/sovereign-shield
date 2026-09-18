@@ -2,6 +2,13 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "SovereignShield: resume app and gateway",
+			"type": "shell",
+			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n& .\\sh\\sovereignshield_up.ps1 -AccountId 'c57cd54e-a755-4a30-92f7-84fb60463af7' -TenantDomain '13668754CANADAINC.onmicrosoft.com' -StartAtStage 6 -StopAfterStage 8",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
 			"label": "SovereignShield: resume account and bundle deployment",
 			"type": "shell",
 			"command": "Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force\n$ErrorActionPreference = 'Stop'\n$env:DATABRICKS_HOST = 'https://adb-7405613190562799.19.azuredatabricks.net'\n$env:DATABRICKS_AUTH_TYPE = 'azure-cli'\n@('ARM_CLIENT_ID','ARM_CLIENT_SECRET','ARM_USE_OIDC','DATABRICKS_ACCOUNT_ID','DATABRICKS_TOKEN','DATABRICKS_CLIENT_ID','DATABRICKS_CLIENT_SECRET','DATABRICKS_CONFIG_PROFILE') | ForEach-Object { Remove-Item \"Env:$_\" -ErrorAction SilentlyContinue }\n& .\\sh\\sovereignshield_up.ps1 -AccountId 'c57cd54e-a755-4a30-92f7-84fb60463af7' -TenantDomain '13668754CANADAINC.onmicrosoft.com' -StartAtStage 2 -StopAfterStage 3",
