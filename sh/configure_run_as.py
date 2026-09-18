@@ -1,11 +1,17 @@
 """Grant the authenticated deployer permission to bind the configured runtime identity."""
 
 import argparse
+from datetime import timedelta
 
 from databricks.sdk import AccountClient, WorkspaceClient
+from databricks.sdk.retries import retried
 from databricks.sdk.service.iam import GrantRule, RuleSetUpdateRequest
 
 USE_ROLE = "roles/servicePrincipal.user"
+
+
+class _RoleNotVisible(RuntimeError):
+    pass
 
 
 def rules_with_user_role(rules, principal):
@@ -18,6 +24,25 @@ def rules_with_user_role(rules, principal):
             return updated, True
     updated.append(GrantRule(role=USE_ROLE, principals=[principal]))
     return updated, True
+
+
+def verify_user_role(access_control, name, principal, etag, *, timeout=timedelta(minutes=2)):
+    @retried(on=[_RoleNotVisible], timeout=timeout)
+    def read_role():
+        verified = access_control.get_rule_set(name=name, etag=etag)
+        if any(rule.role == USE_ROLE and principal in (rule.principals or []) for rule in verified.grant_rules or []):
+            return
+        print("Waiting for the runtime identity use grant to become visible; permissions will not be rewritten.", flush=True)
+        raise _RoleNotVisible("The runtime identity use role is not visible yet.")
+
+    try:
+        read_role()
+    except TimeoutError as error:
+        raise RuntimeError(
+            f"The runtime identity use role was not verified within {timeout.total_seconds():g} seconds "
+            f"for {principal} on {name}. Resume sovereignshield_up.ps1 with -StartAtStage 3 "
+            "after checking the account grant; teardown is not required."
+        ) from error
 
 
 def main():
@@ -39,9 +64,7 @@ def main():
     if changed:
         updated = account.access_control.update_rule_set(name, RuleSetUpdateRequest(name=name, etag=current.etag, grant_rules=rules))
         verification_etag = updated.etag
-    verified = account.access_control.get_rule_set(name=name, etag=verification_etag)
-    if not any(rule.role == USE_ROLE and principal in (rule.principals or []) for rule in verified.grant_rules or []):
-        raise RuntimeError("The runtime identity use role was not verified.")
+    verify_user_role(account.access_control, name, principal, verification_etag)
     print(f"Runtime identity use permission verified for {deployer.user_name}.")
 
 

@@ -98,6 +98,27 @@ Every stage uses idempotent underlying operations. Resume at a failed stage:
   -StartAtStage 4
 ```
 
+For a Stage 3 runtime identity use-role verification failure, keep the completed
+foundation and account setup. A successful grant can become visible after the
+initial verification read. The helper retries read-back for up to two minutes
+using the returned ETag, without repeating the permission update. It still
+requires the exact deployer and `roles/servicePrincipal.user` grant; manager
+permissions alone do not qualify. Authorization errors and an unverified grant
+after the deadline stop the deployment.
+
+No teardown is needed for this failure. With the existing Azure login and
+Terraform configuration, resume stages 3-8:
+
+```powershell
+./sh/sovereignshield_up.ps1 `
+  -AccountId "<databricks-account-guid>" `
+  -TenantDomain "<tenant-domain>" `
+  -StartAtStage 3
+```
+
+This reads the current Terraform outputs and skips stages 0-2. Add
+`-StopAfterStage 3` to validate and deploy only the bundle before continuing.
+
 For an app activation timeout, preserve completed data stages and resume at 6:
 
 ```powershell
