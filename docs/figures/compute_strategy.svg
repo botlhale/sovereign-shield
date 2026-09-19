@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">Evaluation Compute and Scale Decisions</title>
+  <desc id="description">Terraform supplies single-node no-Photon ingestion configuration; SQL warehouse and gateway scale independently. Additional workers do not distribute driver-bound validation. Evaluation timing and cost are observations, not guarantees.</desc>
+  <style>text{font-family:'Segoe UI',sans-serif;fill:#183137;font-size:28px;letter-spacing:0}.title{font-size:48px;font-weight:700}.heading{font-size:30px;font-weight:700}.small{font-size:24px}</style>
+  <rect width="1600" height="900" fill="white"/>
+  <text x="60" y="82" class="title">Evaluation Compute and Scale Decisions</text>
+  <text x="60" y="130">Independent sizing, explicit approval and measured control equivalence</text>
+  <rect x="60" y="210" width="450" height="360" rx="6" fill="#edf7f3" stroke="#167d69" stroke-width="2"/>
+  <text x="85" y="264" class="heading">Ingestion Job</text>
+  <text x="85" y="322">Single node; zero workers</text>
+  <text x="85" y="378">No Photon by default</text>
+  <text x="85" y="434">Governed runtime and run_as</text>
+  <text x="85" y="490">Driver-bound parsing/validation</text>
+  <text x="85" y="536" class="small">More workers do not distribute it.</text>
+  <rect x="575" y="210" width="450" height="360" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
+  <text x="600" y="264" class="heading">Dissemination Warehouse</text>
+  <text x="600" y="322">Independent SQL compute</text>
+  <text x="600" y="378">Size: individual query workload</text>
+  <text x="600" y="434">Concurrency: simultaneous work</text>
+  <text x="600" y="490">Auto-stop and query metrics</text>
+  <text x="600" y="536" class="small">Runtime policy support must be tested.</text>
+  <rect x="1090" y="210" width="450" height="360" rx="6" fill="#f6f9fa" stroke="#90a5aa" stroke-width="2"/>
+  <text x="1115" y="264" class="heading">Gateway and Retention</text>
+  <text x="1115" y="322">One evaluation replica</text>
+  <text x="1115" y="378">Registry, storage and logs</text>
+  <text x="1115" y="434">Pause is not guaranteed zero cost</text>
+  <text x="1115" y="490">Approved workload teardown</text>
+  <text x="1115" y="536" class="small">Retained artifacts remain governed.</text>
+  <rect x="60" y="635" width="1480" height="140" rx="6" fill="#fff6df"/>
+  <text x="85" y="684" class="heading">Successful Synthetic Reference Cycle</text>
+  <text x="85" y="735">About 75 minutes up including prerequisites; 30 minutes down; Azure US$10 or less for the full cycle.</text>
+  <text x="60" y="826" class="small">Observed deploy/test/teardown result, not a production SLA, guaranteed price or distributed-throughput benchmark.</text>
+  <text x="60" y="864" class="small">Terraform enables alternative-provider adaptations; equivalent identity, policy, storage and history controls require testing.</text>
+</svg>

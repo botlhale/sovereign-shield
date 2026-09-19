@@ -1,510 +1,198 @@
-# Technical Guide — how to read this repository
+# Technical Guide: Repository Reading Order
 
-A reading order for someone who wants to understand the system properly, including
-the code, rather than deploy it.
+This guide supports code and architecture review. Deployment commands, stage
+recovery and teardown belong to the [operations runbook](AUTOMATION_RUNBOOK.md).
+Local tests require no cloud credentials; live identity and engine checks require
+an authorized synthetic workspace.
 
-**This is not a deployment guide.** [`AUTOMATION_RUNBOOK.md`](AUTOMATION_RUNBOOK.md) owns that, and nothing
-here duplicates it. You do not need a cloud subscription, credentials, or a
-Databricks workspace to complete every pass below — the test suite and the local
-Delta mirror run on a laptop, which is itself one of the architectural claims.
-
----
-
-## Before you start
-
-**Set up once:**
+## Before You Start
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python.exe -m pytest tests/ --no-header
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pytest tests/
 ```
 
-The default suite runs offline. Tests marked `live` require a real workspace and
-tests marked `stress` require an explicit opt-in. If this passes, every
-pass in this guide is available to you offline.
-
-**The one idea to hold onto.** Almost every design decision in this repository
-follows from a single claim: *entitlement is a property of the table, not of the
-application.* When something looks redundant or over-built, ask whether it exists to
-keep that claim true. It usually does.
-
----
-
-## Reading map
-
-```mermaid
-flowchart TD
-    P1["Pass 1 · The claim<br/><i>what is being asserted</i>"] --> P2["Pass 2 · The domain<br/><i>what an LBS submission is</i>"]
-    P2 --> P3["Pass 3 · The security core<br/><i>the heart of the repo</i>"]
-    P3 --> P4["Pass 4 · The pipeline<br/><i>validate, quarantine, historise</i>"]
-    P4 --> P5["Pass 5 · Consumption<br/><i>serialise and serve</i>"]
-    P5 --> P6["Pass 6 · Infrastructure<br/><i>who creates which object</i>"]
-    P6 --> P6a["Pass 6a/6b · Scale<br/><i>sizing and stress testing</i>"]
-    P6a --> P7["Pass 7 · The delivery pattern<br/><i>build without the data</i>"]
-    P7 --> P8["Pass 8 · Break it yourself<br/><i>the only pass that proves anything</i>"]
-
-    P3 -.->|"if short on time,<br/>read only this"| P8
-
-    style P3 fill:#1f2937,stroke:#f59e0b,stroke-width:3px,color:#f9fafb
-    style P8 fill:#1f2937,stroke:#10b981,stroke-width:3px,color:#f9fafb
-```
-
-If you only have appetite for two passes, do **3** and **8**. Everything else is
-supporting structure.
-
----
-
-## Pass 1 — The claim
-
-Understand what is being asserted before you look at how it is implemented.
-
-| Read | Why |
-| --- | --- |
-| [README.md § Executive Summary](../README.md) | The three obligations — sovereignty, confidentiality, integrity — and why they conflict |
-| [docs/executive_vision.md](executive_vision.md) | The non-technical framing |
-| [docs/ARCHITECTURE_DIAGRAMS.md § 1.1 System Component Architecture](ARCHITECTURE_DIAGRAMS.md) | A renderable diagram of the whole system |
-| [docs/LINKEDIN_POST.md](LINKEDIN_POST.md) | The condensed architectural argument |
-
-**Question to leave with:** what would "the application is trusted to follow the
-rules" look like, and what specifically goes wrong with it?
-
----
-
-## Pass 2 — The domain
-
-You cannot evaluate the security model without knowing what a *row* means. The
-security predicate reads segment 9 of a dot-separated key; that is meaningless until
-you know what segment 9 is.
-
-| Read | Why |
-| --- | --- |
-| [.github/skills/mvsd_specification.md](../.github/skills/mvsd_specification.md) | The Minimal Viable Synthetic Dataset — what the fixture must contain and why |
-| [.github/skills/sdmx_lbs_validation.md](../.github/skills/sdmx_lbs_validation.md) | SDMX 3.0 and the BIS LBS structure in brief |
-| [Sample SDMx-ML export](../demo/sdmx/sovereignshield_lbs_20260912T025728Z.xml) | A committed synthetic data message for inspecting the structure-specific format. |
-| [src/generate_sovereign_submissions.py](../src/generate_sovereign_submissions.py) | Docstring first — it defines the clean baseline and the CA/US/GB revision failures |
-
-**Key detail:** `TIME_SERIES_CODE` is a dot-separated SDMX key. Segment 9 is the
-reporting country. Segment 9 is the entire basis of sovereign isolation, so it is
-worth being certain you can locate it in a real key.
-
-**Segment 1 is `FREQ`, and it is not always `Q`.** Locational Banking Statistics is
-collected quarterly, but the platform is not a quarterly platform. A statistical
-hub receives annual (`A`), semi-annual (`S`), quarterly (`Q`) and monthly (`M`)
-collections into the same history table. Frequency is therefore a filter dimension
-in [uc_query.py](../src/uc_query.py) and a batch parameter on the ingestion path in
-[scd2_merge_engine.py](../src/scd2_merge_engine.py), not a constant. Reporting-period
-labels differ by cadence too — `2026`, `2026-S1`, `2026-Q1`, `2026-03` — which is why
-[generate_stress_test_data.py](../src/generate_stress_test_data.py) builds each
-cadence's labels in its own shape rather than assuming quarters.
-
-**Question to leave with:** why does §5.2 of the MVSD require confidential rows in
-*more than one* jurisdiction?
-
----
-
-## Pass 3 — The security core
-
-The heart of the repository. Read these four files in this order, as one sitting.
-
-### 3.1 The policy itself
-
-[src/unity_catalog_triple_lock.sql](../src/unity_catalog_triple_lock.sql) — 221 lines,
-and the most important file here. The comment block at
-[L85](../src/unity_catalog_triple_lock.sql#L85) states the persona matrix; the
-function below it implements it.
-
-Read `fn_rls_multi_persona_lock` closely and notice three things:
-
-1. **Every branch is an `is_account_group_member` call.** There is no `ELSE`. No
-   membership means no branch matches, the predicate is `FALSE`, and the caller gets
-   zero rows. Public is an explicit group, not a fall-through.
-2. **The tiers are composed with `OR`, not `CASE`.** Privileges are additive, so a
-   principal holding two memberships gets the union rather than whichever branch the
-   optimiser reaches first.
-3. **`try_element_at`, not `element_at`.** Under ANSI mode an out-of-range index
-   raises and would abort every query against the table. The `coalesce` to `FALSE`
-   makes a malformed key *invisible* rather than universally visible.
-
-Then read `fn_ddm_obs_conf_mask` above it, and ask why it re-checks segment 9 when
-the row filter has already run. The answer is the subject of Pass 8.
-
-### 3.2 The matrix explained
-
-[.github/skills/persona_security_matrix.md](../.github/skills/persona_security_matrix.md)
-— the prose companion. Two passages matter most:
-
-- [L41](../.github/skills/persona_security_matrix.md#L41) — why the public tier is a
-  group rather than an absence, and why that makes anonymous entitlement auditable in
-  Entra ID like any other.
-- [L146](../.github/skills/persona_security_matrix.md#L146) — the mask defect, its
-  provenance, and why a single-country corpus cannot detect it.
-
-Also read [.github/skills/triple_lock_security.md](../.github/skills/triple_lock_security.md)
-for the three locks as a set.
-
-### 3.3 The mirror
-
-[src/uc_query.py](../src/uc_query.py) — read the module docstring, then
-`_apply_persona` at [L452](../src/uc_query.py#L452).
-
-This is a pandas re-implementation of the SQL you just read, used so the security
-model can be tested without a workspace. Compare the two line by line. **When they
-disagree, the SQL is correct and the mirror is a bug** — the `--live` run exists to
-catch exactly that drift.
-
-The base table supports current and audit reads. Unity Catalog dynamic views also
-support caller-aware group membership; underlying-object definer privileges do not
-make those functions evaluate as the view owner.
-
-### 3.4 The proof
-
-[tests/test_persona_access_matrix.py](../tests/test_persona_access_matrix.py) — 261
-lines. Read [tests/conftest.py](../tests/conftest.py) first for the `PERSONA_GROUPS`
-mapping and the corpus design.
-
-Four tests carry most of the weight:
-
-| Test | What it defends |
-| --- | --- |
-| [`test_dual_membership_still_masks_foreign_confidential`](../tests/test_persona_access_matrix.py#L140) | The cross-sovereign leak. The only persona that can reach a foreign confidential row is one holding *both* submitter and researcher membership — so this is the only test where the mask, not the row filter, is the control of record |
-| [`test_principal_with_no_group_sees_nothing`](../tests/test_persona_access_matrix.py#L253) | Fail-closed. Off-boarding and inter-sovereign isolation are the same code path |
-| [`test_malformed_key_fails_closed`](../tests/test_persona_access_matrix.py#L260) | A ragged key becomes invisible, not universally visible |
-| [`test_secret_decoupling.py`](../tests/test_secret_decoupling.py) | No credential literal exists anywhere in the repository |
-
-**Question to leave with:** which single test would still pass if you deleted the
-column mask entirely? (Answer in Pass 8.)
-
----
-
-## Pass 4 — The pipeline
-
-How a submission becomes a row, and what happens when it is wrong.
-
-| Read | Why |
-| --- | --- |
-| [src/sdmx_rule_validator.py](../src/sdmx_rule_validator.py) | Docstring first. The rulebook is parsed at runtime from the published BIS workbook, so a standards revision needs no code change |
-| [.github/skills/scd2_engine.md](../.github/skills/scd2_engine.md) | The historisation state machine in prose |
-| [src/scd2_merge_engine.py](../src/scd2_merge_engine.py) | The PySpark/Delta engine that runs for real |
-| [src/local_pandas_scd2.py](../src/local_pandas_scd2.py) | The laptop fixture for the same state machine |
-| [docs/ARCHITECTURE_DIAGRAMS.md § 1.2](ARCHITECTURE_DIAGRAMS.md) | The ingestion and quarantine sequence, rendered |
-
-**The rule that matters most:** validation is atomic at the *batch* level, keyed by
-`(reporting country, reporting quarter)`. One violated check quarantines every row in
-that country-quarter — not just the offending row. The totals that reconcile depend
-on the components that did not, so publishing the clean subset would publish an
-inconsistency.
-
-**The failure mode this prevents:** a rejected submission must degrade to *stale*
-data, never *missing* data. The previously published figure stays live and the
-rejection is recorded for audit. Get this backwards and there is no error — you have
-silently deleted a published series.
-
-⚠️ **A trap.** `local_pandas_scd2.py` uses `effective_start_date` / `is_current`
-while the macro path and the SQL use `VALID_FROM` / `IS_CURRENT`. This is deliberate
-and documented in its docstring; the fixture creates its own tables. Do not
-"fix" it.
-
----
-
-## Pass 5 — Consumption
-
-| Read | Why |
-| --- | --- |
-| [src/api_gateway.py](../src/api_gateway.py) | Docstring first — the two-tier consumption model |
-| [src/sdmx_ml_exporter.py](../src/sdmx_ml_exporter.py) | Current-snapshot standard exports and separate audit CSV, using pinned offline metadata and exact decimal formatting |
-| [src/portal_ui.py](../src/portal_ui.py) | Only the shell renders server-side |
-| [README.md § 7 The Public Data Portal](../README.md) | The portal and REST gateway in context |
-
-**The load-bearing sentence,** from the gateway docstring:
-
-> The gateway decides *which identity* a query runs as; Unity Catalog decides *what
-> that identity may see*.
-
-Table policies enforce row and value entitlement. The API also controls lifecycle
-selection and feedback fields. It handles elevated bearer tokens and returned data,
-so a compromised gateway can misuse them; its integrity remains trusted.
-
-**On anonymity:** a Databricks App always sits behind workspace SSO, so the "public"
-tier there is an authenticated visitor with no sovereign entitlement. Genuinely
-anonymous access needs Azure Container Apps in front —
-[README.md § 8](../README.md) and
-[terraform/modules/dissemination_gateway](../terraform/modules/dissemination_gateway/main.tf).
-
----
-
-## Pass 6 — Infrastructure
-
-| Read | Why |
-| --- | --- |
-| [docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md § Ownership split](ENTERPRISE_ONBOARDING_PLAYBOOK.md) | Read this **before** the Terraform |
-| [docs/ARCHITECTURE_DIAGRAMS.md § 1.1a Ownership boundary](ARCHITECTURE_DIAGRAMS.md) | The same boundary, drawn |
-| [terraform/main.tf](../terraform/main.tf) | Module composition — start here, only 59 lines |
-| [terraform/modules/identity/main.tf](../terraform/modules/identity/main.tf) | Entra groups, service principals, Key Vault |
-| [terraform/modules/databricks_workspace/compute.tf](../terraform/modules/databricks_workspace/compute.tf) | The compute sizing envelope, as a cluster policy |
-| [terraform/modules/unity_catalog_governance/](../terraform/modules/unity_catalog_governance/main.tf) | Catalog, schema, warehouse, and the broad grants |
-| [src/apply_security.py](../src/apply_security.py) | Docstring explains the two-script, two-plane split |
-
-**The boundary, stated once:**
-
-- **Terraform owns the infrastructure and access-control plane** — catalogs, schemas,
-  storage credentials, external locations, SQL warehouses, cluster policies, Entra ID
-  groups, service principals, and broad RBAC (`USE CATALOG`, `USE SCHEMA`, `SELECT`).
-- **The bundle and `unity_catalog_triple_lock.sql` own the data and policy plane** —
-  table DDL, the policy UDFs, and attaching or detaching row filters and column masks.
-
-Violating this in either direction produces a resource fight where one plane reverts
-the other. It is also why teardown must run in a specific order: a leftover row
-filter blocks the catalog destroy.
-
-**Operational distinction.** `sovereignshield_up.ps1` and
-`sovereignshield_down.ps1` are supported orchestrators around Terraform, the
-Asset Bundle, and focused helper scripts. The individual imperative path in
-`steps_scripts.md` is a demo and recovery aid; Terraform remains authoritative
-for the resources it manages.
-
----
-
-## Pass 6a — Compute sizing: intent versus constraint
-
-The single most common misreading of this repository is that it only works small.
-It does not. **Single-node is a cost decision, not an architectural one.**
-
-Row filters and column masks are evaluated *inside the query engine*, against the
-caller's identity, at query time. That evaluation is a property of Unity Catalog,
-not of the cluster it runs on. A one-node sandbox and a sixteen-node Photon fleet
-enforce identical entitlement — the second one just finishes sooner.
-
-### Why the default is a single node
-
-| Setting | Default | Reason |
-| --- | --- | --- |
-| `worker_count_max` | `0` | Driver-only. No worker fleet to provision or pay for |
-| `node_type_id` | `Standard_DS3_v2` | Stays inside default Azure `DSv5` core quotas, so a new subscription can run it without a quota request |
-| `enable_photon` | `false` | On a single node the DBU premium buys little; the workload is not scan-bound at sandbox volume |
-| `sql_warehouse_size` | `2X-Small` | Serverless, auto-stopping. The gateway tolerates a cold start |
-| `data_security_mode` | `USER_ISOLATION` | **Fixed, not defaulted.** Row filters and masks are *not evaluated* on `SINGLE_USER` compute |
-
-That last row is the one that matters. It is pinned in
-[compute.tf](../terraform/modules/databricks_workspace/compute.tf) rather than left
-to the bundle, because a cluster that drifted onto `SINGLE_USER` would return
-*unfiltered rows while appearing to work*. Silent failure is the worst failure mode
-a security control can have, so the guarantee lives in infrastructure where a
-workload author cannot accidentally override it.
-
-### Scaling for an international hub
-
-A body receiving submissions from every member jurisdiction changes four variables
-and nothing else. No pipeline code changes.
-
-```hcl
-# terraform.tfvars
-worker_count_min           = 2
-worker_count_max           = 16
-node_type_id               = "Standard_E8ds_v5"   # memory-optimised
-enable_photon              = true
-sql_warehouse_size         = "Medium"             # through 2X-Large
-sql_warehouse_max_clusters = 8                    # multi-cluster load balancing
-```
-
-Each layer scales on a different axis, and confusing them wastes money:
-
-**Ingestion and SCD2 merge.** Autoscaling worker fleet, Photon on. This layer is
-bound by the width of the multi-country MERGE, so it benefits from memory-optimised
-instances and from parallelising country partitions. `worker_count_max` is
-effectively "how many jurisdictions do I want merged concurrently".
-
-**Governance.** Does not scale with the cluster at all. Row filters and table ACLs
-are evaluated natively by the engine. Adding workers does not weaken, strengthen or
-complicate the entitlement model — a property worth stating explicitly, because it
-is the reason the sandbox evaluation is meaningful.
-
-**Dissemination.** Serverless SQL warehouses, sized independently of ingestion.
-Two distinct levers here, and picking the wrong one is the usual mistake:
-
-- `sql_warehouse_size` handles *one heavy query* — a large scan or wide aggregation.
-- `sql_warehouse_max_clusters` handles *many simultaneous readers*.
-
-A public dissemination tier almost always needs the second one first. If researchers
-report queueing rather than slow individual results, raising the size is expensive
-and ineffective; adding clusters is the fix.
-
-**Cost evolution path.** Evaluate the entire security architecture on one node, prove
-the persona matrix, then scale the two compute layers independently as volume and
-concurrency demand. Nothing in the security model is revisited on the way.
-
----
-
-## Pass 6b — Executing scale and stress testing
-
-The claims above are testable. [src/generate_stress_test_data.py](../src/generate_stress_test_data.py)
-builds a reproducible high-volume corpus and
-[tests/test_scale_and_stress.py](../tests/test_scale_and_stress.py) asserts against it.
-
-### Generate a corpus
+Record the commit and environment with test results. Opt-in `live` and `stress`
+skips are not passes. The local policy mirror is a development tool, not a security
+boundary against someone who can read local files.
+
+## Pass 1: Architecture and Evidence
+
+Read [README](../README.md), [technical vision](technical_vision.md) and
+[architecture diagrams](ARCHITECTURE_DIAGRAMS.md). The companion Executive Brief
+and White Paper have the shared title **Bridging Public Dissemination and Protected
+Data: A Zero-Trust SDMx Architecture on Azure Databricks**.
+
+Identify four separate concerns: information contracts, infrastructure ownership,
+query-time entitlements and statistical disclosure. A table policy does not
+eliminate application, gateway, storage or operator trust.
+
+Live provisioning and teardown succeeded. The synthetic evaluation measured
+approximately **75 minutes up including prerequisites**, **30 minutes down**, and
+**US$10 or less in Azure charges for deploy/test/teardown**. Read the
+[measurement boundaries](RELEASE_EVIDENCE.md#reference-evaluation-metrics) before
+using those values in an institutional business case.
+
+## Pass 2: Information Contract
+
+Read [the MVSD contract](../.github/skills/mvsd_specification.md),
+[lbs_contract.py](../src/lbs_contract.py), and
+[generate_sovereign_submissions.py](../src/generate_sovereign_submissions.py).
+
+The international exchange accepts **SDMx files only**. Synthetic bank
+micro-transactions exist solely as educational artifacts showing how realistic
+observations are calculated. Their demo ledger is not an institutional intake
+requirement or system deliverable. The receiver validates the submitted file
+independently; it does not recompute it from the educational ledger.
+
+The eleven-part key uses segment 9 for reporting country and segment 1 for frequency.
+The LBS fixture is quarterly; generic multi-cadence stress labels are not evidence
+of valid BIS codes. The pinned structure/codelists and explicit metadata profile
+are authoritative. `DECIMAL(38,3)`, genuine zero and masked absence have distinct
+semantics; three decimals are a reference convention, not universal SDMx policy.
+
+## Pass 3: Security Core
+
+Read in order:
+
+1. [Policy SQL](../src/unity_catalog_triple_lock.sql): independent `OR` entitlements,
+   segment-9 ownership checks, explicit public membership and fail-closed masking.
+2. [Policy executor](../src/apply_security.py): schema checks, immutable functions,
+   no-detach binding changes, definition/binding verification and error propagation.
+3. [Persona reference](../.github/skills/persona_security_matrix.md): account-group
+   resolution, temporal product scope and trusted boundaries.
+4. [Local query mirror](../src/uc_query.py) and [persona tests](../tests/test_persona_access_matrix.py):
+   compare expectations with the actual UC policy, not merely with each other.
+
+The mask repeats own-country validation even when the row filter permits access
+through another membership. Unknown/missing classification is withheld except
+for explicitly entitled administrator/own-country access. Non-throwing segment
+lookup prevents indexing failures; strict ingestion still owns key validation.
+
+The Researcher role reveals observation presence. Public totals and related
+breakdowns can reconstruct a masked value without a policy bypass. Follow the
+[open synthetic challenge](../SECURITY.md#statistical-reconstruction-challenge)
+and restrict/remove that role if existence disclosure makes inference trivial.
+Public products require independent disclosure review as well.
+
+## Pass 4: Validation and History
+
+Read [sdmx_rule_validator.py](../src/sdmx_rule_validator.py),
+[submission_history.py](../src/submission_history.py),
+[spark_submission_history.py](../src/spark_submission_history.py),
+[scd2_merge_engine.py](../src/scd2_merge_engine.py) and
+[local_pandas_scd2.py](../src/local_pandas_scd2.py).
+
+Format, DSD/code, sender/profile and arithmetic checks are distinct. Twenty-one
+within-dataset checks are implemented; six cross-collection checks and missing
+breakdowns are explicitly reported. The workbook interpreter remains code requiring
+semantic review. Metadata changes need regression tests.
+
+One immutable message contains a full country/period/aggregation snapshot. Accepted
+expiry and insertion occur in one Delta MERGE. A smaller replacement closes omitted
+keys only in that scope. Rejected or late audit-only arrivals do not close the
+current accepted state. Same-message replay is a no-op; a new identical filing
+retains identity. Current `VALID_TO` is `NULL`, and temporal columns are uppercase
+in the current local and Spark contracts.
+
+The job is single-writer. The local file lock does not coordinate distributed
+writers, and the ledger/history writes are not a multi-table transaction. Repair
+against archived files; generator reruns produce new message identities.
+
+## Pass 5: Analyst and Dissemination Products
+
+Read [api_gateway.py](../src/api_gateway.py), [uc_query.py](../src/uc_query.py),
+[sdmx_ml_exporter.py](../src/sdmx_ml_exporter.py) and
+[lifecycle tests](../tests/test_lifecycle_api.py).
+
+The **Analyst View** reconciles the latest filing a submitter expects the
+international organization to hold with actual IDs, timestamps, values and verdicts.
+`lifecycle=published|all|quarantine` distinguishes current publication from rejected
+arrivals. Complete accepted history and trusted transport receipts remain separate
+workflows; processing time is not transport attestation.
+
+The trusted gateway selects identity, lifecycle and user filters; UC applies row/value
+entitlement. Standard SDMx exports are current/published-only; audit CSV is separate.
+The serializer uses pinned offline components and exact decimal formatting.
+Masked values are absent, never zero. Exported files cannot enforce future revocation.
+
+## Pass 6: Infrastructure and Ownership
+
+Read [the engagement playbook](ENTERPRISE_ONBOARDING_PLAYBOOK.md),
+[Terraform root](../terraform/main.tf), [compute policy](../terraform/modules/databricks_workspace/compute.tf),
+[governance grants](../terraform/modules/unity_catalog_governance/main.tf) and
+[resource provenance](RESOURCE_PROVENANCE.md).
+
+Terraform owns infrastructure and grants. The bundle and policy executor own
+data/policy objects without detaching existing protection. One owner manages each
+grant principal/securable pair. Databricks account setup, run-as permission and
+stable object ownership are separate operations.
+
+The framework is technology-agnostic; Terraform provider/module boundaries support
+AWS, GCP, Microsoft Fabric and open-source adaptations. Azure authentication,
+Databricks hosting and UC SQL are implementation-specific. Ports need equivalent
+identity, policy, history and recovery tests.
+
+### Pass 6a: Compute Sizing
+
+The reference defaults to a single-node, no-Photon ingestion policy and an
+independently auto-stopping SQL warehouse. Larger workers or Photon require
+`-ApproveComputeScale`. Runtime/access-mode policy support must be checked; do not
+describe every dedicated compute mode as an unfiltered bypass.
+
+More workers do not distribute pandas XML parsing and arithmetic validation or
+automatically parallelize jurisdictions. Measure driver memory, merge cost,
+individual query latency, queueing and total resource usage before resizing.
+Warehouse size and concurrency are different levers, and neither is a universal fix.
+
+### Pass 6b: Scale and Stress Tests
 
 ```powershell
-# 100,000 macro observations, all four cadences, summary to stdout
 .venv\Scripts\python.exe src/generate_stress_test_data.py --rows 100000 --frequencies "A,S,Q,M" --periods 4
-
-# Write it to CSV instead
-.venv\Scripts\python.exe src/generate_stress_test_data.py --rows 250000 --out data/stress/macro.csv
-
-# The bank-level ledger that aggregates to it (3 banks per series)
-.venv\Scripts\python.exe src/generate_stress_test_data.py --rows 100000 --micro --out data/stress/micro.csv
-```
-
-Expected shape at 100k rows: roughly 23,750 distinct series across 7 jurisdictions
-and 4 cadences, with about 30,000 confidential rows and 1,500 quarantined revisions.
-
-Generation is seeded, so a given `--seed` reproduces a byte-identical corpus. This
-is not cosmetic: **a benchmark whose input changes between runs measures nothing.**
-
-### Run the benchmarks
-
-```powershell
-# Skipped by default. Opt in explicitly.
 .venv\Scripts\python.exe -m pytest tests/test_scale_and_stress.py --stress
-
-# One benchmark, with the throughput print visible
-.venv\Scripts\python.exe -m pytest tests/test_scale_and_stress.py --stress -k throughput -s
 ```
 
-### What each tier proves
+The [stress generator](../src/generate_stress_test_data.py) and
+[stress tests](../tests/test_scale_and_stress.py) measure synthetic local behavior.
+The optional synthetic micro fixture is educational, not a submitted production
+ledger. Record seed, actual corpus counts, hardware and test selection; do not
+present laptop linearity as concurrent cloud throughput.
 
-**Pandas tier — always runs.** Exercises the row filter and column mask mirror
-against the full corpus:
+Spark tests require a compatible JVM. `JAVA_GATEWAY_EXITED` can prevent session
+construction; an environment skip does not validate a merge. Failures after a
+session starts must not be hidden as environmental skips.
 
-| Assertion | Guards against |
-| --- | --- |
-| Entitlement pass stays sub-second per persona | A regression into per-row evaluation |
-| 4× rows costs well under 20× time | An accidental quadratic in the predicate |
-| No foreign confidential value survives masking | The cross-sovereign leak, at volume |
-| Unaffiliated principal sees zero rows | The fail-closed default |
-| One open interval per key | SCD2 duplicating history |
+## Pass 7: Provider Engagement and Handover
 
-**PySpark tier — conditional.** Benchmarks the real
-[scd2_merge_engine.py](../src/scd2_merge_engine.py) MERGE against Delta and re-asserts
-interval integrity afterwards.
+Read [the provider workflow](../.github/skills/contractor_zero_trust_workflow.md),
+[the client playbook](ENTERPRISE_ONBOARDING_PLAYBOOK.md) and
+[the promotion workflow](../.github/workflows/promote.yml).
 
-It skips when a Spark session cannot be constructed. Note the distinction the test
-makes deliberately: **session construction failing is an environment verdict and
-skips; an assertion failing after the merge is a defect verdict and fails.** If those
-were collapsed into one `try`, a genuinely broken merge could hide behind a missing
-JVM.
+Review approved independent-versus-client repository ownership, confidential
+metadata boundaries, time-bounded sandbox access, independent promotion and
+client-run production acceptance. A clone does not deploy or certify production.
+Offboarding includes identities, sessions, RBAC, vault, GitHub, ownership and
+exports while retaining client-owned runtime service principals.
 
-If you see `JAVA_GATEWAY_EXITED`, that is the environment tier, not a code failure —
-Spark needs a compatible JVM, and an importable `delta` package is not sufficient
-evidence that one is present.
+## Pass 8: Focused Failure Injection
 
-### Inspecting execution plans
+Use a disposable local copy with synthetic data and no cloud credentials. Introduce
+one deliberate mask defect, such as removing the segment-9 ownership check, and
+run [persona tests](../tests/test_persona_access_matrix.py). The dual-membership
+test must detect foreign-value exposure; the exact number of failures can change
+as coverage grows. Revert only the deliberate edit or discard that isolated copy,
+not unrelated work in the primary checkout.
 
-```powershell
-# Physical plan for the persona-filtered read
-.venv\Scripts\python.exe -c "import sys; sys.path.insert(0,'src'); from uc_query import build_search_sql, SeriesFilter; print(build_search_sql(SeriesFilter.build(reporting_country=['CA'], frequency=['Q']))[0])"
-```
+Repeat with single-country versus multi-country fixtures to assess coverage gaps.
+A test that only observes rows already removed by RLS does not verify the mask.
+Then construct a synthetic inference case from public totals and row presence:
+correct authorization can coexist with unacceptable information disclosure.
 
-Against a live warehouse, prefix any generated query with `EXPLAIN FORMATTED` to
-confirm the row filter is pushed into the scan rather than applied after it.
+## Review Outputs
 
----
-
-## Pass 7 — The delivery pattern
-
-The claim that is genuinely unusual, and the one most worth interrogating.
-
-| Read | Why |
-| --- | --- |
-| [.github/skills/contractor_zero_trust_workflow.md](../.github/skills/contractor_zero_trust_workflow.md) | The Skill-Driven Zero-Access Contractor Delivery Pattern |
-| [tests/test_contractor_isolation.py](../tests/test_contractor_isolation.py) | The pattern asserted in code |
-| [docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md](ENTERPRISE_ONBOARDING_PLAYBOOK.md) | All five phases, including § Where this model stops |
-| [.github/workflows/promote.yml](../.github/workflows/promote.yml) | OIDC federation, no stored secret |
-| [README.md § Safe Engagement & Clean Handover](../README.md) | The handover and the cut-off |
-
-**The argument:** the specialist you need for confidential data work is, by
-definition, someone who should not have the data. So build against a synthetic
-dataset specified by the client, hand over, and revoke. Revocation is three
-actions — rotate the service principal, drop the Key Vault access, remove the group
-memberships — and none of them touch code, because row filters grant only on
-*positive* membership.
-
-**Interrogate it here:** read § Where this model stops in the playbook. The pattern
-has real limits and they are stated rather than hidden. A model whose limitations are
-not documented is a sales pitch.
-
----
-
-## Pass 8 — Break it yourself
-
-Nothing before this proves anything. This pass does.
-
-### 8.1 The exercise
-
-Open [src/uc_query.py](../src/uc_query.py), find `_apply_persona`, and remove the
-segment-9 re-check from the masking logic — make it mask on the confidentiality flag
-and group membership alone. This reintroduces the original defect.
-
-Run the suite:
-
-```powershell
-.venv\Scripts\python.exe -m pytest tests/test_persona_access_matrix.py --no-header
-```
-
-**Exactly one test should fail:**
-[`test_dual_membership_still_masks_foreign_confidential`](../tests/test_persona_access_matrix.py#L140).
-
-If more than one fails, you removed too much. If **none** fails, you have reproduced
-the more interesting half of the original problem — the first test written for this
-defect passed against a completely broken mask, because the row filter had already
-removed those rows before the mask ran. The assertion was true for the wrong reason.
-
-Restore the file with `git checkout src/uc_query.py`.
-
-### 8.2 Second exercise
-
-Delete one jurisdiction from the corpus fixture in
-[tests/conftest.py](../tests/conftest.py) so only one country has confidential rows.
-Reintroduce the same defect. Watch the suite pass.
-
-That is the entire argument for §5.2 of the MVSD specification, and it is more
-convincing to watch than to read.
-
-### 8.3 What to take from it
-
-> A test you have never watched fail is a test you have not written.
-
-The corollary is the reason the fixture is specified as carefully as the security
-model: a test's coverage is bounded by its data, and a single-jurisdiction fixture
-makes a cross-border leak undetectable no matter how well written the assertion is.
-
----
-
-## Traps and gotchas
-
-Collected so you do not have to rediscover them.
-
-| Trap | Reality |
-| --- | --- |
-| `Principal.persona` returns `"public"` for a group-less caller ([uc_query.py L283](../src/uc_query.py#L283)) | A *display label only*. The row filter still returns zero rows. Cosmetic, not a leak — `may_see_quarantine` correctly returns `False` |
-| "Public means unauthenticated" | Public is the explicit group `sg-sovereignshield-public`. The app's own service principal is a member; that is why anonymous visitors see anything |
-| Filtering in a Unity Catalog view | Caller-aware dynamic views are supported. This gateway reads the base table to support lifecycle audit modes |
-| RLS appears not to work | Row filters and column masks are not evaluated on `SINGLE_USER` compute. `USER_ISOLATION` is mandatory |
-| `*_secret_id` Terraform variables | Pointers, not secrets. Excluded from the secret scanner by design |
-| Individual imperative helpers | Useful for demos and recovery; use `sovereignshield_up.ps1` and `sovereignshield_down.ps1` for the supported lifecycle |
-| `local_pandas_scd2.py` column names | Intentionally different from the macro path. Documented in its docstring |
-| "Single-node means it doesn't scale" | Single-node is the *default*, set by `worker_count_max = 0`. Entitlement is evaluated by the engine and is identical at any size |
-| "Raise the warehouse size when it's slow" | Size fixes heavy single queries; `sql_warehouse_max_clusters` fixes concurrency. Queueing is usually the second problem |
-| `JAVA_GATEWAY_EXITED` in the stress suite | Environment, not code. Spark needs a compatible JVM; an importable `delta` package does not prove one exists |
-| The pipeline SPN in the admin group | Required. The SCD2 engine reads the table to find rows to expire; if the filter hid them, every row would look new and history would silently duplicate |
-
----
-
-## Where to go next
-
-- **To deploy it:** [One-command operations](AUTOMATION_RUNBOOK.md).
-- **To present it:** [docs/technical_vision.md § Talking points](technical_vision.md)
-  and § Anticipated challenges.
-- **For the capability inventory:** [.github/skills/SKILLS.md](../.github/skills/SKILLS.md).
-- **To challenge it:** § Where this model stops in the
-  [playbook](ENTERPRISE_ONBOARDING_PLAYBOOK.md), and § Anticipated challenges in the
-  [technical vision](technical_vision.md). Both exist to be argued with.
+Record the tested revision, contracts verified, commands/results, skipped gates,
+information risks and named client decisions. Use [Release Evidence](RELEASE_EVIDENCE.md)
+for migration and measurement limits and [the publication plan](LINKEDIN_POST.md)
+for stakeholder distribution. Do not equate a reference evaluation with production
+accreditation, physical residency or universal revocation.

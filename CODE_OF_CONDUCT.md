@@ -2,9 +2,9 @@
 
 ## Our Commitment
 
-SovereignShield is an independently maintained reference implementation. We are committed to a professional, inclusive, and harassment-free community for everyone, regardless of background, identity, experience, education, nationality, appearance, disability, race, religion, sex characteristics, gender identity or expression, or sexual orientation.
+SovereignShield is an independently maintained reference implementation committed to a professional, inclusive, and harassment-free community for everyone, regardless of background, identity, experience, education, nationality, appearance, disability, race, religion, sex characteristics, gender identity or expression, or sexual orientation.
 
-We expect participation to reflect the care appropriate to security, statistical standards, public institutions, and sovereign data systems.
+Participation must reflect the care appropriate to security, statistical standards, public institutions, and sovereign data systems.
 
 ## Expected Behavior
 

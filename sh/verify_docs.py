@@ -1,10 +1,14 @@
 """Check repository-local Markdown links and render isolated publication proofs."""
 
 import argparse
+import hashlib
+import json
 import re
+import struct
 import subprocess
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+from xml.etree import ElementTree
 
 from markdown_it import MarkdownIt
 
@@ -24,7 +28,7 @@ def children(tokens):
 
 def check_links():
     listed = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT, check=True, text=True, capture_output=True).stdout
-    paths = {ROOT / name for name in listed.splitlines() if name != "docs/solution_audit.md"}
+    paths = {ROOT / name for name in listed.splitlines()}
     failures = []
     checked = 0
     for path in sorted(paths):
@@ -50,6 +54,36 @@ def check_links():
     if failures:
         raise ValueError("\n".join(failures))
     print(f"Verified {checked} local Markdown links and heading anchors.")
+
+
+def render_diagrams():
+    chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+    if not chrome.is_file():
+        raise RuntimeError("Chrome is required to render the publication diagram PNGs.")
+    output = ROOT / ".pytest_cache" / "publication-diagrams"
+    output.mkdir(parents=True, exist_ok=True)
+    manifest = []
+    for source in sorted((ROOT / "docs/figures").glob("*.svg")):
+        root = ElementTree.parse(source).getroot()
+        width, height = int(root.attrib["width"]), int(root.attrib["height"])
+        image = source.with_suffix(".png")
+        subprocess.run([
+            str(chrome), "--headless", "--disable-gpu", "--hide-scrollbars",
+            "--force-device-scale-factor=1", f"--window-size={width},{height}",
+            f"--user-data-dir={output / (source.stem + '-profile')}",
+            f"--screenshot={image}", source.as_uri(),
+        ], capture_output=True, text=True, timeout=60, check=True)
+        data = image.read_bytes()
+        if not data.startswith(b"\x89PNG\r\n\x1a\n") or struct.unpack(">II", data[16:24]) != (width, height):
+            raise ValueError(f"Diagram render has unexpected dimensions: {image.name}")
+        manifest.append({
+            "source": source.relative_to(ROOT).as_posix(),
+            "image": image.relative_to(ROOT).as_posix(),
+            "source_sha256": hashlib.sha256(source.read_text(encoding="utf-8").encode("utf-8")).hexdigest(),
+            "image_sha256": hashlib.sha256(data).hexdigest(),
+        })
+        print(f"Rendered {image.relative_to(ROOT)}: {width}x{height}")
+    (ROOT / "docs/figures/manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
 def render_proofs():
@@ -85,7 +119,10 @@ def render_proofs():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--print-proof", action="store_true")
+    parser.add_argument("--render-diagrams", action="store_true")
     args = parser.parse_args()
+    if args.render_diagrams:
+        render_diagrams()
     check_links()
     if args.print_proof:
         render_proofs()

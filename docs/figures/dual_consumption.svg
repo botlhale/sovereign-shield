@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">Two Hosts, Explicit Identities</title>
+  <desc id="description">Databricks App SSO and Azure Container Apps anonymous or signed-in access reach the same trusted gateway. The gateway selects identity and lifecycle; Unity Catalog enforces account-group row and value entitlements.</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10" fill="#52636b"/></marker></defs>
+  <style>text{font-family:'Segoe UI',sans-serif;fill:#183137;font-size:28px;letter-spacing:0}.title{font-size:48px;font-weight:700}.heading{font-size:30px;font-weight:700}.small{font-size:24px}.line{stroke:#52636b;stroke-width:3;fill:none;marker-end:url(#arrow)}</style>
+  <rect width="1600" height="900" fill="white"/>
+  <text x="60" y="82" class="title">Two Hosts, Explicit Identities</text>
+  <text x="60" y="130">Current published SDMx products and authorized audit products remain distinct</text>
+  <rect x="60" y="200" width="650" height="205" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
+  <text x="90" y="252" class="heading">Databricks App</text>
+  <text x="90" y="302">Workspace SSO; forwarded caller token</text>
+  <text x="90" y="350">Not a genuinely anonymous endpoint</text>
+  <rect x="890" y="200" width="650" height="205" rx="6" fill="#edf7f3" stroke="#167d69" stroke-width="2"/>
+  <text x="920" y="252" class="heading">Azure Container Apps</text>
+  <text x="920" y="302">Anonymous: explicit public-proxy principal</text>
+  <text x="920" y="350">Signed in: Easy Auth and caller token</text>
+  <path d="M385 405 V450 H800 V485" class="line"/><path d="M1215 405 V450 H800" class="line"/>
+  <rect x="300" y="495" width="1000" height="140" rx="6" fill="#f6f9fa" stroke="#90a5aa" stroke-width="2"/>
+  <text x="330" y="545" class="heading">Trusted Gateway</text>
+  <text x="330" y="592">Selects SQL identity, user filters and lifecycle; handles tokens and results</text>
+  <path d="M800 635 V690" class="line"/>
+  <rect x="300" y="700" width="1000" height="115" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
+  <text x="330" y="745" class="heading">Unity Catalog</text>
+  <text x="330" y="787">Account-group row/value entitlements on supported query paths</text>
+  <text x="60" y="867" class="small">Masking is not statistical disclosure control. Published totals and researcher-visible row presence require review.</text>
+</svg>

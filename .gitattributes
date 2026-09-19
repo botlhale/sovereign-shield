@@ -1,1 +1,4 @@
 src/reference_data/sdmx_json_2_0.schema.json -text
+docs/figures/*.svg text eol=lf
+docs/figures/manifest.json text eol=lf
+docs/figures/*.png -text

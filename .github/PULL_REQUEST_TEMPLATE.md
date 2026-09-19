@@ -12,6 +12,7 @@
 - Data lifecycle or quarantine behavior affected:
 - SDMX structures or formats affected:
 - Infrastructure or deployment ownership affected:
+- Observation-existence or public-value reconstruction risk affected:
 
 ## Validation
 
@@ -31,5 +32,5 @@
 - [ ] No credentials, state, private keys, personal data, client data, or real institutional records are included.
 - [ ] New fixtures and screenshots use synthetic data only.
 - [ ] Security controls remain fail-closed.
-- [ ] I have read and agree to follow the Code of Conduct.
-- [ ] I understand that my contribution is submitted under Apache License 2.0.
+- [ ] The Code of Conduct has been reviewed and accepted.
+- [ ] The contribution is intentionally submitted under Apache License 2.0.

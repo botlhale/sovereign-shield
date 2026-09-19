@@ -1,8 +1,9 @@
 # Live Deployment Recovery: 18 September 2026
 
-This records the Stage 6 timeout recovery and completion of the current synthetic
-deployment. It is separate from the [15 September evaluation](LIVE_DEPLOYMENT_2026_09_15.md),
-whose workload was removed. This workload is left running for user testing.
+This dated record covers Stage 6 timeout recovery and completion of one synthetic
+deployment. It is separate from the [15 September evaluation](LIVE_DEPLOYMENT_2026_09_15.md).
+The workload was left running at recovery handover and subsequently torn down by
+the operator. The listed URLs identify that run, not a continuously available service.
 
 ## Failure and Repair
 
@@ -36,7 +37,7 @@ Total task elapsed time was 10.8 minutes, including state/output discovery.
 Stages 0-5 were not rerun; no submission regeneration or infrastructure rebuild
 was needed for this recovery.
 
-## Current Endpoints
+## Recorded Endpoints
 
 - Databricks App: <https://sovereignshield-portal-7405617422422154.14.azure.databricksapps.com>
 - Public gateway: <https://ca-sovereignshield-portal.bravesand-f77ee01a.canadacentral.azurecontainerapps.io>
@@ -68,5 +69,13 @@ was needed for this recovery.
   and elevated-persona browser flows still require user verification; they are
   not claimed as tested here.
 
-No teardown or push was performed for this recovery. Running resources continue
-to incur charges; a billed total was not established.
+No teardown or push was part of the recovery task itself. Subsequent successful
+script-driven provisioning and teardown were confirmed in the reference evaluation:
+approximately 75 minutes up including prerequisites, 30 minutes down, and US$10 or
+less in Azure charges for deploy/test/teardown. See [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics);
+those values are not the 10.8-minute partial recovery above or a production guarantee.
+
+SDMx files are the modeled international input. Synthetic bank micro-transactions
+remain educational calculation artifacts, not a system deliverable. The Analyst
+View reconciles expected latest filings with receiver state. Researcher discovery
+remains conditional on [disclosure assessment](../SECURITY.md#statistical-reconstruction-challenge).

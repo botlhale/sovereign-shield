@@ -48,3 +48,41 @@ General bugs, documentation errors, feature requests, and deployment questions b
 ## Deployment Responsibility
 
 This repository uses synthetic data and is not a production accreditation or managed service. Operators are responsible for threat modelling, privacy and legal review, identity governance, network design, monitoring, backup, recovery, and secure configuration of their own deployments. Public disclosure of this architecture does not grant access to any deployment operated by the author, maintainers, or another organization.
+
+## Statistical Reconstruction Challenge
+
+Row-level security and column masking enforce entitlements; they do not establish
+statistical non-disclosure. Released totals, components, overlapping breakdowns,
+time-series revisions and auxiliary public sources can reconstruct a withheld
+measure. The synthetic fixture includes the exact residual $1000-400-500=100$.
+Knowledge of the calculation method or the existence of a particular row can
+make a masked value identifiable without bypassing any access-control function.
+
+The Researcher persona exposes published keys, row existence and confidentiality
+metadata while withholding restricted measures. That metadata is an information
+product requiring its own disclosure decision, not a harmless substitute for values.
+Community review of this **identified open challenge** is invited using synthetic
+data. Document the released inputs, filters, units, time periods, equations or
+linkage, inference confidence and affected personas. Do not probe third-party
+deployments or use confidential source records.
+
+Use a public issue for discussion of this already documented synthetic challenge.
+Report a new exploitable access-control weakness through private vulnerability
+reporting. Neither route grants authorization to test a live deployment.
+
+Before production, the originating data authority and disclosure reviewer must:
+
+1. Assess values, row presence, keys, counts, flags and revision differences across
+	all released products and cumulative downloads, including public-only access.
+2. Restrict or remove the Researcher role if identifying a row makes reconstruction
+	trivial. Consider a pre-approved metadata catalog that does not disclose
+	restricted observation existence. These are design options, not implemented controls.
+3. Validate secondary suppression, approved perturbation or a redesigned release
+	product against the statistical utility and consistency requirements.
+4. Re-run disclosure tests after every change to dimensions, release history,
+	aggregation, personas or external linkage assumptions, and record release approval.
+
+Removing the Researcher role does not repair inference possible from public totals.
+The synthetic 0.60 dominance rule and educational bank micro-transaction ledger
+illustrate classification only; they are not a complete disclosure methodology or
+an international submission requirement.

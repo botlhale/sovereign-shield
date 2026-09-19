@@ -1,8 +1,10 @@
-# SovereignShield
+# Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks
+
+**Executive Brief**
 
 ## 1. The Decision
 
-**An independent Azure-native reference study in synthetic-first statistical platform delivery.**
+**A technology-agnostic delivery and information-governance pattern, demonstrated on Azure and Databricks.**
 
 **Author:** Botlhale Mosweu. **Project steward:** Augmenta Systems (13668754 Canada Inc.). Developed in a personal capacity; no employer, central bank, statistical institution or vendor sponsorship is implied.
 
@@ -23,13 +25,17 @@ The decision is whether this delivery pattern reduces engagement and handover fr
 
 Researcher discovery creates a basis for requesting an agreement with the originating country. It does not confer permission to access a restricted measure. Multiple memberships combine explicitly; offboarding must remove every relevant entitlement and control-plane right.
 
+The **Analyst View** is the regional submitter workflow. Analysts reconcile the latest filing they expect the international organization to hold against actual submission IDs, timestamps, values and validation outcomes. The latest submission and the latest accepted publication are distinct states.
+
 <div style="page-break-after: always;"></div>
 
 ## 3. One Architecture
 
-![SovereignShield executive architecture](sovereign-shield_executive.jpg)
+![Governed SDMx exchange and distinct information products](figures/executive_architecture.png)
 
 Synthetic national submissions enter a protected archive. Validation makes a country/period verdict. Delta history separates accepted state from rejected arrivals. Unity Catalog evaluates query-time row and column policies. A gateway serves current SDMx feeds and distinct audit CSVs.
+
+The international intake contract is **SDMx files only**. Synthetic bank micro-transactions are educational fixtures explaining the calculation of realistic observations; they are not a client intake requirement or system deliverable. Domestic granular-data collections are outside this modeled exchange.
 
 The image describes the architecture, not proof of physical country residency or complete confidentiality protection. The demonstrator uses a shared workspace with logical jurisdiction boundaries.
 
@@ -49,14 +55,14 @@ Three decimal places are this demonstration's explicit profile, not a universal 
 
 ## 5. Evidence and Limits
 
-| Demonstrated Locally | Still Required |
+| Demonstrated on Synthetic Data | Production Acceptance Required |
 | --- | --- |
-| Failure-injection policy tests and no-detach deployment path | Actual UC migration and policy-binding acceptance |
+| Local failure injection and live UC policy-binding checks | Legacy migration and independent control acceptance |
 | Decimal fidelity, code rejection, official JSON Schema checks | Full provisioning/content constraints and independent rule review |
-| Real local Delta atomic commits, replay and smaller replacement cases | Distributed conflicts, recovery and production-volume measurements |
-| Persona mirror, API workflows, desktop/mobile portal checks | Live signed-in persona matrix and two-host release verification |
+| Local and live Delta replay and smaller-replacement checks | Distributed conflicts, recovery and production-volume measurements |
+| Live persona SQL/API checks, public exports, provisioning and teardown | Institution-specific identity, disclosure and operational acceptance |
 
-RLS and masking do not stop statistical inference from public totals. A production release needs an approved disclosure-control method, not simply stronger wording about Zero Trust.
+**Open challenge:** published totals and the existence of a researcher-visible observation can reveal a masked value. Community reconstruction tests using synthetic data are invited. Restrict or remove the Researcher role if row presence makes inference trivial; public-only totals also require disclosure review. RLS and masking do not replace approved statistical disclosure control.
 
 Detailed methods and unresolved gates are in [Release Evidence](RELEASE_EVIDENCE.md). Historical screenshots are labelled historical, not fresh release results.
 
@@ -74,6 +80,8 @@ Detailed methods and unresolved gates are in [Release Evidence](RELEASE_EVIDENCE
 
 Full offboarding reviews groups, sessions, tokens, Azure/vault/GitHub rights and delegated ownership. A group removal is one control, not the whole process.
 
+The [Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md) assigns repository, permission, acceptance and operational responsibilities from discovery through client-controlled deployment.
+
 <div style="page-break-after: always;"></div>
 
 ## 7. Investment and Roadmap
@@ -84,7 +92,11 @@ Full offboarding reviews groups, sessions, tokens, Azure/vault/GitHub rights and
 
 **Assurance:** Rehearse protected migration, test the live persona matrix, recovery and offboarding, validate disclosure control, and obtain legal/provenance clearance.
 
-**Operational adoption:** Proceed only when the institution accepts the evidence, operating model and recurring cost. Estimate Azure resources explicitly, then compare tagged actual costs; do not invent savings or extrapolate laptop benchmarks into a production business case.
+**Reference evaluation:** successful provisioning took approximately **75 minutes including prerequisites**; teardown took **30 minutes**. The deploy/test/teardown cycle cost **US$10 or less in Azure charges**. This is an observed synthetic-workload result, not a production estimate or guaranteed price. [Measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
+
+**Technology options:** Terraform module/provider boundaries support AWS, GCP, Microsoft Fabric and open-source alternatives. Identity, policy enforcement, storage and lifecycle adapters must be implemented and acceptance-tested; the Azure/Databricks code is not portable unchanged.
+
+**Operational adoption:** Requires accepted controls, recurring-cost estimates and an accountable client operating team.
 
 <div style="page-break-after: always;"></div>
 
@@ -94,6 +106,6 @@ Which access and revision cases would your architecture board require before per
 
 The contribution is a transparent integration and delivery example, complementing SDMx registries, reference infrastructure and pysdmx. It is not a claim that other organizations lack these controls or that this architecture is globally novel.
 
-[Repository](https://github.com/botlhale/sovereign-shield) | [Full whitepaper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) | [Evidence and migration](RELEASE_EVIDENCE.md)
+[Repository](https://github.com/botlhale/sovereign-shield) | [Companion White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) | [Evidence and migration](RELEASE_EVIDENCE.md)
 
 **Independent work:** Synthetic data and public standards only. Not affiliated with, sponsored by, or representative of the Bank of Canada, Federal Reserve System, BIS, or any official statistical institution. This brief is a decision aid, not legal advice, production accreditation, or an offer of institutional endorsement.

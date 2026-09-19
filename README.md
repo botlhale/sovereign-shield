@@ -7,7 +7,7 @@ Synthetic-first delivery and governed access for SDMx statistical submissions.
 > **Independent Reference Architecture Notice:**  
 > This publication and associated reference implementations were developed in a personal capacity using synthetic data fixtures and publicly available international statistical standards (SDMx 3.0, BIS Locational Banking Statistics). This work is not affiliated with, sponsored by, or representative of the Bank of Canada, the Federal Reserve System, the Bank for International Settlements, or any official statistical institution.
 
-![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions submit standardised documents along a pathway; an automated rule check deflects one submission into a "held for correction" tray while the rest continue into a governed data vault wrapped in three policy rings labelled "who you are", "what you may see" and "what is published"; four audiences (public, researcher, national analyst, auditor) draw from that single source through beams of increasing width.](docs/sovereign-shield_executive.jpg)
+![Governed SDMx exchange: SDMx-only intake, validated submission history, account-group entitlements, current publication, analyst reconciliation and authorized audit. Reconstruction risk remains a separate disclosure decision.](docs/figures/executive_architecture.png)
 
 ## Executive Summary
 
@@ -15,7 +15,11 @@ Every quarter, national central banks transmit confidential banking statistics t
 
 Institutions already uphold these obligations rigorously today, using specialised open-source SDMx software (such as the SDMX Reference Infrastructure), dedicated application layers, and strict operational protocols developed over many years. That work is mature, and this project does not try to replace it.
 
-SovereignShield asks an adjacent architectural question: *what happens if the same obligations are moved out of the application layer entirely and expressed as constraints of the cloud data platform itself?*
+SovereignShield implements query-time entitlements in the data platform, alongside explicit application, identity, publication and operating controls. It is an independent reference architecture for synthetic-first delivery, not a replacement for institutional governance or established SDMx infrastructure.
+
+**Submission boundary:** the modeled international exchange accepts SDMx files, not bank micro-transactions. Synthetic bank micro-transactions exist solely as educational fixtures showing how realistic observations and confidentiality flags are calculated. The demonstration ledger is not an institutional intake requirement or system deliverable; domestic granular-data collections and other exchange regimes remain outside scope.
+
+**Analyst View:** the regional submitter workflow reconciles the latest filing an analyst expects the international organization to hold with actual submission IDs, timestamps, values and validation outcomes. The latest submitted filing may be rejected while an earlier accepted version remains published. This distinction provides a verifiable basis for trust in data currency.
 
 **Scope:** this study applies group-based query-time entitlements to synthetic statistical submissions. Unity Catalog uses Databricks account-group membership; provisioning reconciles selected Entra identities, not continuous Entra deprovisioning. The gateway caches identity metadata briefly. Logical country segregation is not physical data residency, and masking alone does not prevent statistical inference from published totals.
 
@@ -31,9 +35,11 @@ Table policies apply on supported Unity Catalog query paths independently of an 
 
 The rulebook is read as metadata, but its interpreter is code that needs review. The implementation evaluates 21 within-dataset arithmetic checks and explicitly reports six cross-collection checks as unsupported. The pinned DSD/codelist contract is refreshed deliberately, not from unreviewed `latest` metadata. Terraform state and plans contain sensitive credentials even when current source contains no credential literal.
 
-> **Status:** the September 2026 synthetic release was deployed and live-tested on Azure, including decimal history, policy bindings, atomic replacement/replay, real persona SQL checks and public exports. After the user confirmed testing complete, the workload was torn down and cleanup verified; both cloud portals are now inactive. See the [live deployment record](docs/LIVE_DEPLOYMENT_2026_09_15.md) for evidence, recovery fixes and retained resources. Historical screenshots document an earlier revision; this is not production accreditation. Existing legacy environments still require an approved migration.
+> **Live evaluation:** successful Azure provisioning, testing and teardown are documented. The reference cycle took approximately **75 minutes to bring up the project, including prerequisite setup**, and **30 minutes to tear down**, with **US$10 or less in Azure charges** for deploy/test/teardown. These observations support low-cost synthetic evaluation, not a guaranteed production price or SLA. See [measurement scope and evidence](docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics); dated endpoints and screenshots are not an assertion that a service remains live.
 
-> **Decision material:** [Executive brief](docs/EXECUTIVE_BRIEF.md), [full whitepaper](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md), and [technical publication plan](docs/LINKEDIN_POST.md).
+> **Publication:** **Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**, available as an [Executive Brief](docs/EXECUTIVE_BRIEF.md) and [White Paper](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md). See the [engagement and handover model](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) and [publication plan](docs/LINKEDIN_POST.md).
+
+> **Open disclosure challenge:** released totals, related breakdowns and the existence of researcher-visible rows may allow restricted values to be reconstructed. Synthetic community challenges are welcome. The Researcher role may need restriction or removal where row presence makes inference trivial; public-only releases also require disclosure review. See [security review criteria](SECURITY.md#statistical-reconstruction-challenge).
 
 > **Authorship:** Developed by Botlhale Mosweu in a personal capacity. Community participation is welcome under the [Apache License 2.0](LICENSE). Copyright attribution is recorded in [NOTICE](NOTICE); the reference implementation does not imply a support contract, institutional approval, or production certification.
 
@@ -41,11 +47,15 @@ The rulebook is read as metadata, but its interpreter is code that needs review.
 
 ## System Architecture
 
-![Policy as a Metastore Object — four horizontal bands. A promotion plane runs pull request to offline tests to review to merge to a short-lived OIDC token. An ownership boundary splits Terraform (infrastructure and access) from the pipeline (data and policy) either side of a divider reading "one writer per object". A data plane routes validated submissions to a history table and failures to an audit-only quarantine, with the prior published record staying live. A consumption band shows the dissemination gateway choosing an identity but never choosing rows. All four connect into a policy enforcement point in Unity Catalog resolving five personas, ending with "no group — zero rows, fails closed".](docs/sovereign-shield_technical_vision.jpg)
+The current [architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) specify the
+information, ownership and trust boundaries. The topology below distinguishes
+educational fixture generation from governed SDMx intake and consumption.
 
 Service credentials are resolved from Azure Key Vault rather than tracked as
-literals, compute is ephemeral and single-node, and every consumer is resolved
-to an Entra ID security group at query time by Unity Catalog.
+literals. Ingestion defaults to single-node job compute; serving resources have
+separate lifecycles. Unity Catalog evaluates Databricks account-group membership;
+setup reconciles selected Entra identities rather than continuously synchronizing
+both directories.
 
 ```mermaid
 flowchart TB
@@ -70,7 +80,7 @@ flowchart TB
     end
 
     subgraph UC["🛡️ Unity Catalog - dbw_sovereignshield"]
-        MICRO["sovereign_intake.lbs_micro_transactions<br/>RLS: fn_rls_micro_country_lock"]
+        MICRO["Educational synthetic micro ledger<br/>Not an international intake deliverable<br/>RLS: fn_rls_micro_country_lock"]
         MACRO["sovereign_shield.agg_sdmx_history<br/>RLS: fn_rls_multi_persona_lock<br/>DDM: fn_ddm_obs_conf_mask"]
         VIEW["sovereign_shield.v_agg_sdmx_published<br/>PUBLISHED + IS_CURRENT"]
         VOLUME["sovereign_submissions.submissions<br/>admin-only volume"]
@@ -109,8 +119,8 @@ flowchart TB
     T3 -->|append ledger| MICRO
     T3 -->|SCD2 MERGE| MACRO
     MACRO --> VIEW
-    ENTRA -.->|is_account_group_member| MACRO
-    ENTRA -.->|is_account_group_member| MICRO
+    ENTRA -.->|setup reconciles account memberships| MACRO
+    ENTRA -.->|setup reconciles account memberships| MICRO
     UI --> API
     API --> EXP
     API -->|OBO token or public SPN| MACRO
@@ -129,8 +139,8 @@ flowchart TB
 | Secret → Session | Key Vault and OIDC federation; authenticated operator for local administration | No deployment secret needed for CI federation; state, plans and runtime tokens remain sensitive |
 | Session → Workspace | OIDC workload identity federation via Asset Bundles | Automated deployment uses a scoped service principal; human administration remains an explicit client responsibility |
 | Workspace → Data | Unity Catalog RLS / DDM | Policy travels with the table, not the query engine |
-| Data → Consumer | Entra ID group resolution | Sovereignty evaluated per-row, per-caller, at runtime |
-| Internet → Data | Portal runs as the caller, or as a public-tier SPN | The gateway selects an identity; it never selects rows |
+| Data → Consumer | Databricks account-group resolution | Logical jurisdictional entitlements evaluated per row and caller on supported paths |
+| Internet → Data | Portal runs as the caller, or as a public-tier SPN | The trusted gateway selects identity and lifecycle filters; UC enforces row/value entitlements |
 
 ---
 
@@ -144,6 +154,20 @@ flowchart TB
 * **Processing Framework:** PySpark & Spark SQL
 * **Dissemination:** Databricks Apps — FastAPI gateway and Tailwind portal in a single process; Azure Container Apps for the anonymous deployment
 * **Standards Layer:** `pysdmx` for SDMx 3.0 XML and DSD resolution; BIS consistency checks parsed at runtime from `docs/reference_standards/checks_lbs.xls`
+
+### Extensibility
+
+The core framework is **technology-agnostic**: SDMx contracts, synthetic-first
+delivery, explicit entitlements, atomic submission history, separate published
+and audit products, and client-owned runtime identities. Azure and Databricks
+are the demonstrated implementation.
+
+Terraform's provider/module boundaries support extensions to **AWS, GCP,
+Microsoft Fabric and open-source software combinations**. Such ports require
+identity, storage, transactional-history, query-policy and deployment adapters,
+plus equivalent security and lifecycle tests. Terraform does not make Unity
+Catalog SQL or Azure authentication portable unchanged. Production selection
+must compare control coverage, residency, operational ownership and recurring cost.
 
 > **Design note — Terraform or Bicep.** Terraform is the primary declarative engine here because it spans Entra ID, Azure and Databricks in a single dependency graph. For the **Azure control plane alone**, Azure Bicep is interchangeable: resource groups, Key Vault, the Databricks workspace, the access connector and Container Apps all have direct Bicep equivalents, and an organisation standardised on Bicep loses nothing by using it for those. What Bicep cannot express is the Databricks provider layer — catalog, schema, grants and the SQL warehouse — which would remain Terraform or move to the Databricks CLI. The ownership boundary between infrastructure and the data/policy plane is unaffected by that choice.
 
@@ -198,7 +222,7 @@ defect this repository exists to prevent — see
 │   └── modules/
 │       ├── identity/                       # Entra groups, SPNs, OIDC federation, Key Vault
 │       ├── databricks_workspace/           # Workspace, storage credential, secret scope, cluster policy
-│       ├── unity_catalog_governance/       # Catalog, schema, additive grants, SQL warehouse
+│       ├── unity_catalog_governance/       # Catalog, schema, owned grant pairs, SQL warehouse
 │       └── dissemination_gateway/          # Container Apps host for the anonymous tier
 ├── tests/                                  # Offline persona, SDMx, isolation, secret and scale assertions
 ├── sh/                                     # Turnkey orchestration and focused operational helpers
@@ -209,7 +233,7 @@ defect this repository exists to prevent — see
     ├── generate_sovereign_submissions.py   # Sovereign-isolated SDMx 3.0 XML submission generator
     ├── generate_stress_test_data.py        # High-volume, multi-cadence corpus for scale testing
     ├── sdmx_rule_validator.py              # Dynamic BIS rule engine + atomic batch quarantine
-    ├── scd2_merge_engine.py                # Micro-to-macro aggregation and Delta SCD2 state machine
+    ├── scd2_merge_engine.py                # SDMx intake, educational ledger and submission history
     ├── local_pandas_scd2.py                # Local pandas/delta-rs SCD2 fixture (no Spark required)
     ├── sdmx_ml_exporter.py                 # SDMX-ML 3.0 / SDMX-JSON 2.0.0 / SDMX-CSV 2.0.0 writer
     ├── uc_query.py                         # Persona-agnostic query layer over the governed history
@@ -222,7 +246,7 @@ Full file-by-file commentary: [docs/technical_guide.md](docs/technical_guide.md)
 
 ## Infrastructure as Code and Secret Injection
 
-Current source checks prohibit credential literals and sensitive local configuration in tracked files. Historical source contained a bootstrap password, which the author reports is no longer used; this release does not rewrite history or claim a current incident. Terraform-managed passwords and vault values remain in sensitive state and plans. Restrict their access, retention and logging.
+Current source checks prohibit credential literals and sensitive local configuration in tracked files. Terraform-managed passwords and vault values remain in sensitive state and plans. Restrict source-history access where required, protect state and plans, and govern secret rotation, consumer refresh and logging independently of source scanning.
 
 ### Terraform is the primary path
 
@@ -270,9 +294,9 @@ account-level identity wiring, the ingestion pipeline, both portal hosts, and
 readiness checks in dependency order. Terraform remains authoritative for the
 infrastructure and access-control resources it manages.
 
-Some focused operations remain script-owned because no provider expresses them:
+Some operations are script-owned in this implementation:
 
-* `sh/databricks_account_setup.ps1` — Databricks **account**-level groups, workspace assignment and persona SQL entitlements. `is_account_group_member()` resolves account scope, and the Terraform Databricks provider addresses the workspace.
+* `sh/databricks_account_setup.ps1` — Databricks account groups, workspace assignment and persona SQL entitlements. The repository's Terraform provider configuration targets the workspace; this is an ownership choice, not a claim that Databricks Terraform lacks account-level APIs.
 * `sh/kv_spn_remediation.sh` — deliberate, destructive credential rotation on demand.
 
 ### Session authentication for focused helper scripts
@@ -339,10 +363,9 @@ summary of it — the full implementation narrative is in
 
 ### 1. Zero-Access Contractor Pattern
 
-The specialist you need for confidential data work is, by definition, someone who
-should not have the data. So the build happens against a **Minimal Viable Synthetic
-Dataset** specified by the client, promotion uses reviewed workload identity,
-and offboarding follows the institution's identity and ownership checklist.
+External specialists develop against a client-approved **Minimal Viable Synthetic
+Dataset** without standing production-data access. Reviewed client-controlled
+promotion and complete identity/ownership offboarding are separate controls.
 
 → [Onboarding playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) ·
 [Contractor workflow](.github/skills/contractor_zero_trust_workflow.md)
@@ -359,10 +382,10 @@ caller, per row, at query time.
 | **Granularity** | Row | Cell | Result set |
 | **Threat** | Cross-border leakage | Confidential value disclosure | Unvalidated data published |
 
-Five personas resolve against Entra ID. The fifth matters most: **a principal in no
-group sees zero rows.** Public is an explicit group, not a fall-through default,
-which is why off-boarding a contractor and enforcing sovereignty between two
-nations are the same mechanism.
+Entitlements resolve against Databricks account groups. A principal with no recognized
+membership receives no entitled rows. Public is an explicit group, not a fall-through
+default. That data-plane check is one part of offboarding, not a substitute for
+revoking sessions, administrative access or retained exports.
 
 → [Triple-Lock detail](docs/technical_reference.md) ·
 [Persona matrix](.github/skills/persona_security_matrix.md)
@@ -382,8 +405,9 @@ Real SDMX-ML 3.0, SDMX-JSON 2.0.0 and SDMX-CSV 2.0.0 messages, serialised with
 `pysdmx` and a pinned BIS LBS component/codelist contract. The standard feeds
 contain only current published observations; rejected filings use a separate audit CSV.
 Measures use an explicit three-decimal reference profile. Standards changes require review.
-Sample downloads from the deployed portal are in [`demo/sdmx/`](demo/sdmx) — the same
-22 observations in all three standard formats, mutually equivalent observation-for-observation.
+Historical administrator samples in [demo/sdmx](demo/sdmx) contain the same
+22 published observations across the three standard formats. They identify a
+dated fixture, not current schema or all-persona acceptance evidence.
 
 → [Validation engine](.github/skills/sdmx_lbs_validation.md)
 
@@ -405,6 +429,7 @@ Routed by what you are trying to establish.
 | **Checking SDMx conformance** (statistical audit) | [SDMx LBS validation](.github/skills/sdmx_lbs_validation.md) | [Sample exports](demo/sdmx) · [MVSD specification](.github/skills/mvsd_specification.md) |
 | **Looking at diagrams** | [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) | [Executive view](docs/executive_vision.md) · [Technical view](docs/technical_vision.md) |
 | **Presenting it** | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) | [Executive vision](docs/executive_vision.md) · [Public write-up](docs/LINKEDIN_POST.md) |
+| **Publishing a version** | [Publication venues and release steps](docs/PUBLICATION_AND_RELEASE.md) | [Capture inventory](demo/README.md) · [Engagement image prompt](docs/ENGAGEMENT_WORKFLOW_IMAGE_PROMPT.md) |
 | **Running it end to end** | [One-command operations](docs/AUTOMATION_RUNBOOK.md) | [Terraform runbook](steps_terraform.md) |
 | **Explaining deployed resources** | [Resource provenance](docs/RESOURCE_PROVENANCE.md) | [Technical reference](docs/technical_reference.md) |
 | **Contributing or reporting a concern** | [Contribution guide](CONTRIBUTING.md) | [Security policy](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) |

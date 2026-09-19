@@ -1,284 +1,120 @@
-# Minimal Viable Synthetic Dataset (MVSD) — BIS LBS Specification
+# Minimal Viable Synthetic Dataset: BIS LBS Contract
 
-> **Purpose.** This is the data contract a hiring organisation hands to an external
-> contractor so that the contractor can build, test and demonstrate the entire
-> platform **without ever touching a production record**. It specifies structure,
-> codelists and required test coverage — never values.
->
-> **Authority.** Structure is derived from the live BIS registry
-> (`https://stats.bis.org/api/v1/datastructure/BIS/BIS_LBS/latest?references=all`)
-> and reconciled against `docs/reference_standards/checks_lbs.xls`,
-> `src/generate_sovereign_submissions.py` and `src/sdmx_rule_validator.py`. Local
-> reference copies of the [LBS technical guide](../../docs/reference_standards/bankstatsguide_tech.pdf)
-> and [data-structure documentation](../../docs/reference_standards/dsd_lbs.pdf)
-> support offline review; their original publishers retain all rights.
+Use this reference for fixture generation, approved metadata transfer and test
+coverage. The client data authority approves the contract; the provider implements
+it without confidential production observations.
 
----
+## 1. Structure Identity
 
-## 1. Structure identity
-
-| Artefact | Identifier |
+| Artifact | Reference |
 | --- | --- |
-| Data Structure Definition | `BIS:BIS_LBS(1.0)` |
-| Dataflow (dissemination) | `BIS:WS_LBS_D_PUB(1.0)` |
-| Message format | SDMX-ML 3.0 `StructureSpecificData` |
-| Dimension at observation | `TIME_PERIOD` |
-| Aggregation framework | `LBSR` (Locational Banking Statistics, restated basis) |
+| DSD | `BIS:BIS_LBS(1.0)` |
+| Dataflow | `BIS:WS_LBS_D_PUB(1.0)` |
+| XML | SDMx-ML 3.0 structure-specific data |
+| Time dimension | `TIME_PERIOD` |
+| Demonstration aggregation code | `LBSR` |
+| Authority | [Pinned component/codelist snapshot](../../src/reference_data/lbs_structure.json), with source URL, digest and retrieval time |
 
-SDMX 3.0.0 **removed** the Generic Data format. `StructureSpecificData` is the only
-XML data message the standard still defines; anything emitting `GenericData` is
-producing a 2.1-era payload.
+Refresh the snapshot deliberately using [the refresh tool](../../sh/refresh_lbs_contract.py).
+Runtime does not fetch unreviewed `latest` metadata. Public standards availability
+does not imply redistribution rights; see [reference provenance](../../docs/reference_standards/README.md).
 
----
+## 2. Ordered Dimensions and Measures
 
-## 2. Dimension set (authoritative)
-
-The composite `TIME_SERIES_CODE` is **eleven** dot-separated segments in exactly
-this order. Segment order is not cosmetic: position 9 is the sovereignty anchor
-that the Unity Catalog row filter reads.
-
-| # | Dimension | Meaning | Codes used by the MVSD |
-| --- | --- | --- | --- |
-| 1 | `FREQ` | Frequency | `Q` |
-| 2 | `L_MEASURE` | Measure | `S` (amounts outstanding) |
-| 3 | `L_POSITION` | Balance-sheet position | `C` claims, `L` liabilities |
-| 4 | `L_INSTR` | Instrument | `A` all, `B`, `D` deposits/loans, `G` |
-| 5 | `L_DENOM` | Currency denomination | `CAD`, `USD`, `GBP`, `EUR`, `JPY`, `CHF`, `TO1` (all currencies), `UN9` (unallocated) |
-| 6 | `L_CURR_TYPE` | Currency type | `D` domestic, `F` foreign, `A` all, `U` unallocated |
-| 7 | `L_PARENT_CTY` | Parent country | `5J` (all countries) |
-| 8 | `L_REP_BANK_TYPE` | Reporting bank type | `A` (all types) |
-| 9 | **`L_REP_CTY`** | **Reporting country — RLS anchor** | `CA`, `US`, `GB` |
-| 10 | `L_CP_SECTOR` | Counterparty sector | `A` all, `B` banks, `N` non-banks, `M`, `F`, `C`, `G`, `H` |
-| 11 | `L_CP_COUNTRY` | Counterparty country | `5J`, `DE`, `FR`, `JP`, `GB`, `CA`, `US` |
-
-Plus the time dimension, measure and observation-level attributes:
-
-| Component | Role | Values |
+| Segment | Dimension | Role |
 | --- | --- | --- |
-| `TIME_PERIOD` | Time dimension | `2026-Q1` (ISO 8601 quarterly) |
-| `OBS_VALUE` | Measure | Signed `DOUBLE`, millions |
-| `OBS_STATUS` | Attribute | `A` normal, `B` break in series |
-| `OBS_CONF` | Attribute | `F` free to publish, `C` confidential, `N` not for publication |
+| 1 | `FREQ` | Frequency; quarterly `Q` in this LBS fixture |
+| 2 | `L_MEASURE` | Measure type |
+| 3 | `L_POSITION` | Claims/liabilities |
+| 4 | `L_INSTR` | Instrument |
+| 5 | `L_DENOM` | Currency denomination |
+| 6 | `L_CURR_TYPE` | Currency type |
+| 7 | `L_PARENT_CTY` | Parent country |
+| 8 | `L_REP_BANK_TYPE` | Reporting bank type |
+| 9 | `L_REP_CTY` | Reporting country, checked by row filter and mask |
+| 10 | `L_CP_SECTOR` | Counterparty sector |
+| 11 | `L_CP_COUNTRY` | Counterparty country |
 
-`UNIT_MULT` and `DECIMALS` are legitimate BIS_LBS dataset-level attributes but are
-not currently carried by the MVSD; they are constant across the synthetic
-corpus and add no test coverage. Add them only if a downstream consumer needs
-them for scaling.
+The pinned codelists define valid values; table examples and generic stress labels
+are not alternative authorities. `OBS_VALUE` uses `DECIMAL(38,3)`; signed and
+genuine zero observations are retained. Masked absence is not zero.
 
----
+The explicit synthetic profile includes `DECIMALS=3`, `UNIT_MEASURE=USD`,
+`UNIT_MULT=6`, `COLLECTION=E`, `AVAILABILITY=A` and frequency-derived `TIME_FORMAT`.
+These attributes must be carried at their defined attachment levels. Three-place
+precision is not a universal SDMx requirement, and `L_DENOM` does not convert units.
 
-## 3. Codelist semantics that change behaviour
+## 3. Educational Calculation Artifacts
 
-Three conventions are easy to get wrong and materially alter validation results.
+The modeled international exchange accepts **SDMx files only**. Synthetic bank
+micro-transactions are included solely to demonstrate how realistic observations
+and confidentiality flags are calculated. The generator and protected demo ledger
+are not institutional intake requirements or system deliverables. Domestic granular
+collections and other reporting regimes are outside this exchange contract.
 
-**Aggregate placeholder codes are literal values, not wildcards in the data.**
-`TO1` (all currencies), `UN9` (unallocated), `5J` (all countries) appear as
-ordinary dimension values. The BIS consistency checks reconcile an aggregate
-row against the sum of its component rows, so if these codes never appear there
-is nothing to reconcile and **no check can fire**. A purely realistic dataset
-(only `CAD`, `USD`, `DE`, `FR`…) is structurally incapable of exercising the
-validator.
+The generator illustrates most-restrictive classification and a 0.60 dominance
+threshold using absolute contributions. The receiving validator checks the SDMx
+file independently; it does not recompute it from the ledger. This synthetic rule
+does not establish complete disclosure control or an international mandate.
 
-**`ISO` is a wildcard, but only inside the rulebook.** In `checks_lbs.xls` the
-token `ISO` means "the reporting country's own domestic currency/country" and
-matches any value on that dimension. It must never be written into data. Because
-`LBS_CC:11`–`:21` target `L_CP_COUNTRY` with `ISO`, that dimension is unusable
-for isolating a test scenario — the wildcard sweeps unrelated rows into the
-right-hand sum. Dimensions targeted by **no** check, and therefore safe for
-scenario isolation: `FREQ`, `L_MEASURE`, `L_POSITION`, `L_REP_CTY`.
+## 4. Required Coverage
 
-**Observation semantics.** `OBS_VALUE` is signed — a negative position is an
-ordinary liability direction, never a validation failure on its own. Positions
-netting to exactly zero are **not reported** under SDMx convention and are
-filtered after aggregation rather than published as `0`.
+| Case | Expected Evidence |
+| --- | --- |
+| Multiple jurisdictions, restricted values in more than one | Own/foreign row and measure isolation; additive-membership mask test |
+| Public, researcher, submitter, administrator and no-group identities | Explicit public membership and fail-closed absence of entitlement |
+| Genuine zero, negative, missing and masked values | Decimal fidelity and distinct value meanings |
+| Valid aggregate/component rows | Arithmetic reconciliation actually evaluated |
+| Structurally valid arithmetic failures | Whole-submission quarantine with precise observation and batch feedback |
+| Malformed structure, codes, sender mapping and duplicates | Input refused before persistence |
+| Same-period accepted replacement, including fewer keys | Atomic scope closure and one current accepted snapshot |
+| Same-message replay and new identical filing | No duplicate replay; distinct new submission retained |
+| Rejected and older accepted arrivals | Audit-only records do not displace current accepted data |
+| Public-total and researcher-row reconstruction | Disclosure risk recorded, not falsely described as controlled by masking |
 
----
+The baseline fixture contains CA4 + US4 + GB14 published observations, followed
+by 22 quarantined revision observations. CA and US failures include `LBS_CC01`;
+GB failures include `LBS_CC02` and `LBS_CC:04`. Additional acceptance tests cover
+accepted replacements and replay; the rejected fixture alone does not prove expiry.
 
-## 4. Confidentiality derivation
+## 5. Analyst and Researcher Acceptance
 
-`OBS_CONF` is derived during micro→macro aggregation, not supplied by hand.
+The **Analyst View** must reconcile the latest filing expected by a regional
+submitter with the receiver's actual IDs, submitted/received timestamps, values
+and verdict. Latest submitted and current accepted publication remain distinct.
+Full accepted history and trusted transport receipt are separate workflows.
 
-* **Dominance rule.** If a single reporting institution contributes more than
-  `DOMINANCE_THRESHOLD` (0.60) of a cell, the cell is marked `N`.
-* **Absolute contributions.** The share is `|bank| / Σ|bank|`. A signed
-  denominator can reach zero on offsetting positions and yield shares above `1`,
-  so signed arithmetic is not merely imprecise here — it is wrong.
-* **Most-restrictive-wins rollup.** Any component `C` → `C`; else any `N` → `N`;
-  else `F`.
+Researcher discovery supports a later agreement request, not restricted-value
+permission. Row presence, counts, keys and public totals can reveal withheld data.
+Invite [synthetic community challenges](../../SECURITY.md#statistical-reconstruction-challenge)
+and restrict/remove the role if existence makes reconstruction trivial.
 
-The threshold is a **policy decision, not a value learned from data**. That is
-what keeps a synthetic-only engagement honest: nothing in the build is
-calibrated against real submissions.
+## 6. pysdmx Integration
 
----
+Use pinned `pysdmx[xml]==1.18.0`, the existing structure builders and serializers.
+Do not duplicate a live-registry fallback recipe. DSD `Component.local_codes`
+differs from registry-schema examples using `.codes`; use the actual installed
+model. Dataset attributes belong in `PandasDataset(attributes=...)` where their
+attachment level requires it. Structure-specific parsing alone does not verify
+every DSD, codelist or provision-agreement constraint.
 
-## 5. Required test-case coverage
+## 7. Client Transfer and Acceptance
 
-A conforming MVSD must exercise every control. Coverage below is asserted by
-`tests/`; a dataset that omits a row class silently disables a test.
+Transfer only approved DSD/codelists, rules, disclosure-safe magnitude estimates,
+policy expectations and generated fixtures. Exclude confidential observation values,
+real institution identifiers, unpublished periods and exact confidential counts.
+Generation from a seed is not evidence that sensitive metadata is harmless.
 
-### 5.1 Multi-jurisdiction isolation (row-level security)
+The provider returns reviewed code, fixture generators, tests, provenance, operating
+documents and evidence. The client imports the approved version, configures its own
+identities/state, accepts synthetic staging and approves production adaptation.
+Do not run the demonstration generator as a production submission source.
+See [Nature of Engagement and Handover](../../docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md).
 
-At least three reporting jurisdictions, so that "own vs. foreign" is
-distinguishable and a filter that accidentally returns everything is detectable.
+## Related Skills
 
-| `L_REP_CTY` | Sender | Purpose |
-| --- | --- | --- |
-| `CA` | Canadian Regional Submitter (CA) | Submitter persona under test |
-| `US` | US Regional Submitter (US) | Foreign sovereign — must stay restricted |
-| `GB` | UK Regional Submitter (GB) | Third party, proves isolation is not a two-way special case |
-
-The corpus uses `GB` as its third jurisdiction; `CHF` appears only as a currency
-denomination. Adding a fourth jurisdiction requires a new Entra group, a new
-branch in `fn_rls_multi_persona_lock`, and new grants — it is not a data-only
-change.
-
-### 5.2 Confidentiality masking
-
-Every jurisdiction must carry **both** `OBS_CONF = 'F'` rows and
-`OBS_CONF IN ('C','N')` rows at the same `TIME_PERIOD`. Without the pairing, a
-mask that redacts everything and a mask that redacts nothing look identical.
-
-The `C`/`N` rows must additionally exist in **more than one** jurisdiction. This
-is what catches the cross-sovereign leak class: a mask that checks group
-membership without checking segment 9 lets a Canadian analyst read US
-confidential values, and a single-country corpus cannot detect it.
-
-### 5.3 Temporal revision (SCD Type 2)
-
-The corpus must contain a **revision of an already-published series** — the same
-`(TIME_SERIES_CODE, DATE, AGG_CODE)` re-reported with a different `OBS_VALUE`.
-
-`run_pipeline()` produces this as two ordered cycles rather than two calendar
-quarters, because re-reporting the *same* period is the case that actually
-stresses the state machine:
-
-| Cycle | CA | US | GB |
-| --- | --- | --- | --- |
-| `baseline` | 4 rows `PUBLISHED` | 4 rows `PUBLISHED` | 14 rows `PUBLISHED` |
-| `revision` | 4 rows `QUARANTINE` (`LBS_CC01`) | 4 rows `QUARANTINE` (`LBS_CC01`) | 14 rows `QUARANTINE` (`LBS_CC02`, `LBS_CC:04`) |
-
-The assertion that matters: after both cycles Canada's *baseline* observation is
-still `IS_CURRENT = true`. A rejected revision must degrade to **stale data,
-never to missing data**.
-
-> A sequential `2024-Q1 → 2024-Q2` progression tests append behaviour only. It
-> never exercises expiry, so it cannot detect the failure mode where a
-> quarantined revision retires the prior published record.
-
-### 5.4 Deliberate reconciliation failures
-
-The revision uses valid BIS codes but changes arithmetic relationships so the
-runtime workbook rules detect genuine reconciliation failures:
-
-| Scenario | Mechanism | Expected rule |
-| --- | --- | --- |
-| CA aggregate ≠ currency-type components | Domestic leg revised; aggregate unchanged | `LBS_CC01` |
-| US aggregate ≠ currency-type components | Aggregate revised; components unchanged | `LBS_CC01` |
-| GB currency breakdown mismatch | Mandatory-currency components do not reconcile | `LBS_CC02` |
-| GB sector breakdown mismatch | Banks + non-bank do not equal all sectors | `LBS_CC:04` |
-
-Two constraints keep failure groups isolated:
-
-* The injected group's **full context tuple** must be disjoint from every
-  realistic row. A realistic row sharing all dimensions except the one under
-  test gets swept into the same check group and produces a spurious result. Vary
-  `L_POSITION` or `L_INSTR` to keep contexts separate.
-* Every other dimension of a "hidden" component must be **identical** to its
-  sibling rows. A miscounted segment silently shifts all subsequent columns
-  during `str.split(expand=True)` and yields a misleading non-failure.
-
-### 5.5 Batch lifecycle states
-
-Both terminal states must be present, since the quarantine gate is a
-result-set-level control and cannot be tested from one state alone:
-
-* `BATCH_STATUS = 'PUBLISHED'`, `QUALITY_STATUS = 'PASS'`, `FAILED_RULE_ID` null
-* `BATCH_STATUS = 'QUARANTINE'`, `QUALITY_STATUS = 'FAIL'` on every row, with
-  `FAILED_RULE_ID` populated only on observations that violated a check
-
----
-
-## 6. `pysdmx` integration contract
-
-```python
-from pysdmx.io import read_sdmx
-from pysdmx.io.pd import PandasDataset
-from pysdmx.model.dataflow import Schema
-from pysdmx.io.format import Format
-import pysdmx.io as sdmx_io
-
-message = read_sdmx(BIS_LBS_DSD_URL, validate=False)
-dsd = message.get_data_structure_definitions()[0]
-
-schema = Schema(
-    context="dataflow",
-    agency="BIS",
-    id="WS_LBS_D_PUB",
-    components=dsd.components,
-    version="1.0",
-)
-dataset = PandasDataset(structure=schema, data=frame, action=ActionType.Replace)
-xml = sdmx_io.write_sdmx(dataset, Format.DATA_SDMX_ML_3_0, header=header)
-```
-
-Operational constraints:
-
-* The `xml` extra is mandatory (`pysdmx[xml]`). Base `pysdmx` raises `ImportError`
-  on read/write — and it defers that check to **call time**, so
-  `from pysdmx.io import read_sdmx` succeeds and the failure surfaces from inside
-  the call. Catch `ImportError` around the call, not just the import.
-* `RegistryClient` speaks only SDMX-JSON 2.0.0 / Fusion-JSON. Do **not** point it
-  at the BIS SDMX-ML v1 REST endpoint; use `read_sdmx(url)`.
-* The frame's columns must match the DSD components exactly — 11 dimensions,
-  `TIME_PERIOD`, `OBS_VALUE`, and the attributes.
-* A structure-specific message is self-describing: reading one back needs no DSD.
-* The live registry is a third-party dependency on the request path. Cache the
-  structure for the process lifetime and keep a local writer behind it.
-
----
-
-## 7. Data delivery contract
-
-How an organisation hands over structure without handing over data.
-
-**What is exported**
-
-1. The DSD, as published SDMX-ML — `BIS:BIS_LBS(1.0)` is already public.
-2. Codelists, as code + label pairs only.
-3. The consistency rulebook — `checks_lbs.xls` is a public standards artefact.
-4. Row-count magnitudes and cardinality per dimension, so synthetic volumes are
-   plausible. Order of magnitude only.
-5. The confidentiality threshold, as a policy parameter.
-
-**What is never exported**
-
-Observation values, institution identifiers, real `(country, period)` pairs from
-an unpublished cycle, and any statistic tight enough to be inverted back to a
-cell — including exact row counts of a confidential breakdown.
-
-**Verification before hand-off**
-
-* Every `OBS_VALUE` is generated, not sampled. Seeded generation is fine;
-  perturbing real values is not — perturbation preserves distribution shape and
-  can be attacked.
-* The corpus must satisfy §5 coverage, checked by running `tests/` against it.
-* No real institution names. `BANK_CA_1` is a synthetic identifier; a real LEI is
-  a disclosure.
-
-**Acceptance.** The contractor returns the generator, not the data. The
-organisation re-runs it inside its own boundary and diffs the resulting schema
-against production metadata. Because every control is attached to Unity Catalog
-objects rather than embedded in pipeline logic, the controls activate on real
-data at first run — there is no "productionisation" phase in which the security
-model is re-implemented, and therefore no phase in which it can be
-re-implemented incorrectly.
-
----
-
-## Related skills
-
-* [`persona_security_matrix.md`](persona_security_matrix.md) — who may read which rows
-* [`sdmx_lbs_validation.md`](sdmx_lbs_validation.md) — how the rulebook is compiled and applied
-* [`scd2_engine.md`](scd2_engine.md) — how revisions are historised
-* [`contractor_zero_trust_workflow.md`](contractor_zero_trust_workflow.md) — the delivery pattern this dataset serves
+- [Persona contract](persona_security_matrix.md)
+- [SDMx validation](sdmx_lbs_validation.md)
+- [Submission history](scd2_engine.md)
+- [Protected policy deployment](triple_lock_security.md)
+- [Provider workflow](contractor_zero_trust_workflow.md)

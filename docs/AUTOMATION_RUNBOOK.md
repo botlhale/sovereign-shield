@@ -9,6 +9,12 @@ Databricks account layer, creation ownership, reuse behavior, cost relevance,
 and teardown ownership, see the
 [Systems Architect Resource Provenance Guide](RESOURCE_PROVENANCE.md).
 
+**Scope:** the international exchange contract is SDMx files only. Synthetic bank
+micro-transactions are educational calculation fixtures; their demo ledger is not
+an institutional intake requirement or system deliverable. Production adaptation
+must replace demo generation, accept disclosure controls and establish client
+ownership under [Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md).
+
 ## Assumptions
 
 Before setup:
@@ -65,20 +71,25 @@ to repair ingestion.
 
 The default run executes:
 
-| Stage | Action | Typical evaluation time |
-| ---: | --- | ---: |
-| 0 | Validate tools, config, Azure session, providers, persona users and offline tests | 2–5 min |
-| 1 | State-aware foundation; preserve established readiness and gateway ownership; guard the plan | Historical: 8–20 min |
-| 2 | Databricks account wiring, persona SQL entitlements and traversal/warehouse grants | 2–5 min |
-| 3 | Validate and deploy the Databricks Asset Bundle | 1–3 min |
-| 4 | Run security DDL, SDMx generation, validation and SCD2 pipeline | 8–15 min |
-| 5 | Bind Terraform table grants; schema EXECUTE is also Terraform-owned | Historical: 1–3 min |
-| 6 | Bind the managed public identity, activate one app snapshot, and verify that deployment | 2–5 min |
-| 7 | Build and deploy Container Apps with anonymous + Entra access | 8–18 min |
-| 8 | Verify both portals, persona SQL entitlements, 13-row anonymous fixture, Easy Auth/token store, and optionally configure GitHub | 1–3 min |
+| Stage | Action |
+| ---: | --- |
+| 0 | Validate tools, config, Azure session, providers, persona users and offline tests |
+| 1 | State-aware foundation; preserve established readiness and gateway ownership; guard the plan |
+| 2 | Databricks account wiring, persona SQL entitlements and traversal/warehouse grants |
+| 3 | Verify runtime-identity use permission, validate and deploy the Databricks Asset Bundle |
+| 4 | Run security DDL, synthetic SDMx generation, validation/SCD2 ingestion and live runtime acceptance |
+| 5 | Bind Terraform table grants; schema EXECUTE is also Terraform-owned |
+| 6 | Bind the managed public identity, resolve bundle source, activate one snapshot and verify its deployment |
+| 7 | Build and deploy Container Apps with anonymous and Entra access |
+| 8 | Check App status, persona SQL entitlements, 13-row public fixture and Easy Auth; optionally configure GitHub |
 
-The earlier deployment's planning range was 30–70 minutes, not a measured guarantee for this revision. Regional capacity, RBAC
-propagation, cluster start and ACR build queues are the main sources of variance.
+The successful reference evaluation measured approximately **75 minutes to bring
+up the entire project, including prerequisite setup**, and **30 minutes for
+teardown**. Deployment, testing and teardown incurred **US$10 or less in Azure
+charges**. These are observed synthetic-workload results, not stage SLAs or a
+guaranteed cost ceiling. Regional capacity, RBAC propagation, runtime, storage,
+warehouse activity and retained resources affect each run. See
+[measurement provenance and limits](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 The repository `.dockerignore` restricts the ACR upload to the portal runtime
 files; local environments, Terraform providers, data, documentation and demo
 media are never sent as image-build context.
@@ -89,7 +100,9 @@ compiled local CSS, but not the BIS PDFs or workbook. Rebuild CSS with
 
 ### Resume or bound a run
 
-Every stage uses idempotent underlying operations. Resume at a failed stage:
+Resume at the failed stage after identifying which operation completed. Resource
+convergence and same-message replay are idempotent; rerunning the synthetic
+generator creates new submission identities and is not equivalent to replay:
 
 ```powershell
 ./sh/sovereignshield_up.ps1 `

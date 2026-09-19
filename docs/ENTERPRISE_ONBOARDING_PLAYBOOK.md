@@ -1,290 +1,244 @@
-# Enterprise Onboarding Playbook
+# Nature of Engagement and Handover
 
-> **For:** the engagement lead, the data governance owner, and the platform
-> administrator who will hold the keys after the specialists leave.
->
-> **Scope:** how to run a specialist platform engagement on a system holding
-> nationally confidential data, without the specialists ever holding that data,
-> and without off-boarding becoming an audit exercise.
+**Audience:** client sponsor, enterprise data and information architects, data
+authority, security reviewer, procurement, platform owner and external provider.
 
----
+SovereignShield supports an external technical consulting engagement in which
+the provider develops against an approved synthetic information contract and
+the client retains control of production data, identities, infrastructure and
+release decisions. An independent reference repository is an implementation
+starting point, not a production service or an automatic right to client access.
 
-## The dilemma this addresses
+The companion Executive Brief and White Paper share the title **Bridging Public
+Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**.
+The [Executive Brief](EXECUTIVE_BRIEF.md) supports the investment decision;
+the [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md)
+describes the controls and evidence.
 
-The work needs people who have built sovereign data platforms before. Those
-people are, almost by definition, outside the organisation. The data they would
-be working on is Protected B or nationally confidential.
+## 1. Engagement Contract
 
-The usual resolution is procedural: NDAs, supervised environments, time-boxed
-access, quarterly access reviews. Institutions run this well. But the controls
-scale with headcount, decay between reviews, and leave a residue — accounts,
-group memberships and credentials whose removal has to be *verified* rather than
-*guaranteed*.
+Before technical access, the parties agree a statement of work covering scope,
+deliverables, milestones, fees, acceptance evidence, intellectual-property and
+licensing rights, publication approval, confidentiality, support and exit terms.
+Provider identity and employment are separate: the client's repository is not an
+employer's repository unless that employer is the contracted client. Employer
+equipment, credentials, private code or records require explicit authorization
+and must not be assumed available for an independent engagement.
 
-SovereignShield explores a different resolution: **make the access unnecessary
-rather than merely governed.** The specialist authors what runs in production and
-never runs it there. Removing them is three administrative actions, none of which
-touch the delivered code.
+### Roles and Accountabilities
 
-This is a structural property of the architecture. Section 5 states where it
-stops.
-
-![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions submit standardised documents; an automated rule check holds one for correction while the rest reach a governed vault wrapped in policy rings; four audiences read from that single source with progressively wider access.](sovereign-shield_executive.jpg)
-
-*The whole engagement in one frame. The specialist builds everything left of the
-vault and never holds anything inside it — the rings are Unity Catalog policy,
-and they are what makes that separation safe rather than merely agreed.*
-
----
-
-## Phase 1 — Client organisation setup
-
-Two artefacts, produced before the specialist starts. Both are specifications.
-Neither contains a production record.
-
-### 1.1 Define the Minimal Viable Synthetic Dataset
-
-The MVSD is a **data contract**: structure, codelists, cardinality magnitudes and
-required test coverage. Full specification in
-[`.github/skills/mvsd_specification.md`](../.github/skills/mvsd_specification.md).
-
-| Exported | Withheld |
+| Role | Accountable Decisions and Deliverables |
 | --- | --- |
-| The DSD as published SDMX-ML | Observation values |
-| Codelists as code/label pairs | Institution identifiers |
-| The consistency rulebook | Real `(country, period)` pairs from an unpublished cycle |
-| Cardinality *magnitudes* per dimension | Exact row counts of a confidential breakdown |
-| The disclosure-control threshold, as policy | Anything invertible back to a cell |
+| Client sponsor and procurement | Business outcome, budget, contractual scope, ownership and acceptance authority |
+| Client information/data authority | SDMx structures, sender agreements, meanings, classification, disclosure control, retention and publication approval |
+| Client platform owner | Subscription/account, network, metastore, runtime identities, state backend, operational controls and production deployment |
+| Client security and independent reviewer | Threat model, access review, evidence acceptance, residual risk and promotion approval |
+| External technical provider | Architecture, code, synthetic fixtures, tests, documentation, defect correction and knowledge transfer within the agreed scope |
+| Client operations team | Monitoring, incident response, backup/restore, patching, cost oversight and ownership after acceptance |
 
-One rule does the heavy lifting: **the corpus is generated, never sampled or
-perturbed.** Perturbation preserves distribution shape and is attackable.
-Generation from a seed is not.
+Augmenta Systems (13668754 Canada Inc.) is the project steward. Individual
+authorship, company stewardship, contractual work-product ownership and third-party
+licenses are distinct; none implies employer or institutional endorsement.
 
-The MVSD must exercise every control, or a test silently stops meaning anything:
+## 2. Client Prerequisites and Access
 
-- **Three reporting jurisdictions** (`CA`, `US`, `GB`) so isolation is
-  distinguishable and a filter that returns everything is detectable.
-- **Free and confidential rows in more than one jurisdiction.** A single-country
-  corpus cannot detect a mask that checks group membership without checking the
-  reporting country — which is a real defect class, not a hypothetical. An early
-  draft of the mask in this repository had exactly that flaw; it was caught during
-  development on synthetic data, because the fixture spans more than one
-  jurisdiction.
-- **A revision of an already-published series**, so expiry is exercised. A
-  simple `Q1 → Q2` progression only tests append.
-- **Deliberately malformed records**, because a realistic corpus structurally
-  cannot trigger a reconciliation check.
+| Client Provides or Approves | Provider Receives |
+| --- | --- |
+| Versioned DSD/dataflow, codelists, sender-country mapping, reporting units, period rules and snapshot/revision semantics | Approved metadata and synthetic examples, not confidential observations |
+| Entitlement matrix, classification policy, disclosure decisions, expected validation feedback and analyst reconciliation cases | Implementable test expectations and named decision owners |
+| Approved repository, workstation policy, dependency sources, artifact license review and collaboration rules | Repository access limited to the engagement; no implied employer-repository access |
+| Evaluation budget, region, quota, residency and network requirements | Either credential-free local development or explicitly approved synthetic-only sandbox access |
+| Existing Azure subscription/tenant, Databricks account and regional Unity Catalog metastore, remote Terraform state backend and configuration | Non-secret identifiers and client-run deployment support; secrets remain in client-controlled stores |
+| Authorized administrators for resource provisioning, scoped RBAC assignments, Entra apps/groups/consent, Databricks account membership and run-as permissions | Time-bounded assistance where needed, not standing production administrator rights |
+| Existing human persona accounts and independent deployment reviewers | Named test users; passwords are entered directly by their holders, not shared with the provider or repository |
 
-### 1.2 Define the persona security matrix
+The local test path needs no cloud credentials. If live synthetic evaluation is
+part of the engagement, use a segregated sandbox and the least privileges needed
+for the agreed tasks. Client administrators perform privileged bootstrap and
+consent operations where delegation is inappropriate. Record expiry, access
+reviews and resource scope. Do not grant tenant-wide administration solely for
+developer convenience.
 
-Group names, entitlements and the fail-closed default:
-[`.github/skills/persona_security_matrix.md`](../.github/skills/persona_security_matrix.md).
+Terraform state and plans can contain credentials. The client owns access,
+encryption, locking, retention, auditing and recovery for the backend. Public
+proxy credentials and authentication session stores require separate runtime
+governance even when CI deployment uses OIDC.
 
-The organisation owns this document. Entitlement is a legal question, not an
-engineering one — the specialist implements it, they do not define it.
+## 3. Information Contract and Synthetic Development
 
-| Persona | Entra ID group | Sees |
+The international exchange modeled here accepts **SDMx files only**. Synthetic
+bank micro-transactions are educational artifacts illustrating how realistic
+observations, aggregation and confidentiality flags are calculated. The generator
+and protected demo ledger are optional evaluation fixtures, not a required
+institutional intake interface or system deliverable. Domestic granular-data
+collection is a separate client concern.
+
+The client approves structure and disclosure-safe metadata before transfer.
+Generate fixtures independently of production records; do not sample or perturb
+confidential rows as a shortcut. Generation alone does not make sensitive
+metadata, exact cardinalities or production-derived distributions safe to share.
+
+Required cases include multiple jurisdictions, restricted and free observations,
+genuine zeros, three-place measures, malformed format/code cases, structurally
+valid arithmetic failures, smaller accepted replacements, rejected revisions,
+same-message replay, new identical filings and late arrivals. The **Analyst View**
+must reconcile expected latest submissions with actual receiver state and
+distinguish a rejected latest filing from the current accepted publication.
+
+The Researcher persona is conditional on disclosure approval. Published totals,
+row presence, dimensions and revision differences can reconstruct restricted
+values. Apply the [reconstruction challenge and release criteria](../SECURITY.md#statistical-reconstruction-challenge);
+restrict or remove the role if observation existence makes inference trivial.
+
+### Repository Options
+
+| Option | Appropriate Use | Boundary |
 | --- | --- | --- |
-| Anonymous public | `sg-sovereignshield-public` | Published, free-to-publish only |
-| Researcher | `sg-sovereignshield-researchers` | All published; confidential values `NULL` |
-| Regional submitter | `sg-sovereignshield-submitter-<cc>` | Own jurisdiction in full; foreign published+free |
-| Central auditor | `sg-sovereignshield-admin` | Everything, including SCD2 history |
-| *No membership* | — | **Nothing** |
+| Provider-controlled independent repository | Approved reusable reference implementation and synthetic-only development | Client confidential metadata, records, credentials and internal issues stay outside the repository |
+| Client-controlled repository from inception | Proprietary requirements, sensitive metadata or client-mandated controls | Client owns access, branches, reviews, runners, logs and release history; provider works through scoped pull requests |
+| Reviewed import into a client repository | Transition from the public reference to client-specific development | Import an approved version with provenance, licenses and history review; do not copy credentials, state or local configuration |
 
-### 1.3 Create the identities
+Upstream contributions from a client fork require client approval. Repository
+visibility and fork relationships may expose metadata; choose a reviewed import
+instead where the client requires an independent private history. Preserve required
+notices and attribution whichever transfer mechanism is used.
 
-`terraform/modules/identity` provisions the persona groups, both service
-principals and the OIDC federated credentials in one apply. `sh/` holds an
-imperative quickstart for laptop demos; it is not the route to a governed
-environment. The specialist is added to **none** of these groups.
+### Local Setup
 
-Groups must exist at the Databricks **account** level. `is_account_group_member()`
-does not resolve workspace-scoped groups, which look identical in the console and
-silently match nothing — the single most common cause of "deployment worked, no
-data visible". No Terraform provider addresses account scope, so
-`sh/databricks_account_setup.ps1` mirrors them and remains a required step.
+From a client-approved workstation and repository location:
 
----
-
-## Phase 2 — Contractor execution boundary
-
-Everything the specialist needs runs on a laptop with no cloud credentials.
-
-| Capability | Local substitute | Fidelity |
-| --- | --- | --- |
-| Submissions | `generate_sovereign_submissions.py` | Real SDMX-ML 3.0 against the live public BIS DSD |
-| Rulebook | `sdmx_rule_validator.py` + `checks_lbs.xls` | The genuine published BIS check set, parsed at runtime |
-| Historisation | `local_pandas_scd2.py` | Mirrors the Spark state machine on pandas + delta-rs, no JVM |
-| Persona matrix | `LocalDeltaBackend` in `uc_query.py` | Reimplements the row filter and mask in pandas |
-| Serialization | `sdmx_ml_exporter.py` | Local writer when the registry is unreachable |
-
-```bash
-pip install -r requirements.txt
-pytest tests/            # 58 assertions, no credentials required
+```powershell
+git clone https://github.com/botlhale/sovereign-shield.git
+cd sovereign-shield
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pytest tests/
 ```
 
-### The duplication, stated plainly
+Use an approved commit or release, record dependency versions, and configure the
+existing repository's development environment rather than generating a new
+project scaffold. The pandas/delta-rs backend is a test mirror, not a substitute
+for live Unity Catalog enforcement or production storage security.
 
-`LocalDeltaBackend` is the one place the persona matrix exists twice — as SQL in
-the metastore, and as pandas for local execution. Duplication drifts.
+## 4. Build and Independent Acceptance
 
-It is accepted with a specific mitigation: the offline persona tests assert the
-*same* expectations that the `--live` variant asserts against real Unity Catalog.
-When the mirror drifts, the live run fails. It is a convenience whose correctness
-is verified against the real thing, not an independent implementation anyone is
-asked to trust. Unity Catalog remains the enforcement point in every deployed
-configuration, and the mirror is unreachable once a workspace is configured.
+The provider implements the approved contract through pull requests. Credential-free
+checks cover input validation, exact decimals, submission history, persona
+expectations, policy-deployment failures and secret handling. An independent
+client reviewer accepts the change before privileged promotion.
 
----
+Cloud promotion is an explicit reviewed operation, not an automatic effect of
+cloning, opening a PR or merging arbitrary code. GitHub environment protection
+and repository-scoped OIDC federation require client configuration. Current
+bundle-only CI does not replace the full two-host lifecycle in the operations
+runbook. Terraform owns infrastructure and grants; the bundle/policy executor
+owns jobs, table DDL and protected policy bindings. Assign one writer to each
+managed object or principal/securable grant pair.
 
-## Phase 3 — Production-isolated promotion
+The reference architecture has completed live Azure provisioning and teardown.
+The evaluation measured approximately **75 minutes for bring-up including
+prerequisites**, **30 minutes for teardown**, and **US$10 or less in Azure charges
+for deploy/test/teardown**. These establish the cost of a bounded synthetic
+evaluation, not engagement fees, production capacity or a universal price limit.
+See [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 
+## 5. Handover and Client-Controlled Deployment
+
+1. **Freeze the deliverable.** Identify the approved commit/tag, tested dependencies,
+   architecture decisions, licenses, known limitations, evidence and support terms.
+   Produce a release manifest and verify that source, artifacts and history contain
+   no client data, operational secrets or unapproved third-party material.
+2. **Transfer the repository.** The client clones, forks or imports the reviewed
+   version into its approved organization. Configure reviewers, branch protection,
+   environments, runners, issue ownership and upstream-update policy. Repository
+   administration becomes client-controlled; a clone is not a deployment.
+3. **Configure client environments.** Create or verify the client-owned state
+   backend, runtime service principals, OIDC trust, vault, account groups, network,
+   metastore, quotas and non-secret configuration. Do not transfer provider tokens,
+   Terraform state or sandbox identities into production. Rebind identities and
+   workload ownership explicitly.
+4. **Deploy and accept a synthetic staging environment.** Client operators follow
+   [the operations runbook](AUTOMATION_RUNBOOK.md), validate both hosts, the real
+   persona matrix, replay, rejection feedback, current-state selection, policy
+   bindings, disclosure cases, rollback and teardown. Stage recovery does not require
+   recreating healthy earlier stages.
+5. **Approve the production adaptation.** Review residency, private connectivity,
+   trusted receipt/sequence semantics, retention, data contracts, backup/restore,
+   monitoring, incident response, disclosure control and recurring cost. Apply the
+   [legacy migration gate](RELEASE_EVIDENCE.md#mandatory-migration-gate) where needed.
+   The supplied synthetic generator must not run as a production submission source;
+   removing/replacing demo generation and separating its ledger is an explicit
+   implementation task, not an existing production-mode switch.
+6. **Deploy and reconcile production under client authority.** Production data
+   enters only the approved client environment through its SDMx intake contract.
+   Client analysts reconcile sender evidence with receiver history and publication.
+   Authorized client personnel approve release and record residual risks.
+7. **Transfer operations and exit.** Complete an operator-led deployment/recovery
+   exercise, transfer documentation and ownership, revoke provider access, refresh
+   any accessible credentials and verify that client-controlled runtime operation
+   continues. Record acceptance and any separately contracted support period.
+
+### Handover Package
+
+| Deliverable | Acceptance Evidence |
+| --- | --- |
+| Reviewed source/release, manifest and licensing inventory | Client can reproduce the approved build and trace every artifact |
+| Architecture, data dictionary, persona and information-product contracts | Data authority signs off meanings, latest-state semantics and disclosure decisions |
+| Infrastructure and deployment configuration templates | Client controls state, identities, grants and environment-specific settings |
+| Test and migration evidence | Local and live results identify commit, environment, commands and unresolved gates |
+| Operations, recovery, cost and offboarding runbooks | Client operator performs the procedures without provider credentials |
+| Knowledge transfer and support/exit record | Named owners accept responsibility; no implicit ongoing managed-service commitment |
+
+## 6. Offboarding and Continuity
+
+Remove applicable Entra and Databricks memberships, sessions/tokens, Azure RBAC,
+vault access, GitHub access and delegated ownership. Review indirect and break-glass
+routes, saved exports, local copies and contractual retention. Rotate only
+credentials the departing person could access, refresh consumers and verify
+continuity. Rotation resources act on an apply; they are not an independent
+scheduled service.
+
+Retain client-owned runtime service principals. A person's departure does not
+justify deleting the delivered application's identity. A query may correctly be
+denied at authentication or return no entitled rows; both require interpretation
+against the approved access matrix. Group removal alone is not complete revocation.
+
+## 7. Technology Options
+
+The information and delivery framework is technology-agnostic. Terraform supports
+provider/module substitutions for AWS, GCP, Microsoft Fabric and open-source
+combinations; identity, query-policy, storage, atomic-history and hosting adapters
+require engineering and equivalent acceptance. No platform port is represented
+as already implemented. The client selects a stack based on control coverage,
+data residency, operating capability, interoperability and total cost.
+
+## Engagement Workflow
+
+```mermaid
+flowchart LR
+    SCOPE["Client: scope, owners and acceptance"] --> CONTRACT["Approved metadata and synthetic contract"]
+    CONTRACT --> BUILD["Provider: approved repository, fixtures and tests"]
+    BUILD --> REVIEW["Client: independent review and risk decisions"]
+    REVIEW --> TRANSFER["Versioned handover to client repository"]
+    TRANSFER --> STAGING["Client identities: synthetic staging and acceptance"]
+    STAGING --> GATE{"Production approval"}
+    GATE -->|Approved| PROD["Client production: SDMx files and governed products"]
+    GATE -->|Changes required| BUILD
+    PROD --> OPERATE["Client operations and analyst reconciliation"]
+    OPERATE --> EXIT["Provider offboarding and continuity evidence"]
+    DATA["Client confidential records"] --> PROD
 ```
-PR ──▶ offline tests ──▶ human review ──▶ merge
-                                            │
-                                            ▼
-                             OIDC federated credential
-                                            │
-                        ┌───────────────────┴───────────────────┐
-                        ▼                                       ▼
-            terraform apply                        databricks bundle deploy
-    (infrastructure & access control)                 (data & policy plane)
-```
 
-### Ownership split
+The provider boundary receives approved metadata, synthetic fixtures and reviewed
+feedback only. Production data does not flow back into the independent repository.
+The [image-generation prompt](ENGAGEMENT_WORKFLOW_IMAGE_PROMPT.md) specifies the
+equivalent stakeholder diagram.
 
-| Plane | Owner | Objects |
-| --- | --- | --- |
-| Infrastructure & access control | Terraform | Entra groups, service principals, OIDC federation, Key Vault, workspace, access connector, storage credential, external location, catalog, schema, SQL warehouse, `USE CATALOG` / `USE SCHEMA` / `SELECT` |
-| Data & policy | DABs + `unity_catalog_triple_lock.sql` | Table DDL, policy UDFs, `SET ROW FILTER`, `SET MASK`, the quarantine view |
+## Related Material
 
-Policy functions are content-addressed and bindings change without detaching
-protection. Terraform owns grants; the bundle sets `SOVEREIGNSHIELD_SKIP_GRANTS=1`.
-The singular `databricks_grant` resource is authoritative for one principal/securable
-pair, not universally additive. **One writer per managed pair.**
-
-### Why OIDC rather than a stored secret
-
-GitHub Actions requests a short-lived token from Entra ID via workload identity
-federation. There is no client secret in repository settings to leak, rotate or
-forget.
-
-The federated credential is scoped to one repository **and** one environment. A
-subject of `ref:refs/heads/*` would let any branch assume the production
-identity and defeat the review gate entirely.
-
-### Deployment ordering
-
-```bash
-terraform apply                                   # 1. infrastructure + catalog
-./sh/databricks_account_setup.ps1 -AccountId ...  # 2. account groups + assignment
-databricks bundle deploy -t dev --var="warehouse_id=$(terraform output -raw sql_warehouse_id)"
-databricks bundle run sovereignshield_sdmx_pipeline -t dev   # 3. tables + policies
-terraform apply -var="grant_tables=true"          # 4. table grants, now bindable
-```
-
-Step 4 is separate because a grant on a securable that does not yet exist fails
-the apply. Making the ordering explicit beats a run that dies halfway and leaves
-the platform partially granted.
-
-> **Design note — Terraform or Bicep.** Terraform is used here because it spans
-> Entra ID, Azure and Databricks in one graph. For the Azure control plane alone,
-> Bicep is interchangeable: resource groups, Key Vault, the workspace, the access
-> connector and Container Apps all have direct Bicep equivalents. What Bicep
-> cannot express is the Databricks provider layer — catalog, schema, grants,
-> warehouse — which would remain Terraform or move to the Databricks CLI. The
-> ownership boundary above is unaffected either way.
-
----
-
-## Phase 4 — Credential boundaries
-
-`tests/test_secret_decoupling.py` runs on every pull request and scans for
-connection strings, API keys, private-key blocks, client secrets and hardcoded
-bearer tokens.
-
-The guarantee is structural:
-
-* **Provisioning** pipes credentials straight from `az ad sp create-for-rbac`
-  into `az keyvault secret set` — never echoed, never written to disk.
-* **Session auth** hydrates process-scoped environment variables at run time and
-  discovers the vault by prefix rather than hardcoding a name.
-* **Terraform** has no variable that could carry a credential. Secret-shaped
-  variable names fail the build; only pointers (`*_secret_id`) are permitted.
-* **Container Apps** resolves credentials through
-  `keyvaultref:...,identityref:...` — the platform injects them, and no value
-  is embedded in the portal's source. Terraform-managed secrets remain in sensitive state and plans.
-* **Databricks** reads through a Key Vault-backed secret scope, which stores a
-  pointer rather than a source literal; rotation and consumer refresh must be verified.
-
-The repository contains synthetic observations. Current source scanning is not a
-guarantee about all historical versions: an old bootstrap password was identified,
-and the author reports that it is no longer used. Production credentials and data
-must remain outside the developer fixture and its history.
-
-> The scanner earned its place. It initially *missed* a real password hidden in a
-> shell default expansion (`${VAR:-literal}`) because the `$` prefix looked like
-> a safe reference. It now unwraps those, and the password it found has been
-> replaced with per-run generation.
-
----
-
-## Phase 5 — Revocation
-
-Offboarding is an identity and ownership review, not three universally sufficient commands.
-
-1. Remove applicable Entra and Databricks account/workspace memberships; reconcile both directories.
-2. Revoke sessions and tokens, and remove Azure RBAC, vault, GitHub and delegated deployment rights.
-3. Transfer or verify object ownership and stable service-principal execution. Do not delete the delivered runtime identity because one person's engagement ended.
-4. Rotate credentials that the departing person could access, refresh consumers and verify continuity. The 90-day Terraform resource acts on a subsequent apply, not independently on a calendar.
-5. Record evidence that all relevant routes are revoked, including break-glass and indirect memberships. Group removal alone does not revoke privileged ownership or copied exports.
-
----
-
-## Where this model stops
-
-The parts a reviewer should press on:
-
-* **Someone must hold admin rights** to run rotation and manage groups. This
-  shrinks the trusted set to the organisation's own administrators; it does not
-  eliminate it.
-* **The specialist knows the design.** Intentional — security depends on group
-  membership and metastore policy, not on architectural secrecy. But it does mean
-  the pattern protects data, not novelty.
-* **Calibration against real distributions cannot be contracted out.** The only
-  tuned constant is the disclosure-dominance threshold (0.60), and that is a
-  policy decision. Work that genuinely needs fitting to real distributions sits
-  *after* handover, inside the organisation's boundary.
-* **Synthetic data cannot prove production behaviour.** Volumetrics, skew and
-  cost at real scale need a dry-run the specialist will not observe.
-* **The local persona mirror can drift** between `--live` runs. It is verified,
-  not proven.
-* **Account-level group management remains partly manual.** Terraform provisions
-  Entra groups; mirroring them into the Databricks account is a separate script,
-  and a mismatch fails closed rather than loudly.
-
----
-
-## Acceptance checklist
-
-Before the engagement closes:
-
-- [ ] `pytest tests/` passes with no cloud credentials present
-- [ ] `pytest tests/ --live` passes against the real workspace for all four personas
-- [ ] `terraform plan` shows no diff against policy objects — those belong to the SQL DDL
-- [ ] The generator has been re-run inside the organisation's boundary and its
-      schema diffed against production metadata
-- [ ] Rotation has been exercised once, and the pipeline still deploys
-- [ ] The specialist's group memberships and Key Vault role assignments are removed
-- [ ] A query as the removed identity returns **zero rows**, not an error
-
----
-
-## Related material
-
-* [`.github/skills/mvsd_specification.md`](../.github/skills/mvsd_specification.md) — the data contract
-* [`.github/skills/persona_security_matrix.md`](../.github/skills/persona_security_matrix.md) — the entitlement model
-* [`.github/skills/contractor_zero_trust_workflow.md`](../.github/skills/contractor_zero_trust_workflow.md) — the same pattern for the engineer
-* [`docs/ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md) — renderable topology
-* [`AUTOMATION_RUNBOOK.md`](AUTOMATION_RUNBOOK.md) — one-command setup, recovery, pause, and teardown
-* [Persona demo reference captures](PERSONA_DEMO_SCRIPT.md#reference-captures) - anonymized jurisdiction-based screenshots and their provenance
+- [Synthetic information contract](../.github/skills/mvsd_specification.md)
+- [Persona and policy contract](../.github/skills/persona_security_matrix.md)
+- [Engineer delivery workflow](../.github/skills/contractor_zero_trust_workflow.md)
+- [Architecture diagrams](ARCHITECTURE_DIAGRAMS.md)
+- [Operations and stage recovery](AUTOMATION_RUNBOOK.md)
+- [Persona demonstration and evidence](PERSONA_DEMO_SCRIPT.md)

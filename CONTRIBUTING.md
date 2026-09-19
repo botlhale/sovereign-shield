@@ -1,12 +1,14 @@
 # Contributing to SovereignShield
 
-Thank you for helping improve SovereignShield. The project is developed in a personal capacity as an independent reference implementation for governed statistical-data platforms. Issues, documentation improvements, tests, and focused pull requests are welcome.
+SovereignShield is developed in a personal capacity as an independent reference implementation for governed statistical-data platforms. Issues, documentation improvements, tests, and focused pull requests are welcome.
 
 ## Before You Start
 
 - Search existing issues and pull requests before opening a duplicate.
 - Open an issue before substantial architectural, dependency, data-model, or public API changes.
 - Use GitHub private vulnerability reporting for security concerns; do not open a public security issue.
+	Discussion of the already documented synthetic [reconstruction challenge](SECURITY.md#statistical-reconstruction-challenge)
+	can use a public issue; new exploitable weaknesses remain private reports.
 - Use synthetic data only. Never submit real client, institution, account, transaction, credential, or production metadata.
 - Keep changes focused. A contribution should solve one clearly stated problem without unrelated cleanup.
 
@@ -54,6 +56,16 @@ SovereignShield is intentionally fail-closed. Contributions must preserve these 
 
 A security-sensitive change should include a regression test that fails when the control is removed or inverted.
 
+The modeled international intake is SDMx files only. Synthetic bank micro-transactions
+are educational calculation fixtures, not institutional submissions or a required
+system deliverable. Preserve the Analyst View's distinction between expected latest
+filings, actual receiver state and current accepted publication.
+
+Researcher-visible row existence and public totals may reconstruct masked values.
+Synthetic community tests are welcome; restrict or remove the Researcher role in
+a production design if row presence makes inference trivial. Runtime policy changes
+require explicit review, not just a documentation change.
+
 ## SDMX and Validation Changes
 
 When changing structures, serializers, codelists, or consistency rules:
@@ -63,6 +75,19 @@ When changing structures, serializers, codelists, or consistency rules:
 - add a round-trip or schema-validation test for outbound formats;
 - distinguish format compliance from business-rule validation; and
 - do not transcribe a published rulebook into code when it can be parsed directly.
+
+Interpretation of rule metadata remains code requiring independent review. Treat
+Terraform-supported AWS, GCP, Fabric and open-source extensions as new implementations
+with equivalent acceptance tests, not automatically portable controls.
+
+## Documentation Changes
+
+Use objective architectural statements, one shared title for the Executive Brief
+and White Paper, and the [evidence register](docs/RELEASE_EVIDENCE.md) for measured
+results and limitations. Preserve dated historical findings as historical; do not
+turn a bounded synthetic cost/timing observation into a production guarantee.
+Run the documentation contract tests and `sh/verify_docs.py`; proof both publications
+after changes to content, figures or page layout.
 
 ## Pull Requests
 

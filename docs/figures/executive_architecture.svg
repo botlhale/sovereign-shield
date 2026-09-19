@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">Governed SDMx Exchange</title>
+  <desc id="description">SDMx-only intake, independent validation, submission-aware history and entitled published or audit products. Synthetic micro-transactions are educational only. Researcher discovery requires disclosure approval.</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10" fill="#52636b"/></marker></defs>
+  <style>text{font-family:'Segoe UI',sans-serif;fill:#183137;font-size:28px;letter-spacing:0}.title{font-size:48px;font-weight:700}.heading{font-size:30px;font-weight:700}.small{font-size:24px}.line{stroke:#52636b;stroke-width:3;fill:none;marker-end:url(#arrow)}.box{fill:#f6f9fa;stroke:#90a5aa;stroke-width:2}</style>
+  <rect width="1600" height="900" fill="white"/>
+  <text x="60" y="82" class="title">Governed SDMx Exchange</text>
+  <text x="60" y="130">Synthetic-first delivery and explicit information products</text>
+  <rect x="60" y="190" width="360" height="180" rx="6" class="box"/>
+  <text x="85" y="236" class="heading">Reporting Authority</text>
+  <text x="85" y="280">SDMx files only</text><text x="85" y="322">Full-snapshot submissions</text>
+  <path d="M420 280 H490" class="line"/>
+  <rect x="500" y="190" width="500" height="180" rx="6" fill="#edf7f3" stroke="#167d69" stroke-width="2"/>
+  <text x="525" y="236" class="heading">Protected Intake and History</text>
+  <text x="525" y="280">Pinned structure and rule checks</text>
+  <text x="525" y="322">One Delta MERGE per submission</text>
+  <path d="M1000 280 H1070" class="line"/>
+  <rect x="1080" y="190" width="460" height="180" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
+  <text x="1105" y="236" class="heading">Account-Group Entitlements</text>
+  <text x="1105" y="280">Jurisdictional row filter</text>
+  <text x="1105" y="322">Explicit-F decimal value mask</text>
+  <path d="M1310 370 V430 H800 V470" class="line"/>
+  <rect x="60" y="490" width="450" height="215" rx="6" class="box"/>
+  <text x="85" y="536" class="heading">Current Publication</text>
+  <text x="85" y="582">Public: published free values</text>
+  <text x="85" y="624">Researcher: approved discovery</text>
+  <text x="85" y="666">SDMx products; no rejected rows</text>
+  <rect x="575" y="490" width="450" height="215" rx="6" class="box"/>
+  <text x="600" y="536" class="heading">Analyst Reconciliation</text>
+  <text x="600" y="582">Expected filing vs receiver state</text>
+  <text x="600" y="624">IDs, timestamps and feedback</text>
+  <text x="600" y="666">Latest submitted != accepted</text>
+  <rect x="1090" y="490" width="450" height="215" rx="6" class="box"/>
+  <text x="1115" y="536" class="heading">Authorized Audit</text>
+  <text x="1115" y="582">Own-country submitter access</text>
+  <text x="1115" y="624">Privileged administrator history</text>
+  <text x="1115" y="666">Separate audit CSV</text>
+  <path d="M800 450 H285 V480" class="line"/><path d="M800 450 H1315 V480" class="line"/>
+  <rect x="60" y="750" width="1480" height="96" rx="4" fill="#fff6df"/>
+  <text x="85" y="789" class="small">Public totals and row presence can reveal masked values; disclosure approval remains required.</text>
+  <text x="85" y="825" class="small">Synthetic micro-transactions explain calculations only. Azure / Databricks is the reference implementation.</text>
+</svg>

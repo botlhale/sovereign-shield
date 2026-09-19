@@ -1,201 +1,98 @@
-# Persona & Role-Based Access Control Matrix
+# Persona and Information-Access Contract
 
-> **Context:** personas map to the real participants in an international statistical exchange — the submitting national central banks, the compiling body's administrators, external researchers consuming published aggregates, and the anonymous public reaching the dissemination gateway. Sovereignty between submitters is expressed as a platform constraint rather than only as an operational agreement.
+Use this reference when changing entitlements, query lifecycle or disclosure scope.
+The [policy SQL](../../src/unity_catalog_triple_lock.sql) and
+[query layer](../../src/uc_query.py) own the implementation.
 
-## Overview
+## Identity Resolution
 
-Entitlement is resolved at query time by **Unity Catalog** against **Entra ID** group membership. Because policy is attached to the table object rather than to the query, it applies identically through PySpark, a SQL warehouse, Power BI, an ad-hoc JDBC session, or the public REST gateway. No code path can omit it.
+Unity Catalog evaluates **Databricks account-group membership** using
+`is_account_group_member`. Setup reconciles selected Entra identities; it does not
+continuously synchronize revocation. Workspace-local groups do not substitute for
+account policy groups. Memberships compose additively.
 
-**Namespaces:** `sovereign_shield` for macro history, `sovereign_intake` for the
-country-filtered micro ledger, and `sovereign_submissions` for the admin-only
-filing volume.
+The gateway selects SQL identity, user filters and lifecycle scope. UC applies
+row/value entitlements. The gateway handles tokens and entitled results and
+therefore remains trusted. Supported runtime/query paths, privileged storage,
+control-plane rights and downloaded exports are separate boundaries.
 
----
+## Persona Definitions
 
-## The controlling principle
-
-> **The gateway chooses an identity. It never chooses rows.**
-
-`src/api_gateway.py` decides *which principal* a query runs as. Unity Catalog decides *what that principal may see*. There is no persona branch anywhere in the serving code — the SQL it builds is deliberately naive about confidentiality and lifecycle state. If the gateway were compromised outright, the metastore would still refuse to return a quarantined or confidential observation to an unentitled caller.
-
-The single exception is `LocalDeltaBackend` in `src/uc_query.py`, a development mirror that reimplements this matrix in pandas so the platform can be demonstrated and regression-tested with no workspace attached. It is unreachable whenever `DATABRICKS_SERVER_HOSTNAME` is set.
-
----
-
-## Persona definitions
-
-### 0. Execution identity — CI/CD service principal
-
-* **Principal:** `spn-sovereignshield-cicd`
-* **Role:** pipeline orchestrator and owner of data/policy objects when deployed by automation.
-* **Mandatory membership:** `sg-sovereignshield-admin`.
-
-> Ownership does **not** exempt a principal from a row filter. The SCD2 engine reads the history table to locate records it must expire; if the filter hid those rows the merge would see an empty target, treat every incoming row as new, and silently duplicate history without ever closing prior versions. No exception is raised — only the lineage is corrupted.
-
-Production structural change passes through version control and the pipeline
-identity. A local reference deployment may instead be owned by the interactive
-deployer.
-
-### 1. Anonymous public consumer
-
-* **Entra ID group:** `sg-sovereignshield-public`
-* **Reaches:** `agg_sdmx_history` (filtered), `v_agg_sdmx_published`
-* **Entitlement:** `BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'` across all jurisdictions — strictly clean, free-to-publish data.
-
-The public tier is an **explicit group, not the absence of one**. The row filter fails closed, so "unauthenticated" cannot be a fall-through case; it would return zero rows. The dissemination gateway's proxy principal is a member of this group, which makes the anonymous entitlement auditable in Entra ID like any other.
-
-> A Databricks App always sits behind workspace SSO. Genuinely anonymous access
-> uses Azure Container Apps, whose public service principal authenticates to the
-> SQL warehouse with Azure client-secret authentication. Optional Entra sign-in
-> uses Easy Auth with `AllowAnonymous`, a Blob-backed token store, and the scopes
-> `openid profile offline_access AzureDatabricks/user_impersonation`. The portal
-> reads `/.auth/me` same-origin, holds the provider token in memory only, and
-> sends it as `Authorization: Bearer` on persona-sensitive API requests.
-
-### 2. Authenticated researcher
-
-* **Entra ID group:** `sg-sovereignshield-researchers`
-* **Reaches:** `agg_sdmx_history` (filtered), `v_agg_sdmx_published`
-* **Entitlement:** `BATCH_STATUS = 'PUBLISHED'` across all jurisdictions — including confidential series, whose `OBS_VALUE` arrives masked to `NULL`.
-
-Researchers see the confidential *rows*, not the confidential *values*. This preserves structural dimensional density: joins still resolve and dimensional counts stay correct, while the protected metric is withheld. `NULL` is the international convention for a redacted observation, and it is also the only option available — a mask must return the masked column's own type, and `OBS_VALUE` is a `DOUBLE`, so a `'xxx'` sentinel is not representable.
-
-Quarantined batches remain invisible: an unvalidated figure must never reach a research citation.
-
-### 3. Regional reporting submitter
-
-* **Entra ID group:** `sg-sovereignshield-submitter-<cc>` (`-ca`, `-us`)
-* **Reaches:** `agg_sdmx_history` **and** the raw `lbs_micro_transactions` ledger
-* **Entitlement, own jurisdiction:** every record where segment 9 of `TIME_SERIES_CODE` equals their ISO code — including `QUARANTINE` batches and `C`/`N` confidential values, unmasked.
-* **Entitlement, foreign jurisdictions:** only `BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'`. Foreign confidential records stay restricted; foreign quarantined records are invisible.
-
-Quarantine visibility is not a convenience — a submitter cannot diagnose a rejected submission without seeing the rejected rows and their `FAILED_RULE_ID`.
-
-Micro-ledger access is defence in depth. Protecting the aggregate while leaving the unaggregated, institution-identifying source open is not sovereignty. Neither researchers nor the public tier are granted anything on that table.
-
-### 4. Central auditor / platform administrator
-
-* **Entra ID group:** `sg-sovereignshield-admin`
-* **Reaches:** every object
-* **Entitlement:** `1 = 1`. All jurisdictions, all lifecycle states, all confidentiality levels, unmasked — including historical SCD2 rows (`VALID_FROM`, `VALID_TO`, `IS_CURRENT = false`).
-
-### Fail-closed default
-
-A principal with no recognised membership resolves to `FALSE` — zero rows.
-
-> Off-boarding a contractor and enforcing sovereignty between two nations are **the same code path**. There is no separate revocation feature that could rot, be forgotten, or be tested less rigorously than the primary one.
-
----
-
-## Enforcement objects
-
-![The Unity Catalog policy enforcement point: the row filter and column mask signatures above a persona list — public (published and free only), researcher (published, values masked), submitter (own jurisdiction in full), auditor (unrestricted), and no group (zero rows, fails closed).](../../docs/sovereign-shield_technical_vision.jpg)
-
-*The right-hand column of this diagram is the table below, drawn. The dimmed
-final row is the fail-closed default — the one entry that makes the other four
-safe to grant.*
-
-| Lock | Object | Binding | Granularity |
+| Persona | Account Group | Row Entitlement | Measure Entitlement |
 | --- | --- | --- | --- |
-| RLS (macro) | `fn_rls_multi_persona_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)` | Row |
-| RLS (micro) | `fn_rls_micro_country_lock` | `WITH ROW FILTER ... ON (reporting_country)` | Row |
-| DDM | `fn_ddm_obs_conf_mask` | `OBS_VALUE DOUBLE MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | Cell |
-| Quarantine view | `v_agg_sdmx_published` | `BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true` | Result set |
+| Public proxy | `sg-sovereignshield-public` | Published rows explicitly `F` | Free measures only |
+| Researcher | `sg-sovereignshield-researchers` | Published rows across jurisdictions | Explicit `F`; restricted/unknown values masked unless separately entitled |
+| Regional submitter | `sg-sovereignshield-submitter-ca` / `-us` | Own jurisdiction in every lifecycle state plus foreign published `F` | Own values and foreign public values |
+| Administrator | `sg-sovereignshield-admin` | All countries and lifecycle history | All values through the explicit admin branch |
+| No recognized membership | None | No entitled rows | No values |
 
-### Why the row filter reads three columns
+The row filter does not itself require `IS_CURRENT`. The published view and
+gateway's published mode select current accepted observations. An authorized base
+history query can have a wider temporal scope than a standard feed.
 
-Filtering on the SDMx key alone was sufficient while the platform was internal. It stops being sufficient the moment the data is publicly reachable: a public visitor asking for Canadian series would receive Canada's quarantined and confidential rows as readily as its published ones. Sovereignty, lifecycle state and confidentiality have to be evaluated in the same predicate.
+The job's runtime service principal requires admin-group membership to read and
+write governed history. Ownership alone is not a policy exemption. Run-as use
+permission is a separate account rule-set grant, verified by
+[configure_run_as.py](../../sh/configure_run_as.py).
 
-```sql
-CREATE OR REPLACE FUNCTION fn_rls_multi_persona_lock(
-  time_series_code STRING, batch_status STRING, obs_conf STRING
-)
-RETURNS BOOLEAN
-RETURN
-  is_account_group_member('sg-sovereignshield-admin')
-  OR (is_account_group_member('sg-sovereignshield-researchers')
-      AND upper(coalesce(batch_status, '')) = 'PUBLISHED')
-  OR ((is_account_group_member('sg-sovereignshield-public')
-       OR is_account_group_member('sg-sovereignshield-submitter-ca')
-       OR is_account_group_member('sg-sovereignshield-submitter-us'))
-      AND upper(coalesce(batch_status, '')) = 'PUBLISHED'
-      AND upper(coalesce(obs_conf, '')) = 'F')
-  OR (is_account_group_member('sg-sovereignshield-submitter-ca')
-      AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'CA', FALSE))
-  OR (is_account_group_member('sg-sovereignshield-submitter-us')
-      AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'US', FALSE));
-```
+## Analyst View
 
-Four details are load-bearing:
+The Analyst View is the regional submitter workflow, not an additional group.
+Its purpose is to verify that the latest filing an analyst expects the international
+organization to hold matches actual submission IDs, submitted/received timestamps,
+values and validation feedback. A rejected latest filing does not replace current
+accepted data. Portal modes are `published`, `all` (current plus quarantine) and
+`quarantine`; full accepted history requires an authorized history query.
 
-* **Tiers compose with `OR`, not `CASE`.** A `CASE` stops at its first matching branch, so an analyst who is also a researcher would be silently downgraded to whichever branch happened to be written first. Disjunction makes entitlement additive — a principal receives the union of their memberships.
-* **`try_element_at`, never `element_at`.** Under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`. A row filter runs on every row of every query, so one malformed key would abort **all** access to the table, converting a data-quality defect into an outage.
-* **`coalesce(..., FALSE)`.** `try_element_at` returns `NULL` for a ragged key; without the coalesce the predicate is `NULL` and the row's visibility depends on how the optimiser folds it. Explicitly failing closed makes a malformed row invisible rather than universally visible.
-* **Case normalisation on both sides.** A lowercase code must not evade the filter.
+## Researcher Disclosure Decision
 
-### Why the mask reads the key
+Researchers may identify published series and request a separate agreement with
+the originating authority. Registration does not grant restricted values.
+Row existence, keys, confidentiality flags and counts are themselves information.
+Public totals or overlapping releases can reconstruct masked values, including the
+synthetic residual $1000-400-500=100$.
 
-```sql
-CREATE OR REPLACE FUNCTION fn_ddm_obs_conf_mask(
-  obs_val DOUBLE, obs_conf STRING, time_series_code STRING
-)
-RETURNS DOUBLE
-RETURN CASE
-  WHEN is_account_group_member('sg-sovereignshield-admin') THEN obs_val
-  WHEN is_account_group_member('sg-sovereignshield-submitter-ca')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'CA', FALSE) THEN obs_val
-  WHEN is_account_group_member('sg-sovereignshield-submitter-us')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'US', FALSE) THEN obs_val
-  WHEN upper(coalesce(obs_conf, '')) IN ('C', 'N') THEN NULL
-  ELSE obs_val
-END;
-```
+Invite community tests using synthetic data under the
+[statistical reconstruction challenge](../../SECURITY.md#statistical-reconstruction-challenge).
+Restrict or remove the Researcher role if observation existence makes inference
+trivial; public-only releases also require disclosure review. Metadata catalogs
+and secondary suppression are design options requiring implementation/approval,
+not controls already supplied by the reference.
 
-Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is. Any submitter membership would then unmask every jurisdiction's restricted cells, such as a Canadian Regional Submitter (CA) reading restricted US positions. The mask therefore repeats the segment-9 test rather than trusting the group name alone.
+## Educational Ledger
 
-The MVSD therefore includes confidential rows in more than one jurisdiction; a
-single-country corpus cannot verify cross-sovereign masking.
+The modeled international intake accepts **SDMx files only**. Synthetic bank
+micro-transactions exist solely to explain calculation of realistic observations.
+The demo ledger is not an institutional intake requirement or system deliverable.
+For demonstration, its country row filter permits administrators and own-country
+submitters, with no researcher/public grants. The filing volume is administrator-only
+because volumes do not carry table row filters or masks.
 
-### A note on views
+## Mask and History Invariants
 
-Unity Catalog dynamic views support caller-aware membership functions. The gateway reads the base table to support current and audit modes; the published view is a current-state convenience. Do not confuse underlying-object privileges with the identity evaluated by a membership function.
+- `OBS_VALUE` and mask input/output use `DECIMAL(38,3)`.
+- Check administrator and own-country entitlements; otherwise reveal explicit `F`
+  only. Missing/unknown confidentiality values return `NULL`.
+- Repeat segment 9 in the mask so an additive researcher membership cannot reveal
+  a foreign restricted value to a submitter.
+- Preserve genuine zero; never serialize a redacted value as zero.
+- Keep rejected submissions audit-only, with the prior accepted publication current.
+- Non-throwing segment lookup does not replace strict input validation or eliminate
+  all privileged branches for malformed data.
 
----
+## Synthetic Baseline
 
-## Summary matrix
+| Persona | Current Published Rows | Masked Values | Current Plus Quarantine Rows |
+| --- | ---: | ---: | ---: |
+| Public | 13 | 0 | Quarantine request refused |
+| Researcher | 22 | 9 | Quarantine request refused |
+| CA submitter | 14 | 0 | 18 |
+| US submitter | 17 | 0 | 21 |
+| Administrator | 22 | 0 | 44 |
 
-| Persona | Entra ID group | Rows visible | `OBS_VALUE` | Micro ledger | Quarantine |
-| --- | --- | --- | --- | --- | --- |
-| CI/CD | `spn-sovereignshield-cicd` | All (via admin group) | Raw | Yes | Yes |
-| Public | `sg-sovereignshield-public` | `PUBLISHED` + `OBS_CONF = 'F'` | Raw (only `F` visible) | No | No |
-| Researcher | `sg-sovereignshield-researchers` | `PUBLISHED`, all jurisdictions | `C`/`N` → `NULL` | No | No |
-| Submitter `<cc>` | `sg-sovereignshield-submitter-<cc>` | Own segment 9 in full; foreign `PUBLISHED` + `F` | Raw for own; masked for foreign | Own country only | Own only |
-| Admin / auditor | `sg-sovereignshield-admin` | `1 = 1` | Raw | Yes | Yes |
-| *(no membership)* | — | **None** | — | No | No |
-
-### Deployed synthetic fixture
-
-| Persona | Published rows | Masked values | Expected scope |
-| --- | ---: | ---: | --- |
-| Public | 13 | 0 | `PUBLISHED` and `OBS_CONF = 'F'` |
-| Submitter CA | 14 | 0 | CA in full; foreign public rows |
-| Submitter US | 17 | 0 | US in full; foreign public rows |
-| Researcher | 22 | 9 | All published rows; `C`/`N` values masked |
-| Admin | 22 | 0 | All published rows unmasked; quarantine available on request |
-
----
-
-## Deployment prerequisites
-
-1. Groups must exist at the Databricks **account** level. `is_account_group_member` does not resolve workspace-scoped groups, which look identical in the UI and silently match nothing.
-2. `spn-sovereignshield-cicd` must be in `sg-sovereignshield-admin`.
-3. The dissemination gateway's own managed service principal must be in `sg-sovereignshield-public`. On Databricks Apps this is a Databricks-managed principal distinct from the Entra `spn-sovereignshield-public`, which serves the Container Apps deployment.
-4. This deployment fixes `data_security_mode: USER_ISOLATION`. Other access modes have version-specific requirements, not a blanket RLS/DDM bypass.
-
----
-
-## Related skills
-
-* [`triple_lock_security.md`](triple_lock_security.md) — the enforcement objects in detail
-* [`mvsd_specification.md`](mvsd_specification.md) — the corpus that makes this matrix testable
-* [`contractor_zero_trust_workflow.md`](contractor_zero_trust_workflow.md) — how the matrix survives contractor off-boarding
+These are fixture outcomes, not production counts or permanent service status.
+Full offboarding includes sessions/tokens, Entra/Databricks memberships, Azure,
+vault, GitHub, ownership and exports; no-group data denial is only one check.
+See [persona tests](../../tests/test_persona_access_matrix.py),
+[live persona checks](../../sh/live_persona_checks.py) and
+[the engagement contract](../../docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md).

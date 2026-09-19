@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">Synthetic-First Consulting Engagement</title>
+  <desc id="description">The client approves metadata and access, the provider develops without production records, and the client reviews, imports, accepts staging and approves production. Offboarding retains stable runtime identities.</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10" fill="#52636b"/></marker></defs>
+  <style>text{font-family:'Segoe UI',sans-serif;fill:#183137;font-size:28px;letter-spacing:0}.title{font-size:48px;font-weight:700}.heading{font-size:30px;font-weight:700}.small{font-size:24px}.line{stroke:#52636b;stroke-width:3;fill:none;marker-end:url(#arrow)}</style>
+  <rect width="1600" height="900" fill="white"/>
+  <text x="60" y="82" class="title">Synthetic-First Consulting Engagement</text>
+  <text x="60" y="130">Production-isolated development; client-owned promotion and operations</text>
+  <rect x="60" y="190" width="460" height="420" rx="6" fill="#edf7f3" stroke="#167d69" stroke-width="2"/>
+  <text x="85" y="240" class="heading">External Provider</text>
+  <text x="85" y="298">Approved independent or</text><text x="85" y="338">client-controlled repository</text>
+  <text x="85" y="396">Generated fixtures and local tests</text>
+  <text x="85" y="454">No production records</text>
+  <text x="85" y="512">Reviewed code and runbooks</text>
+  <text x="85" y="570">Optional synthetic sandbox access</text>
+  <rect x="610" y="240" width="360" height="290" rx="6" fill="#fff6df" stroke="#b5892b" stroke-width="2"/>
+  <text x="640" y="292" class="heading">Client Approval Gates</text>
+  <text x="640" y="350">Metadata and access</text>
+  <text x="640" y="408">Independent review</text>
+  <text x="640" y="466">Disclosure / production</text>
+  <path d="M520 385 H600" class="line"/><path d="M970 385 H1050" class="line"/>
+  <rect x="1060" y="190" width="480" height="420" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
+  <text x="1085" y="240" class="heading">Client Platform and Operations</text>
+  <text x="1085" y="298">Reviewed clone / fork / import</text>
+  <text x="1085" y="356">Client state, vault and identities</text>
+  <text x="1085" y="414">Synthetic staging acceptance</text>
+  <text x="1085" y="472">Approved production SDMx intake</text>
+  <text x="1085" y="530">Client confidential data stays here</text>
+  <text x="1085" y="580">Monitoring, recovery and release</text>
+  <path d="M1300 610 V675 H800" class="line"/>
+  <text x="60" y="716" class="heading">Handover is more than source transfer</text>
+  <text x="60" y="762">Code, licenses, tests, evidence, runbooks, knowledge transfer and named acceptance owners</text>
+  <text x="60" y="813" class="small">Offboarding reviews groups, sessions, RBAC, vault, GitHub, ownership and exports; runtime identities remain client-owned.</text>
+  <text x="60" y="856" class="small">Independent synthetic reference architecture. No air-gap or automatic production-readiness claim.</text>
+</svg>

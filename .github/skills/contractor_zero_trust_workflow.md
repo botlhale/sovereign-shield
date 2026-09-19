@@ -1,235 +1,87 @@
-# Contractor Zero-Trust Delivery Workflow
+# External Technical Provider Delivery Workflow
 
-> **The problem.** An organisation needs specialist platform work on a system
-> holding Protected B / nationally confidential data. The specialists it needs
-> are exactly the people who should not hold that data. Institutions manage this
-> today with NDAs, supervised environments and access reviews — controls that
-> work, but that scale with headcount and decay with time.
->
-> **The pattern.** Make the access unnecessary rather than merely governed. The
-> contractor never holds production data at any point, and removing them
-> afterwards is a small set of administrative actions rather than an audit
-> exercise.
+Use this reference for contributor access, synthetic development, promotion and
+handover. The [Nature of Engagement and Handover](../../docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md)
+defines the client-facing contract and acceptance sequence.
 
-This is a **structural property of the architecture**, not a process wrapper
-around it. The sections below state what makes it hold, and where it stops.
+## Trust and Ownership Boundaries
 
----
-
-## 1. The three boundaries
-
-| Boundary | Who crosses it | What crosses it |
+| Boundary | Approved Flow | Required Owner |
 | --- | --- | --- |
-| **Specification** | Org → contractor | Structure, codelists, rulebook, persona matrix. No values. |
-| **Execution** | Contractor, alone | Code, synthetic fixtures, local tests. No credentials. |
-| **Promotion** | CI/CD identity, alone | Version-controlled artefacts. No human hands. |
+| Specification | Reviewed DSD, codes, rules, persona matrix and disclosure-safe metadata | Client data authority |
+| Development | Independently generated fixtures, code and credential-free tests | Provider within approved repository/workstation policy |
+| Live evaluation | Time-bounded access to a segregated synthetic sandbox where authorized | Client platform/security owner |
+| Promotion | Reviewed artifacts through explicitly approved identities/environments | Client independent reviewer and operator |
+| Production | Confidential records and SDMx intake inside client systems | Client data authority and operations |
 
-No single actor spans all three. The contractor authors what runs in production
-but never runs it there; the promotion identity runs it but is not authored by a
-human at deploy time.
+The client may approve a provider-controlled independent repository for reusable
+synthetic work, or require a client-controlled repository from inception. A client
+repository is not an employer repository unless that employer is the contracted
+client. No employer code, credentials, equipment or data is implicitly authorized.
 
----
+Synthetic generation must not leak production-derived distributions, exact counts
+or identifiers through metadata. The international intake is SDMx files only;
+synthetic bank micro-transactions are educational calculation fixtures, not a
+client data-delivery requirement or production system deliverable.
 
-## 2. Phase 1 — Organisation preparation
+## Local Development
 
-The org produces two artefacts before the contractor starts. Both are
-specifications, and neither contains a production record.
+Use the [MVSD contract](mvsd_specification.md), pinned structure and existing
+dependency manifests. The local pandas/delta-rs backend mirrors selected policy
+and history expectations without cloud credentials; it does not prove live
+identity enforcement, distributed conflicts or production performance.
 
-**The Minimal Viable Synthetic Dataset.** Structure, codelists, cardinality
-magnitudes and required test coverage — see
-[`mvsd_specification.md`](mvsd_specification.md). The contract is that the
-corpus is *generated*, never sampled or perturbed. Perturbation preserves
-distribution shape and is attackable; generation from a seed is not.
+Required tests cover the [persona matrix](persona_security_matrix.md), exact
+decimals, immutable submission identity, replay, accepted replacement, rejected
+revision, protected policy deployment and source-secret checks. Validate actual
+code paths rather than claiming that source inspection proves runtime behavior.
 
-**The persona security matrix.** Group names, entitlements and the fail-closed
-default — see [`persona_security_matrix.md`](persona_security_matrix.md). The
-org owns this document because entitlement is a legal question, not an
-engineering one. The contractor implements it; they do not define it.
+## Reviewed Promotion
 
-The org also creates the Entra ID groups. It does **not** add the contractor to
-any of them.
+The [workflow](../workflows/promote.yml) runs credential-free PR verification.
+Cloud plans and deployments are privileged manual operations on reviewed `main`,
+behind a protected environment and independent reviewer. The client configures
+those gates and the repository-specific OIDC trust. A merge alone does not grant
+production permission or complete a two-host rollout.
 
----
+Terraform owns infrastructure and grants; bundle/policy execution owns table DDL
+and verified bindings. Functions are immutable and content-addressed; normal
+deployment never detaches protection. One writer owns each principal/securable
+grant pair. A stable service principal is independent of the provider's account,
+but object ownership and human privileges still require explicit review.
 
-## 3. Phase 2 — Contractor execution boundary
+## Secrets and State
 
-Everything the contractor needs runs on a laptop with no cloud credentials.
+Current source scanning rejects credential literals; it is not certification of
+all source history. Runtime credentials use client-controlled secret references.
+Terraform state and plans can contain secret values and require restricted access,
+encryption, retention and audit. Easy Auth session storage and gateway bearer
+tokens are sensitive. No secret is to be collected through a chat or checked into
+the deliverable.
 
-| Capability | Local substitute | Why it is faithful |
-| --- | --- | --- |
-| Submissions | `generate_sovereign_submissions.py` | Emits real SDMX-ML 3.0 against the live public BIS DSD |
-| Rulebook | `sdmx_rule_validator.py` + `checks_lbs.xls` | The genuine published BIS check set, parsed at runtime |
-| SCD2 semantics | `local_pandas_scd2.py` | Mirrors the Spark state machine on pandas + delta-rs, no JVM |
-| Persona matrix | `LocalDeltaBackend` in `uc_query.py` | Reimplements the row filter and mask in pandas |
-| Serialization | `sdmx_ml_exporter.py` | ElementTree fallback works with no registry access |
+OIDC avoids a stored CI client secret, not every runtime secret. Rotation resources
+act on a subsequent apply; operators must refresh consumers and verify continuity.
 
-### The honest caveat about the local mirror
+## Handover and Exit
 
-`LocalDeltaBackend` is the one place the persona matrix is expressed **twice** —
-once as SQL in the metastore, once as pandas for local execution. That is a
-duplication, and duplication drifts.
+1. Freeze the approved source version, dependencies, licenses, evidence and limitations.
+2. Transfer by approved clone/fork/import to a client-controlled repository.
+3. Configure client-owned state, identities, vault, review gates and environment settings.
+4. Validate a synthetic staging deployment with live persona and lifecycle checks.
+5. Obtain production disclosure, residency, recovery, migration and cost approval.
+   Replace demo generation and separate the educational ledger before production;
+   the repository has no automatic production-readiness switch.
+6. Complete operator-led knowledge transfer and acceptance.
+7. Revoke provider groups, sessions/tokens, RBAC, vault/GitHub rights and delegated
+   ownership; review copies/exports and accessible credentials. Retain stable
+   client runtime identities and verify continued operation.
 
-It is accepted deliberately, with a specific mitigation: the offline persona
-tests in `tests/test_persona_access_matrix.py` assert the *same* expectations
-that the `--live` variant asserts against real Unity Catalog. When the mirror
-drifts from the metastore, the live run fails. The mirror is a development
-convenience whose correctness is verified against the real thing, not an
-independent implementation anyone is asked to trust.
+The Analyst View must reconcile expected latest submissions with receiver state,
+not equate latest rejected arrival with current publication. The Researcher role
+requires disclosure approval: public values and row presence can reconstruct
+withheld measures. Follow the [open synthetic challenge](../../SECURITY.md#statistical-reconstruction-challenge)
+and restrict/remove the role where necessary.
 
-Unity Catalog remains the enforcement point in every deployed configuration.
-`LocalDeltaBackend` is unreachable whenever `DATABRICKS_SERVER_HOSTNAME` is set.
-
-### What the contractor is allowed to know
-
-The design, in full. The security depends on group membership and metastore
-policy — not on the architecture being secret. A contractor who understands the
-row filter perfectly still resolves to zero rows once removed from the groups.
-
----
-
-## 4. Phase 3 — Production-isolated promotion
-
-The contractor opens a pull request. They cannot deploy it.
-
-```
-PR ──▶ offline test suite ──▶ human review ──▶ merge
-                                                │
-                                                ▼
-                                    OIDC federated credential
-                                                │
-                                                ▼
-                            terraform apply  ·  databricks bundle deploy
-```
-
-![The promotion plane and ownership boundary: pull request to offline tests (no credentials required) to review to merge to a short-lived OIDC token with no stored secret, which fans out to Terraform for infrastructure and to the Asset Bundle for data and policy, separated by a divider reading "one writer per object".](../../docs/sovereign-shield_technical_vision.jpg)
-
-*The top two bands are this section. The contractor works entirely inside
-"offline tests" — the only band that needs no credentials — and never crosses the
-OIDC boundary.*
-
-**Pipeline identity uses OIDC, not a stored secret.** GitHub Actions requests a
-short-lived token from Entra ID via workload identity federation, scoped to a
-specific repository, branch and environment. There is no client secret in
-repository settings to leak, rotate or forget. See `.github/workflows/deploy.yml`.
-
-**Terraform reads secrets, never receives them.** Configuration uses
-`data "azurerm_key_vault_secret"` lookups rather than `var.client_secret`. The
-contractor's code declares *which* secret it needs; the environment resolves the
-value in memory at apply time. A `terraform.tfvars` containing a credential is
-therefore not merely discouraged — there is no variable for it to populate.
-
-**The data plane never sees a literal either.** Databricks reads credentials
-through an Azure Key Vault-backed secret scope, so a notebook or job references
-`dbutils.secrets.get(scope, key)` and the value is resolved by the platform.
-
-### Ownership split at promotion
-
-| Plane | Owner | Objects |
-| --- | --- | --- |
-| Infrastructure & access control | Terraform | Entra groups, service principals, OIDC federation, Key Vault, workspace, catalogs, schemas, storage credentials, external locations, SQL warehouse, `GRANT USE CATALOG` / `USE SCHEMA` / `SELECT` |
-| Data & policy | DABs + `unity_catalog_triple_lock.sql` | Table DDL, policy UDFs, `SET ROW FILTER`, `SET MASK`, the quarantine view |
-
-Policy functions are immutable and content-addressed. Normal deployment never
-detaches existing protection and never tolerates failed bindings. Terraform owns
-grants while the bundle owns policy bindings. PR jobs have no cloud credentials;
-privileged OIDC planning/deployment requires a protected manual reviewed-main run.
-
----
-
-## 5. The zero-secret guarantee
-
-`tests/test_secret_decoupling.py` scans the repository for connection strings,
-API keys, private-key blocks, client secrets and hardcoded bearer tokens. It runs
-on every pull request.
-
-The guarantee is structural rather than aspirational:
-
-* Provisioning scripts pipe credentials straight from `az ad sp create-for-rbac`
-  into `az keyvault secret set` — never echoed, never written to disk.
-* `pre_auth.ps1` hydrates process-scoped environment variables at run time and
-  **discovers** the vault by prefix rather than hardcoding its name.
-* Container Apps resolves the public proxy credential through
-  `keyvaultref:...,identityref:system`. The script-generated Easy Auth SAS is
-  transient, stored as a Container App secret, and never written to tracked
-  source or logs.
-* Databricks Apps injects its own managed service principal's credentials into
-  the runtime; nothing is stored in the repository.
-
-The repository contains synthetic observations. Historical source contained a
-bootstrap password, reported by the author as no longer used. Terraform-managed
-secrets remain in sensitive state/plans; current source scans do not certify history.
-
----
-
-## 6. Revocation
-
-The following older checklist is incomplete on its own. Follow the current
-[offboarding and ownership contract](../../docs/RELEASE_EVIDENCE.md#ci-ownership-and-cost):
-Entra/Databricks groups, sessions/tokens, Azure/vault/GitHub rights, delegated
-ownership and exposed credentials all require review. Do not delete a stable
-runtime identity merely because one contractor leaves.
-
-1. **Rotate the service principal** — Terraform re-mints the dissemination proxy
-  credential when a subsequent apply performs a due 90-day rotation, and
-   `terraform apply -replace="module.identity.azuread_service_principal_password.public_proxy"`
-   forces it immediately; `sh/kv_spn_remediation.sh` does the same for the CI/CD
-   principal. The secret is overwritten under the **same name**, so any copy the
-   contractor retained is dead immediately and the pipeline continues working
-   with **no code change** — consumers resolve secrets by name, never by value.
-2. **Remove the Key Vault access policy** for the contractor's identity. Without
-   it they cannot hydrate a session at all.
-3. **Remove them from every Entra ID group.** The row filter grants rows only on
-   positive membership and fails closed on no match, so a former contractor who
-   somehow retained a valid login resolves to zero groups and therefore zero rows.
-
-> The mechanism that stops Canada seeing UK data is the mechanism that stops a
-> former contractor seeing any data. There is no separate off-boarding feature
-> that could rot or be tested less rigorously than the primary one.
-
----
-
-## 7. Where the pattern stops
-
-Stated plainly, because this is what a reviewer should press on.
-
-* **Someone must hold admin rights** to run the rotation and manage groups. The
-  pattern shrinks the trusted set to the organisation's own administrators; it
-  does not eliminate it.
-* **The contractor knows the design.** Intentional, but it does mean the pattern
-  protects data, not architectural novelty.
-* **Calibration against real distributions cannot be contracted out.** The only
-  tuned constant here is the disclosure-dominance threshold (`0.60`), and that is
-  a policy decision rather than a value learned from data. If a future
-  requirement genuinely needs fitting to real distributions, that work sits
-  *after* handover and inside the organisation's boundary.
-* **Synthetic data cannot prove production performance.** Volumetrics,
-  skew and cost behaviour at real scale need a production dry-run the contractor
-  will not observe.
-* **The local persona mirror can drift** between `--live` runs. It is verified,
-  not proven.
-
----
-
-## 8. Contractor checklist
-
-Before opening a pull request:
-
-- [ ] `pytest tests/` passes offline, with no cloud credentials present
-- [ ] `pytest tests/test_secret_decoupling.py` passes
-- [ ] No new dimension, group name or status literal invented — all trace to
-      [`mvsd_specification.md`](mvsd_specification.md) or
-      [`persona_security_matrix.md`](persona_security_matrix.md)
-- [ ] Any new persona logic added to Unity Catalog SQL is mirrored in
-      `LocalDeltaBackend` **and** asserted in `test_persona_access_matrix.py`
-- [ ] `terraform plan` produces no diff against policy objects — those belong to
-      the SQL DDL
-- [ ] `databricks bundle validate -t dev` succeeds
-
----
-
-## Related skills
-
-* [`mvsd_specification.md`](mvsd_specification.md) — the synthetic corpus contract
-* [`persona_security_matrix.md`](persona_security_matrix.md) — the entitlement the contractor implements
-* [`triple_lock_security.md`](triple_lock_security.md) — the enforcement objects
-* [`docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md`](../../docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) — the same pattern for an engagement lead
+The core pattern is technology-agnostic. Terraform supports alternative-provider
+implementations, not automatic Azure/Databricks control portability. Evaluation
+timing and cost are recorded with limits in [Release Evidence](../../docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics).

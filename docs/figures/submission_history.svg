@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">One Atomic Transition per Submission</title>
+  <desc id="description">A newer accepted full snapshot closes its previous current scope and inserts the replacement in one Delta MERGE. Same-message replay is a no-op; rejected and older accepted arrivals are audit-only. Current VALID_TO is NULL.</desc>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10" fill="#52636b"/></marker></defs>
+  <style>text{font-family:'Segoe UI',sans-serif;fill:#183137;font-size:28px;letter-spacing:0}.title{font-size:48px;font-weight:700}.heading{font-size:30px;font-weight:700}.small{font-size:24px}.line{stroke:#52636b;stroke-width:3;fill:none;marker-end:url(#arrow)}</style>
+  <rect width="1600" height="900" fill="white"/>
+  <text x="60" y="82" class="title">One Atomic Transition per Submission</text>
+  <text x="60" y="130">Scope: reporting country, period and aggregation; identity: immutable submission ID</text>
+  <rect x="60" y="220" width="450" height="230" rx="6" fill="#f6f9fa" stroke="#90a5aa" stroke-width="2"/>
+  <text x="85" y="272" class="heading">Current Accepted Filing</text>
+  <text x="85" y="325">CA / 2026-Q1 / LBSR</text>
+  <text x="85" y="375">Key A: 1.111; key B: 2.222</text>
+  <text x="85" y="425">Current row; VALID_TO=NULL</text>
+  <rect x="575" y="220" width="450" height="230" rx="6" fill="#edf7f3" stroke="#167d69" stroke-width="2"/>
+  <text x="600" y="272" class="heading">New Accepted Full Snapshot</text>
+  <text x="600" y="325">Same scope; new submission ID</text>
+  <text x="600" y="375">Key A: 3.333; key B omitted</text>
+  <text x="600" y="425">Newer submitted timestamp</text>
+  <path d="M510 335 H565" class="line"/><path d="M1025 335 H1080" class="line"/>
+  <rect x="1090" y="220" width="450" height="230" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
+  <text x="1115" y="272" class="heading">Single Delta MERGE</text>
+  <text x="1115" y="325">Close prior A and B in scope</text>
+  <text x="1115" y="375">Insert new current A: 3.333</text>
+  <text x="1115" y="425">Other countries / periods intact</text>
+  <rect x="60" y="540" width="1480" height="225" rx="6" fill="#fff6df"/>
+  <text x="85" y="592" class="heading">Distinct Arrival Outcomes</text>
+  <text x="85" y="644">Same message replay: no new rows or history commit. New identical filing: retained as a new event.</text>
+  <text x="85" y="696">Rejected or older accepted arrival: closed audit rows only; current accepted publication stays unchanged.</text>
+  <text x="85" y="740" class="small">SUBMITTED_AT is sender-reported; RECEIVED_AT is processing time, not an attested transport receipt.</text>
+  <text x="60" y="834" class="small">One table transaction, not a multi-table transaction. Single-writer reference; distributed conflicts require acceptance.</text>
+</svg>

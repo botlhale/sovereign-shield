@@ -12,7 +12,7 @@ workload data needed deletion. The user subsequently confirmed "testing complete
 and authorized the post-test teardown. The teardown preview found no active job
 runs and all job clusters terminated. Teardown completed successfully, with
 independent cleanup verification at **2026-09-16 00:45 UTC** (15 September locally).
-Both cloud portals are now inactive; the identifiers below describe the removed
+The portals for this evaluation were removed; the identifiers below describe that
 evaluation deployment.
 
 ## Live Resources
@@ -60,6 +60,11 @@ only in the correct scope, rejection isolation, identical new filing retention,
 late-older handling, identity-reuse refusal, and unique record/current keys. The
 temporary table was dropped afterward. These bounded cases do not prove
 distributed concurrency, production throughput or multi-table atomicity.
+
+The micro ledger exercised here is an educational synthetic calculation artifact,
+not an international intake requirement or system deliverable. The modeled
+exchange receives SDMx files only. Analyst tests reconcile expected filing state
+with receiver identities, timestamps and acceptance feedback.
 
 [The live persona harness](../sh/live_persona_checks.py) used real temporary
 Databricks principals with one-hour OAuth secrets. It did not modify human users'
@@ -129,6 +134,13 @@ Azure Cost Management returned HTTP 429 during deployment. The billed total coul
 not be verified and is not reported as below $50; billing also lags resource use.
 The workload is now removed, but the retained state backend can incur storage
 costs. No hard real-time billing cap or zero-total-cost claim is made.
+
+The later confirmed reference evaluation measured about 75 minutes up including
+prerequisites, 30 minutes down and US$10 or less in Azure charges for the full
+cycle. Its [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics)
+is separate from this earlier billing-API limitation. Historical figures are not
+retroactively changed. Public-total and researcher-row inference remain the
+[open disclosure challenge](../SECURITY.md#statistical-reconstruction-challenge).
 
 ## Teardown Results
 

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">Triple-Lock Control Contract</title>
+  <desc id="description">Logical controls are account-group row entitlement, explicit-F decimal masking and current published selection. The third control is not ABAC or cryptographic lineage. Disclosure approval remains separate.</desc>
+  <style>text{font-family:'Segoe UI',sans-serif;fill:#183137;font-size:28px;letter-spacing:0}.title{font-size:48px;font-weight:700}.heading{font-size:30px;font-weight:700}.small{font-size:24px}</style>
+  <rect width="1600" height="900" fill="white"/>
+  <text x="60" y="82" class="title">Triple-Lock Control Contract</text>
+  <text x="60" y="130">Logical entitlement and publication controls, not an inference-proof guarantee</text>
+  <rect x="60" y="220" width="450" height="420" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
+  <text x="85" y="272" class="heading">1. Row Entitlement</text>
+  <text x="85" y="330">Databricks account groups</text>
+  <text x="85" y="384">Admin: all jurisdictions / states</text>
+  <text x="85" y="438">Submitter: own + foreign public</text>
+  <text x="85" y="492">Researcher: published rows</text>
+  <text x="85" y="546">Public: published explicit F</text>
+  <text x="85" y="600">No recognized group: no rows</text>
+  <rect x="575" y="220" width="450" height="420" rx="6" fill="#edf7f3" stroke="#167d69" stroke-width="2"/>
+  <text x="600" y="272" class="heading">2. Measure Entitlement</text>
+  <text x="600" y="330">DECIMAL(38,3) mask</text>
+  <text x="600" y="384">Admin or own country: reveal</text>
+  <text x="600" y="438">Otherwise reveal explicit F</text>
+  <text x="600" y="492">Unknown / missing: NULL</text>
+  <text x="600" y="546">Repeat segment-9 ownership</text>
+  <text x="600" y="600">Masked absence is not zero</text>
+  <rect x="1090" y="220" width="450" height="420" rx="6" fill="#fff6df" stroke="#b5892b" stroke-width="2"/>
+  <text x="1115" y="272" class="heading">3. Published Product</text>
+  <text x="1115" y="330">PUBLISHED and IS_CURRENT</text>
+  <text x="1115" y="384">Current accepted snapshot</text>
+  <text x="1115" y="438">Rejected arrivals stay audit-only</text>
+  <text x="1115" y="492">View / gateway selection</text>
+  <text x="1115" y="546">Authorized audit is separate</text>
+  <text x="1115" y="600">Not a base-row-filter time gate</text>
+  <text x="60" y="722" class="heading">Separate information-release decision</text>
+  <text x="60" y="772">Public totals, keys, counts and row presence may reconstruct restricted measures.</text>
+  <text x="60" y="822" class="small">Restrict or remove Researcher discovery when existence makes inference trivial; review public releases independently.</text>
+  <text x="60" y="865" class="small">No ABAC-tag or cryptographic-lineage control is represented here. Privileged paths and the gateway remain trusted.</text>
+</svg>

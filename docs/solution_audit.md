@@ -1,8 +1,17 @@
-**Critical Findings**
-Audited commit `1d09269`, 116 reachable commits, and 485 historical text-file versions. I ran synthetic failure probes and the stress-enabled suite: **99 passed, 3 skipped**. No source files or cloud resources were changed.
+# Historical Solution Audit
+
+**Scope:** findings below apply to audited commit `1d09269` and its then-reachable
+history, not the current implementation. The review covered 116 commits and 485
+historical text-file versions; synthetic failure probes and the stress-enabled
+suite recorded **99 passed, 3 skipped**. The audit itself made no source or cloud
+changes. Historical locations and readiness scores are retained as dated evidence.
+Current behavior and resolved controls are specified in [Release Evidence](RELEASE_EVIDENCE.md),
+[the technical reference](technical_reference.md) and [the publication plan](LINKEDIN_POST.md).
+
+**Critical Findings at the Audited Revision**
 
 1. **P0: A bootstrap password remains in public history.** Commit `af8cf06` contains a plaintext password used by `grp_users_create.sh` to create four demo users. Its current validity is unknown. Reset any affected credentials, revoke sessions, and review sign-ins before promoting the repository. History cleanup comes afterward; existing clones cannot be recalled. GitHub’s empty secret-alert list did not detect this generic password.
-2. **P0: Policy deployment can fail open.** `unity_catalog_triple_lock.sql:34` removes active protections before replacing functions, while `apply_security.py:136` tolerates reattachment failures. My injected failure rejected all three reattachments and still printed success. Stop detaching policies during ordinary ingestion; isolate policy migrations, fail on unexpected errors, and verify bindings before restoring consumer access.
+2. **P0: Policy deployment can fail open.** `unity_catalog_triple_lock.sql:34` removes active protections before replacing functions, while `apply_security.py:136` tolerates reattachment failures. An injected failure rejected all three reattachments and still printed success. Stop detaching policies during ordinary ingestion; isolate policy migrations, fail on unexpected errors, and verify bindings before restoring consumer access.
 3. **P0 when enabled: “Plan-only” CI has deployment privileges.** `main.tf:79` uses the same application as deployment, with Contributor access and admin-persona membership. Running `terraform plan` does not make its identity read-only. Separate planning and deployment identities, restrict untrusted execution, and enforce reviewed promotion. **Do not merely add the missing CI variable and enable this path unchanged.**
 4. **High: Masking does not prevent statistical inference.** In the saved fixture, public values reconstruct restricted observations exactly: $1000-400-500=100$ and $450-300=150$. This is synthetic, not evidence of a real-data incident, but it disproves a broad confidentiality guarantee. Add secondary suppression or an approved disclosure-control method; meanwhile describe the project as **entitlement enforcement**, not complete statistical disclosure protection.
 5. **High: Unknown classifications can expose values.** The validator accepted an invalid country and unrecognized confidentiality code as `PUBLISHED/PASS`; the researcher mirror returned its value. `unity_catalog_triple_lock.sql:79` likewise reveals anything other than recognized `C`/`N`. Validate codelists, normalize classifications, reject missing/unknown values, and default to withholding.
@@ -12,7 +21,9 @@ Audited commit `1d09269`, 116 reachable commits, and 485 historical text-file ve
 9. **Launch blocker: CI and lifecycle claims exceed current coverage.** The latest five promotion runs failed; the latest offline verification passed, but preflight rejected missing `DATABRICKS_HOST`. Main has PR-review rulesets, but no required status-check rule; production has no required reviewer. `promote.yml:253` also omit the staged grant flags and do not reproduce the complete portal lifecycle. `sovereignshield_up.ps1:134` resets readiness flags on reruns, potentially removing established grants. Separate bootstrap from steady-state deployment and test both.
 
 **Readiness Score**
-**Overall: 5/10 for a promoted portfolio launch.** This is a substantial reference implementation, not a toy. It is **not production-grade**, and its strongest claims currently outrun its assurance evidence.
+**Historical overall score: 5/10 for a promoted portfolio launch.** At the audited
+revision, the reference implementation's claims exceeded its assurance evidence.
+This score is not a current production-readiness assessment.
 
 | Evaluation | Score | Candid assessment |
 |---|---:|---|
@@ -47,7 +58,9 @@ The blanket assertion that dynamic views evaluate membership as the owner is als
 Figures 1–10 and the print grouping are substantially improved. For executives, move the two pages of SQL into an appendix and lead with one architecture diagram, one persona table, one revision example, and one limitations table. Journal submission additionally needs authoritative references, comparison with existing approaches, reproducible methods/results, and a defensible novelty claim. A formatted PDF is not yet a publication-quality argument.
 
 **Legal Boundaries**
-The current naming is defensible as an independent study; historical institutional names are still retrievable. I did not establish employer-proprietary code or data leakage, but a repository inspection cannot certify provenance, employment compliance, or ownership.
+The audit did not establish employer-proprietary code or data leakage. Historical
+institutional names remained retrievable; repository inspection cannot certify
+provenance, employment compliance or ownership.
 The personal-capacity notice is useful **context, not legal immunity**. Obtain documented clearance on outside work, conflicts, IP assignment, resource use, and public communications. Keep individual authorship prominent; use Augmenta Systems commercially only where appropriate. The slash-separated copyright wording leaves ownership ambiguous: confirm the actual rights-holder, trade name, and any assignment before changing it.
 Public availability is not public-domain status. [BIS redistribution terms](https://www.bis.org/terms_conditions.htm) distinguish non-commercial redistribution and limited extracts. The bundled PDFs/workbook deserve a rights review given the contracting objective; the repository’s Apache license cannot grant rights over them. Avoid the categorical legal advice currently in the LinkedIn guidance.
 
@@ -63,7 +76,7 @@ Use after the blockers and clearance questions are resolved:
 ```text
 How can external specialists validate a sensitive data platform before they are allowed to see its production data?
 
-That is the delivery question behind SovereignShield, an independent reference implementation I built using synthetic statistical submissions and publicly available standards.
+SovereignShield is an independent reference implementation using synthetic statistical submissions and publicly available standards.
 
 The project brings together governed data access, revision handling, validation, and deployment automation. The objective is to make control behavior inspectable before an institution decides what production access an engagement actually requires.
 
@@ -78,7 +91,7 @@ https://github.com/botlhale/sovereign-shield
 ```text
 A masking rule is not yet a confidentiality guarantee.
 
-In SovereignShield, I explore the boundaries between identity, query-time access controls, statistical validation, and revision history using Azure Databricks, Unity Catalog, SDMX, and synthetic data.
+SovereignShield separates identity, query-time access controls, statistical validation and revision history using Azure Databricks, Unity Catalog, SDMx and synthetic data.
 
 The difficult questions sit between those layers: Can policy updates fail closed? Does replay preserve history? Can published totals reveal suppressed values? Does an export preserve both precision and lifecycle meaning?
 
@@ -86,6 +99,30 @@ Those questions are more useful than a broad “Zero Trust” label. The reposit
 
 This is an independent reference study, developed in a personal capacity using synthetic fixtures and public standards, not production accreditation or employer-endorsed work.
 
-I welcome review from practitioners working on governed data platforms and statistical disclosure control.
+Technical review is invited from practitioners working on governed data platforms and statistical disclosure control.
 https://github.com/botlhale/sovereign-shield
 ```
+
+## Current Publication Context
+
+The launch drafts in this audit belong to the historical review. Use the current
+[LinkedIn plan](LINKEDIN_POST.md) and [publication/release guide](PUBLICATION_AND_RELEASE.md)
+for distribution. The Executive Brief and White Paper now share **Bridging Public
+Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**.
+
+The international input contract is SDMx files only; synthetic bank micro-transactions
+are educational calculation artifacts, not an institutional intake requirement or
+system deliverable. Analyst reconciliation distinguishes expected latest filing,
+actual receiver state and current accepted publication. The core pattern is
+technology-agnostic, while alternative Terraform providers and runtime controls
+require implementation and acceptance.
+
+The later successful evaluation measured approximately 75 minutes up including
+prerequisites, 30 minutes down and US$10 or less in Azure charges for deploy/test/
+teardown; see [measurement provenance](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
+The historical audit does not independently verify those later measurements.
+
+Public-value and row-existence reconstruction remains an
+[open synthetic challenge](../SECURITY.md#statistical-reconstruction-challenge).
+Restrict or remove researcher discovery when existence makes inference trivial,
+and assess public-only releases independently.

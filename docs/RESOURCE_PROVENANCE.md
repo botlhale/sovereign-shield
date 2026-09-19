@@ -5,6 +5,12 @@ why it exists, which step creates it, what happens when it already exists, and
 which tool removes it. It is written for platform owners, systems architects,
 security reviewers, and operators reading the Azure and Databricks consoles.
 
+**Information scope:** international intake is SDMx files only. Synthetic bank
+micro-transactions and their protected demo ledger are educational calculation
+artifacts, not an institutional intake requirement or system deliverable. The
+Analyst View reconciles expected latest filings with receiver state; current
+accepted publication and latest rejected arrival remain distinct.
+
 ## The Short Operating Sequence
 
 The one-command path assumes the remote Terraform backend, local configuration,
@@ -16,7 +22,8 @@ az login
 az account set --subscription "<subscription-id>"
 
 # 2. Provision or converge the complete workload.
-powershell.exe -ExecutionPolicy Bypass -File .\sh\sovereignshield_up.ps1 `
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned -Force
+.\sh\sovereignshield_up.ps1 `
   -AccountId "<databricks-account-guid>" `
   -TenantDomain "<tenant-domain>"
 ```
@@ -59,10 +66,10 @@ resources or Terraform state remain.
 | 0 | `sovereignshield_up.ps1` | Validates tools, config, Azure login, providers, persona users, and tests | Read-only except idempotent provider registration |
 | 1 | Terraform | Identity, Key Vault, Databricks workspace, UC storage/connector, catalog, schemas, volume, SQL warehouse, cluster policy | Terraform converges state; the workload resource group can be created or adopted |
 | 2 | `databricks_account_setup.ps1`, then Terraform | Databricks account SCIM mirrors, memberships, workspace assignments, persona-group and public-proxy SQL entitlements, catalog/schema/warehouse grants | Lists before creating; skips existing objects, memberships, assignments, and entitlements |
-| 3 | Databricks Asset Bundles | Three-task pipeline job, Databricks App definition, synchronized source and requirements | Bundle deploy updates its existing deployment |
-| 4 | Asset Bundle job and SQL | Security DDL, synthetic submissions, micro ledger, SCD2 history, policy functions, masks, row filters, published view | DDL and merge logic are idempotent; revisions append audit history |
-| 5 | Terraform | Table grants after Stage 4 creates the objects and applies policy-function execution grants | Additive grants converge through `grant_tables=true` |
-| 6 | Asset Bundle plus account setup | Starts the Databricks App and assigns its managed service principal to the public account group | Existing app is redeployed; existing membership is skipped |
+| 3 | Run-as helper and Databricks Asset Bundles | Explicit runtime use permission, four-task pipeline job, App definition, synchronized source and requirements | Bounded permission verification preserves existing grants; bundle updates its deployment |
+| 4 | Asset Bundle job and SQL | Security DDL, synthetic SDMx generation, educational ledger, SCD2 ingestion and live runtime acceptance | Same-message replay is idempotent; new generation creates new filing identities |
+| 5 | Terraform | Table grants after Stage 4 creates objects | One writer per principal/securable pair; readiness is preserved |
+| 6 | App activation helper plus account setup | Assigns managed public membership, resolves bundle source and activates/verifies a snapshot | Resume reconciles exact pending/latest deployment without duplication; creates first snapshot when none exists |
 | 7 | `container_apps_deploy.ps1` | ACR, image, Container Apps environment/app, managed identity, Easy Auth registration and token store | Discovers named/random resources and updates them; image is rebuilt intentionally |
 | 8 | `sovereignshield_up.ps1` | Health and running-state verification; optional GitHub environment configuration | Verification only unless GitHub configuration is requested |
 
@@ -146,7 +153,7 @@ gateway module. It creates or reuses:
 | --- | --- | --- |
 | `acrsovereignshield<suffix>` | Basic Azure Container Registry containing timestamped portal images | Reuses the first matching registry; always builds a fresh image |
 | `cae-sovereignshield` | Consumption Container Apps environment | Reused when present |
-| `ca-sovereignshield-portal` | External FastAPI portal, 0.5 CPU/1 GiB, configured for 1-3 replicas | Updated in place when present |
+| `ca-sovereignshield-portal` | External FastAPI portal, 0.5 CPU/1 GiB, evaluation minimum and maximum both 1 replica | Updated in place when present |
 | Container App system identity | Pulls the image and reads Key Vault references | Created with the app and granted only the required roles |
 | Easy Auth Entra application/service principal | Supports optional signed-in persona elevation while anonymous access remains enabled | Repaired/converged by the script |
 | `stsovereignshieldauth<suffix>` Blob token store | Persists Easy Auth provider tokens across revisions and replicas | Existing matching account is reused |
@@ -155,6 +162,12 @@ The app is a consumption workload, not a permanently allocated VM. Its cost is
 driven by replica uptime, CPU/memory allocation, requests, registry/storage, and
 logs. Pause mode sets minimum replicas to zero; workload teardown deletes the
 app, environment, matching registry, and token store.
+
+Successful reference provisioning took approximately **75 minutes including
+prerequisites**, followed by **30 minutes for teardown**. The complete deploy,
+test and teardown cycle cost **US$10 or less in Azure charges**. This is a measured
+synthetic evaluation, not a recurring production estimate or zero-cost retention
+claim. See [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 
 ## Remote State Resource Group
 
@@ -172,11 +185,11 @@ reconstruction. Delete it only as an explicit final decommissioning decision.
 
 ```powershell
 # Preview every destructive ownership path.
-powershell.exe -ExecutionPolicy Bypass -File .\sh\sovereignshield_down.ps1 `
+.\sh\sovereignshield_down.ps1 `
   -Mode Workload -WhatIf
 
 # Execute ordered workload teardown.
-powershell.exe -ExecutionPolicy Bypass -File .\sh\sovereignshield_down.ps1 `
+.\sh\sovereignshield_down.ps1 `
   -Mode Workload -ConfirmWorkloadDestruction
 ```
 
@@ -207,13 +220,23 @@ After Stage 2:
 - account groups are assigned to the workspace; and
 - `is_account_group_member()` can resolve each expected policy name.
 
-After Stage 8:
+Stage 8 verifies:
 
 - the Databricks App reports `RUNNING`;
 - the Container Apps health endpoint reports `ok`;
-- anonymous access returns only published/free observations;
-- signed-in personas return their expected rows and masks; and
-- no-group identity verification returns zero rows.
+- anonymous access returns the expected 13 published/free fixture observations;
+- five persona groups have SQL access; and
+- configured Easy Auth and token-store settings match expectations.
+
+Separate live acceptance must verify signed-in persona sessions, no-group denial,
+analyst reconciliation and statistical reconstruction. Stage 8 is not a complete
+human SSO or disclosure-control test. Researcher discovery may need restriction
+or removal if observation existence makes inference trivial; see the
+[security challenge](../SECURITY.md#statistical-reconstruction-challenge).
+
+The architectural pattern is technology-agnostic. Terraform supports AWS, GCP,
+Microsoft Fabric and open-source provider/module extensions, but resource names
+alone do not establish equivalent identity, storage, policy or history behavior.
 
 ## Source of Truth
 

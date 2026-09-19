@@ -1,138 +1,71 @@
-# SovereignShield Platform Capability Matrix
+# SovereignShield Architecture Reference Index
 
-**SovereignShield** explores Zero-Trust for **SDMx 3.0 statistical submissions to an international body** — national central banks reporting confidential banking data into the BIS Locational Banking Statistics collection. The perimeter here is not a network boundary but a *national* one, and it is legal rather than technical. Institutions already enforce that boundary rigorously through specialised SDMx software and operational protocol; every capability below explores what it looks like when the same boundary is additionally expressed in the data platform itself.
+These repository reference notes define current implementation contracts for
+contributors and reviewers. The owning source and tests take precedence over
+historical diagrams or deployment recipes. A documented design option is not
+an implemented feature or a substitute for institutional acceptance.
 
-This matrix documents the **operational capabilities the platform actually implements**, each mapped to the artifact that enforces it. It is the authoritative index for agents and reviewers: every row below corresponds to code in this repository, not to aspirational scope.
+## Reference Notes
 
-**Namespaces:** `sovereign_shield` (published macro history), `sovereign_intake`
-(domestic micro ledger), `sovereign_submissions` (admin-only filing volume) ·
-**Runtime:** Databricks 18.x · **Standard:** SDMx 3.0 / BIS LBS
-
-![Policy as a Metastore Object — promotion plane, the Terraform/pipeline ownership boundary, a data plane with quarantine isolation, and a consumption band, all resolving into a Unity Catalog enforcement point that maps five personas ending in "no group — zero rows, fails closed".](../../docs/sovereign-shield_technical_vision.jpg)
-
-*Every capability below appears somewhere in this diagram. If a claim here has no
-counterpart in the image, one of the two is out of date.*
-
----
-
-## 0. 📚 Skill index
-
-| Skill | Owns | Read it when |
+| Note | Responsibility | Use When |
 | --- | --- | --- |
-| [`mvsd_specification.md`](mvsd_specification.md) | The synthetic data contract: authoritative BIS LBS dimensions, codelist semantics, required test coverage, and the export rules that let an org hand over structure without handing over records | Adding a dimension, a jurisdiction, or a test fixture |
-| [`persona_security_matrix.md`](persona_security_matrix.md) | Who may read which rows, and the exact SQL that decides it | Changing an entitlement or adding a persona |
-| [`triple_lock_security.md`](triple_lock_security.md) | The three enforcement objects and their DDL lifecycle | Editing `unity_catalog_triple_lock.sql` |
-| [`sdmx_lbs_validation.md`](sdmx_lbs_validation.md) | Runtime rulebook compilation and the atomic batch verdict | Touching the validator or the check workbook |
-| [`scd2_engine.md`](scd2_engine.md) | The four-stage merge and the quarantine state machine | Touching historisation |
-| [`contractor_zero_trust_workflow.md`](contractor_zero_trust_workflow.md) | The delivery pattern: specification / execution / promotion boundaries and revocation | Onboarding a contributor, or reviewing the security posture |
+| [Synthetic information contract](mvsd_specification.md) | Pinned dimensions, metadata, generated fixtures and required cases | Changing data structures, synthetic fixtures or transfer scope |
+| [Persona matrix](persona_security_matrix.md) | Account-group entitlements, analyst reconciliation and disclosure boundaries | Changing access, lifecycle selection or personas |
+| [Policy deployment](triple_lock_security.md) | Protected DDL, immutable functions and ownership | Changing policies, bindings or runtime configuration |
+| [SDMx validation](sdmx_lbs_validation.md) | Format, component/code and arithmetic validation | Changing rule interpretation or serialization |
+| [Submission history](scd2_engine.md) | Immutable filing identity, replay and atomic full replacements | Changing persistence, ordering or audit semantics |
+| [External-provider workflow](contractor_zero_trust_workflow.md) | Synthetic development, reviewed promotion, handover and offboarding | Onboarding contributors or reviewing delivery access |
 
-Every row in the sections below corresponds to code in this repository, not to aspirational scope.
+## Information Boundaries
 
----
+The modeled international exchange accepts **SDMx files only**. Synthetic bank
+micro-transactions exist solely as educational artifacts showing how realistic
+observations and confidentiality flags are calculated. The demo ledger is not an
+institutional intake requirement or system deliverable. Domestic granular-data
+collections and other reporting regimes are outside this exchange contract.
 
-## 1. 📊 SDMx 3.0 & BIS LBS Standards Compliance
+The **Analyst View** is the regional submitter workflow: reconcile expected latest
+filings with actual receiver identities, timestamps, values and validation outcomes.
+Latest submission is not necessarily current accepted publication.
 
-| Capability | Implementation | Artifact |
+Researcher-visible row presence and public values can enable reconstruction.
+Invite synthetic challenges under the [security policy](../../SECURITY.md#statistical-reconstruction-challenge).
+Restrict or remove the Researcher role if observation existence makes inference
+trivial; public-only data still needs disclosure review. Do not change runtime
+permissions solely because a documentation review identifies this open decision.
+
+## Implemented Capabilities
+
+| Capability | Owning Implementation | Verification Boundary |
 | --- | --- | --- |
-| SDMx 3.0 XML generation | Structure-specific messages emitted via `pysdmx` | `generate_sovereign_submissions.py` |
-| DSD resolution | Live `BIS_LBS` dimension fetch, with a pinned 11-dimension fallback when the registry is unreachable | `sdmx_rule_validator.py` |
-| 11-dimension composite key | `FREQ.L_MEASURE.L_POSITION.L_INSTR.L_DENOM.L_CURR_TYPE.L_PARENT_CTY.L_REP_BANK_TYPE.L_REP_CTY.L_CP_SECTOR.L_CP_COUNTRY` | `scd2_merge_engine.py` |
-| Signed observations | Negative positions are valid (asset vs. liability direction) and are never a failure on their own | Aggregation layer |
-| Zero retention | Genuine zero remains distinct from missing or masked observations | Aggregation layer |
-| Confidentiality escalation | Most-restrictive-wins rollup: any `C` → `C`; else any `N` → `N`; else `F` | Aggregation layer |
-| Codelist enforcement | Sector codes constrained to BIS breakdowns `{B,M,F,C,G,H}` + aggregates `{A,N,U}` | `_assert_valid_sector_codes` |
-| Disclosure control | Dominance computed on **absolute** contributions (`\|bank\| / Σ\|bank\|`), threshold `0.60` → `OBS_CONF = 'N'` | `aggregate_micro_to_macro` |
+| Pinned BIS LBS 1.0 structure and codelists | [lbs_contract.py](../../src/lbs_contract.py) | Deliberate refresh, not unreviewed live `latest` |
+| Three-place exact measures, genuine zero retained | [decimal_measures.py](../../src/decimal_measures.py) | Reference profile, not universal SDMx precision |
+| 21 within-dataset arithmetic rules | [sdmx_rule_validator.py](../../src/sdmx_rule_validator.py) | Six cross-collection checks unsupported; missing breakdowns reported |
+| Account-group RLS and explicit-F decimal masking | [policy SQL](../../src/unity_catalog_triple_lock.sql) | Supported UC paths; not physical residency or disclosure control |
+| No-detach policy deployment | [apply_security.py](../../src/apply_security.py) | Definition/binding verification; no multi-object atomic migration |
+| One Delta MERGE per full submission | [Spark history adapter](../../src/spark_submission_history.py) | Single-writer job; separate ledger/history transactions |
+| Same-message replay and new-identical-filing retention | [submission_history.py](../../src/submission_history.py) | Submission identity and digest, not payload hash alone |
+| Current SDMx products and separate audit CSV | [api_gateway.py](../../src/api_gateway.py) | Trusted gateway; standard feeds exclude rejected/superseded rows |
+| Protected manual cloud promotion | [promote.yml](../workflows/promote.yml) | PR verification has no cloud credentials; client configures reviewer gates |
+| Resumable lifecycle | [up orchestrator](../../sh/sovereignshield_up.ps1) | Current Terraform outputs; bounded exact-ID App recovery |
 
-> Signed values make naive dominance arithmetic unsafe: a signed denominator can reach zero on offsetting positions and yield shares above `1`. Absolute contributions are the only correct basis.
+Open `VALID_TO` is `NULL`; measures are `DECIMAL(38,3)`. Do not reintroduce
+sequential expiry/append/delete transactions, floating-point measures, zero
+suppression, detached policies, unvalidated export fallbacks or automatic human
+ownership-transfer claims.
 
----
+## Deployment and Portability
 
-## 2. 🧪 Atomic Batch Validation
+The core information/delivery framework is technology-agnostic; Azure and
+Databricks are the demonstrated implementation. Terraform provider/module
+boundaries support AWS, GCP, Microsoft Fabric and open-source adaptations.
+Identity, storage, policy, history and hosting adapters require equivalent tests.
 
-| Capability | Implementation |
-| --- | --- |
-| **Metadata-driven rules** | BIS consistency checks are parsed from `docs/reference_standards/checks_lbs.xls` at runtime and compiled into predicates — rules are data, not code, so a workbook update requires no deployment |
-| **Rule coverage** | `LBS_CC01`–`LBS_CC03` (no colon) and `LBS_CC:04`–`LBS_CC:21` (with colon); the inconsistent source formatting is preserved verbatim, since normalizing it would silently drop rules |
-| **Check semantics** | Purely arithmetic reconciliation: an aggregate code must equal the sum of its component codes on the same dimension, within `1e-4` |
-| **Wildcard handling** | The code `ISO` matches any value on its dimension — making `L_CP_COUNTRY` unsuitable for scenario isolation, as `LBS_CC:11`–`:21` target it with `ISO` |
-| **Atomic verdict** | Grouped by `(L_REP_CTY, DATE)`: any failure sets `QUALITY_STATUS = FAIL` and `BATCH_STATUS = QUARANTINE` on every row; `FAILED_RULE_ID` is populated only on observations that break a check |
-| **Failure isolation** | Quarantine is scoped per jurisdiction — one country's break never blocks another's publication in the same run |
-| **Arity guard** | Segment counts are verified per row before splitting; a ragged split would pad short keys and shift every subsequent dimension, misaligning the whole batch |
-| **Normalization** | All dimension values `strip().upper()`-ed on both sides of every comparison |
-| **Empty-batch tolerance** | An empty input returns a correctly-shaped empty frame — a non-reporting quarter is a valid state, not an error |
-| **Single source of truth** | The validator alone authors `QUALITY_STATUS`, `BATCH_STATUS`, and `FAILED_RULE_ID`; no downstream stage overrides them |
+The successful synthetic reference cycle measured approximately **75 minutes up
+including prerequisites**, **30 minutes down**, and **US$10 or less in Azure charges
+for deploy/test/teardown**. Use [the measurement scope](../../docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics),
+not these values as production cost or duration guarantees.
 
-Partial publication is rejected by design: aggregates that reconcile depend on components that did not, so publishing only the passing subset would emit an internally contradictory dataset.
-
----
-
-## 3. 🛡️ Unity Catalog Fine-Grained Access Control
-
-| Lock | Object | Binding | Granularity |
-| --- | --- | --- | --- |
-| **RLS (macro)** | `fn_rls_multi_persona_lock` | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)` | Row |
-| **RLS (micro)** | `fn_rls_micro_country_lock` | `WITH ROW FILTER ... ON (reporting_country)` | Row |
-| **DDM** | `fn_ddm_obs_conf_mask` | `OBS_VALUE DOUBLE MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | Cell |
-| **Quarantine View** | `v_agg_sdmx_published` | `BATCH_STATUS = 'PUBLISHED' AND IS_CURRENT = true` | Result set |
-
-**Persona resolution** — evaluated at query time via `is_account_group_member`:
-
-| Persona | Entra ID group | Reaches | RLS | DDM | Quarantine gate |
-| --- | --- | --- | --- | --- | --- |
-| CI/CD | `spn-sovereignshield-cicd` | All assets (owner) | Bypass — *requires* admin group membership | Bypass | No |
-| Admin / auditor | `sg-sovereignshield-admin` | Both base tables | Bypass | Bypass | No |
-| Submitter | `sg-sovereignshield-submitter-<cc>` | Both base tables | **Enforced** | Bypass for own segment 9 only | Sees own `QUARANTINE` + `FAILED_RULE_ID` |
-| Researcher | `sg-sovereignshield-researchers` | History table, `PUBLISHED` only | **Enforced** | **Enforced** (`C`/`N` → `NULL`) | **Enforced** |
-| Public | `sg-sovereignshield-public` | History table, `PUBLISHED` + `OBS_CONF = 'F'` | **Enforced** | Moot — no `C`/`N` row is visible | **Enforced** |
-| *(no membership)* | — | Nothing | **Fails closed** | — | — |
-
-Operational competencies exercised:
-
-* **Policy-as-metastore-object.** Governance is attached to the table, not the query, so it applies identically across PySpark, SQL warehouses, BI tools, and ad-hoc JDBC. No code path can omit it.
-* **ANSI-safe policy authoring.** Row filters must fail *closed*, not *loud*: `try_element_at` over `element_at`, because an exception raised inside a row filter aborts every query against the table and converts a data-quality defect into an outage.
-* **Type-compatible masking.** A mask returns the masked column's own type — `OBS_VALUE` is `DOUBLE`, so `NULL` is the only valid redaction; a `'xxx'` sentinel is not representable.
-* **Ownership ≠ exemption.** Object ownership does not lift a row filter. The pipeline SPN must hold admin group membership or the merge reads an empty target and silently duplicates history.
-* **Defense in depth.** Protecting the aggregate while leaving the raw ledger open is not sovereignty; both tables carry filters.
-* **Protected deployment.** Content-addressed immutable functions, no policy detachment, definition/binding verification, and failure propagation. Legacy incompatible schemas require explicit migration. See [release evidence](../../docs/RELEASE_EVIDENCE.md).
-
----
-
-## 4. 🕰️ Delta Lake Historization (SCD Type 2)
-
-| Capability | Implementation |
-| --- | --- |
-| Four-stage merge | Expire changed → insert active → append quarantine audit → scoped logical delete |
-| Change detection | `version_hash` payload fingerprint, coalesced against a `\u0000NULL` sentinel so `NULL` and `""` cannot collide |
-| End-of-time sentinel | Active rows carry `VALID_TO = 9999-12-31T00:00:00`, not `NULL`, so range predicates need no special-casing |
-| **Fail-safe state machine** | Quarantined revisions append as audit-only rows (`IS_CURRENT = false`, `VALID_TO = VALID_FROM`) and are excluded from the expire-merge — the prior published record **stays active** |
-| Replay idempotency | `left_anti` join on natural key + `version_hash` prevents duplicate audit rows across re-runs |
-| Snapshot correctness | The logical-delete stage re-reads the target post-insert; reusing the pre-insert snapshot would immediately expire the rows just written |
-| Blast-radius control | Logical delete is scoped to the `(reporting_country, DATE)` pairs in the published batch, so one jurisdiction's submission cannot retire another's series |
-| Batch stamping | A single UTC timestamp per batch, with a row-width guard that names the offending `transaction_id` instead of surfacing an opaque `AXIS_LENGTH_MISMATCH` |
-
-The governing principle: **validation failure degrades to stale data, never to missing data.**
-
----
-
-## 5. ⚙️ IaC, Secrets & Orchestration
-
-| Capability | Implementation |
-| --- | --- |
-| Declarative deployment | Databricks Asset Bundles; three ordered tasks with security provisioned **before** any data is written |
-| Secret management | Azure Key Vault discovered by resource prefix; no credential literal in tracked source or configuration |
-| Session auth | **Dot-sourced** `pre_auth.ps1` — child-process invocation would discard the variables on return |
-| Credential rotation | `kv_spn_remediation.sh` deletes the app registration, mints fresh credentials, and overwrites stored secrets |
-| Compute topology | Single Node (`num_workers: 0`, `ResourceClass: SingleNode`, `spark.master: local[*, 4]`) on `Standard_DS3_v2` |
-| Cost posture | `SPOT_WITH_FALLBACK_AZURE` — safe because the pipeline is idempotent and a re-run reproduces the same end state |
-| Security mode | This deployment pins `USER_ISOLATION`; other access modes have documented runtime/serverless requirements |
-| Immutable execution | `spark_python_task` against the synced `src/` directory, avoiding intermediate `.whl` builds |
-
----
-
-## 6. 🧰 Engineering Practices & Failure-Mode Coverage
-
-* **Runtime path resolution.** A `spark_python_task` entry script is run via `exec(compile(...))` and has no `__file__`, while `os.getcwd()` is not the bundle root. The true path is recovered from the code object (`inspect.currentframe().f_code.co_filename`) through an ordered, **lazily evaluated** candidate chain — evaluated at import time, the failure would fire before any fallback could run. Only the entry script is affected; imported modules load normally.
-* **Silent-failure auditing.** Systematic review for defects that produce no error: destructive DDL inside an idempotent path, hash collisions between `NULL` and `""`, case-variant codes evading string-matched filters, and pre-insert snapshots driving post-insert decisions.
-* **JVM-free local development.** SCD2 semantics are reproducible on pandas + `delta-rs` (`local_pandas_scd2.py`); Spark-path logic is exercised via `sys.modules` injection and mocking.
-* **Test-integrity discipline.** Verification must call the real code path — reconstructing inputs by parsing source misses real defects, and a bare `except Exception: pass` can convert a genuine error into a false pass. Unexpected exceptions are allowed to propagate.
-* **Empirical verification of identifiers.** Reference codes are confirmed against the live artifact rather than assumed; source workbooks contain inconsistencies that normalization would silently swallow.
+The [engagement playbook](../../docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) is authoritative
+for client/provider responsibilities. The [operations runbook](../../docs/AUTOMATION_RUNBOOK.md)
+owns commands, recovery and resource retention.

@@ -1,232 +1,178 @@
-# SovereignShield — Persona Demo Narrative
+# SovereignShield: Persona Demonstration
 
-**Audience:** statistical leaders, data architects, central-bank analysts, research partners  
-**Format:** Optional 3–5 minute follow-up video; technical post and separate executive brief first<br>
-**Companions:** [Executive vision](executive_vision.md) · [Technical vision](technical_vision.md) · [Whitepaper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md)
+**Audience:** statistical leaders, data architects, reporting analysts and researchers.
+**Format:** optional 3-5 minute technical follow-up after the publication launch.
+
+The companion publication is **Bridging Public Dissemination and Protected Data:
+A Zero-Trust SDMx Architecture on Azure Databricks**, available as an
+[Executive Brief](EXECUTIVE_BRIEF.md) and [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md).
+Follow [the publication plan](LINKEDIN_POST.md) for ordering and evidence links.
 
 ## Reference Captures
 
-The historical submitter captures use neutral persona labels and include an
-anonymization footer. Only the labels were edited; displayed data and filters
-are unchanged. They are not fresh live verifications.
+The current publication images are the synthetic captures supplied on 18 September
+2026, copied without editing labels, values or filters. They replace the older
+anonymized screenshots. The [capture inventory](../demo/README.md) records the
+selected source/state mapping. These screenshots document displayed behavior,
+not an independent authentication trace or the outcome of every acceptance test.
 
 | Persona | Capture |
 | --- | --- |
 | Canadian Regional Submitter (CA), published | [Published view](../demo/submitter_ca_view.png) |
 | Canadian Regional Submitter (CA), quarantine included | [All submissions view](../demo/submitter_ca_all_submissions.png) |
 | US Regional Submitter (US), published | [Published view](../demo/submitter_us_view.png) |
+| Anonymous public, 13 rows | [Public view](../demo/public_view.png) |
+| Researcher, 22 rows and 9 masked measures | [Researcher view](../demo/researcher_view.png) |
+| Researcher filtered to GB, 14 rows and 4 masked measures | [GB-filtered view](../demo/researcher_gb_view.png) |
+| CA submitter, 4 rejected rows | [Quarantine-only view](../demo/submitter_ca_quarantine_view.png) |
+| Administrator, 22 current published rows | [Published administrator view](../demo/admin_published_view.png) |
 
----
+Label current recordings with date, tested revision, synthetic dataset and actual
+hosting mode. A browser fixture is presentation evidence, not proof of live SSO.
+No recording may show tokens, credentials, personal accounts or confidential records.
 
-## Positioning
+## Information Scope
 
-The demo and the architecture pattern should remain separate but connected.
+The international exchange modeled here accepts **SDMx files only**. Synthetic
+bank micro-transactions exist solely as educational artifacts illustrating how
+realistic observations are calculated. The demo ledger is not an institutional
+intake requirement or system deliverable. Domestic granular collection is outside
+this workflow and should not appear as an international submission arrow.
 
-- **The demo explains institutional value through user journeys.** It shows what a public visitor, researcher, reporting authority and administrator can do.
-- **The architecture explains why those views can be trusted.** Unity Catalog row filters and column masks enforce the differences at query time.
-- **The whitepaper provides the durable argument.** It records the design, standards, controls and operating model beyond what fits in a short video.
+The **Analyst View** is the regional submitter workflow. Its primary purpose is to
+verify that the latest filing an analyst expects the international organization
+to hold matches actual submission IDs, timestamps, values and validation outcomes.
+Latest submitted, latest received and current accepted publication are distinct.
 
-For the agreed launch, lead with the [technical post and executive brief](LINKEDIN_POST.md). A video is optional supporting material, not a prerequisite or a promise of reach. Label local UI fixtures and historical cloud captures accurately.
+The **Researcher View** is conditional discovery, not guaranteed non-disclosure.
+Public totals, dimensions and observation existence can reveal masked values.
+Invite synthetic community challenges and restrict/remove the role if row presence
+makes reconstruction trivial. An agreement request does not itself grant access.
 
----
+## Demonstration Sequence
 
-## Product motivation
+### 0:00-0:30: Scope and Public Result
 
-### Discoverability without disclosure
-
-Public statistical portals are designed to publish data that is already free to disseminate. That is necessary, but it leaves a gap for legitimate research collaboration: a researcher cannot request access to a protected series they do not know exists.
-
-SovereignShield gives registered researchers a controlled view of the published statistical structure. Restricted observations remain present, but their values are masked. A researcher can identify that a relevant series exists, understand its dimensions and reporting jurisdiction, and approach the appropriate authority with a specific research proposal. Disclosure still requires a separate agreement and approval process; discoverability does not become access.
-
-This creates a clearer path from:
-
-```text
-unknown data → visible protected series → informed request → institutional agreement
-```
-
-### Submission assurance and feedback
-
-A reporting authority may submit several versions for the same period. It should be able to answer:
-
-- Which version does the international organisation currently publish?
-- Was a revision quarantined?
-- Did the prior accepted submission remain active?
-- Which validation rules rejected the new filing?
-
-The national analyst view provides this assurance. Analysts see their own jurisdiction in full, including confidential values and their own quarantined revisions, while foreign jurisdictions remain at the public entitlement. The international organisation retains the complete audit history without exposing one country's restricted data to another.
-
-This creates a practical validation feedback loop:
-
-```text
-submit → validate → publish or quarantine → inspect outcome → reconcile rule interpretation → improve the next filing
-```
-
-The current portal offers Published, Published + quarantine, and Quarantine only modes for administrators and submitters. It displays `FAILED_RULE_ID`, the separate batch rejection reason, submission identity, and submitted/received times. Standard SDMx feeds require Published mode; Audit CSV matches the selected lifecycle view. Values use the explicit three-place reference profile. These changes are locally verified, not yet a fresh live deployment capture.
-
----
-
-## Demo script
-
-### 0:00–0:25 — Open with the problem
-
-**Screen:** Public view, all filters reset.
+**Screen:** public view with filters reset and the hosting mode identified.
 
 **Narration:**
 
-> Statistical portals are very good at showing what can be published. The harder question is how one platform can also serve researchers, reporting authorities and auditors without copying data into separate systems or trusting each application to apply the rules correctly.
+> SovereignShield is an independent synthetic reference architecture for SDMx
+> submission governance. The receiving platform accepts SDMx files, validates
+> submissions and separates current publication from rejected arrivals. Azure
+> and Databricks implement the reference controls.
 
-> SovereignShield is a working reference architecture for that question. The data is synthetic, the structure is real SDMx 3.0, and every persona queries the same governed table while Unity Catalog produces different rows and values for each caller.
+> The anonymous endpoint uses a dedicated public identity. This fixture returns
+> thirteen current published observations explicitly classified free to publish.
 
-**On screen:** Point to the `Public (Free to Publish Only)` badge and the 13-observation result.
+### 0:30-1:05: Filters and Published Exports
 
-**Significance:** Establish that anonymous access is useful and intentionally limited, not a failed authentication state.
-
----
-
-### 0:25–1:05 — Public dissemination
-
-**Screen:** Public view. Open Reporting Country and Currency filters briefly; select and clear one option to show live filtering.
-
-**Narration:**
-
-> An anonymous visitor sees only current observations that passed validation and are explicitly free to publish. Here that is 13 observations. The filter menus are built from the rows this identity is allowed to discover, and every selection updates the result immediately.
-
-> The gateway chooses the identity used for the query. It does not decide which rows are returned. Unity Catalog applies that decision inside the data platform.
-
-**Significance:** Public access is an explicit, auditable entitlement through the public proxy identity. It is not a permissive default.
-
----
-
-### 1:05–1:50 — Research discoverability
-
-**Screen:** Researcher view showing 22 published observations and 9 masked values.
+**Screen:** select a reporting country, inspect the result and reset. Open one
+SDMx export and identify the selected scope and units.
 
 **Narration:**
 
-> A registered researcher sees a different answer from the same table. All 22 published observations remain visible, preserving the statistical structure, but nine protected values are rendered as restricted.
+> The gateway selects identity, lifecycle and user filters. Unity Catalog enforces
+> row and value entitlements on the governed query. Standard SDMx products contain
+> current accepted data only; masked absence is not a zero measurement.
 
-> This matters beyond masking. It lets a researcher discover that a series exists, identify its reporting jurisdiction and dimensions, and form a precise request for collaboration. They can approach the relevant central bank and explain why a research agreement would benefit from that protected series. The platform points them in the right direction without disclosing the value.
+> The gateway handles tokens and entitled results and remains a trusted component.
 
-> Registration is not approval to use confidential data. It is a controlled discovery tier that can support a separate legal and institutional process.
+### 1:05-1:45: Researcher Discovery and Open Risk
 
-**On screen:** Point to the researcher badge, the withheld-value count and two `restricted` observations.
-
-**Significance:** Demonstrates discoverability without disclosure and preserves dimensional density for research planning.
-
----
-
-### 1:50–2:45 — Reporting-authority assurance
-
-**Screen:** Canadian Regional Submitter (CA) view, then US Regional Submitter (US) view.
+**Screen:** researcher fixture with 22 published rows and nine masked measures.
 
 **Narration:**
 
-> A reporting authority needs a different form of confidence. The Canadian Regional Submitter (CA) sees Canadian restricted values in full, but foreign protected observations remain outside its entitlement. The US Regional Submitter (US) receives the mirror image.
+> Researcher discovery identifies a published series and its originating authority
+> while withholding restricted measures. Obtaining those values requires a separate
+> agreement and approved entitlement.
 
-> This is useful when several filings exist for the same period. The analyst can verify what the international organisation currently holds and what remains published. Sovereignty restricts depth, not access to data that is already public.
+> The existence of a row is itself information. Published totals and known calculation
+> relationships can reconstruct a hidden component. This is an open challenge:
+> restrict or remove researcher discovery if row presence makes inference trivial.
+> Public-only releases also require statistical disclosure review.
 
-**Screen:** In the Canadian Regional Submitter (CA) view, turn on `Include quarantine`.
+**Evidence boundary:** show synthetic reconstruction examples only. No live attack
+or third-party probing is part of this demonstration.
 
-> The analyst can also include its own quarantined revision. A rejected filing is retained for diagnosis, but it does not replace the last accepted version. That means a failed revision degrades to stale data, never missing data.
+### 1:45-2:50: Analyst Reconciliation
 
-> This supports a better conversation between the reporting authority and the international organisation: did our local checks differ, did we interpret a rule differently, or does one side need to tighten its validation? The history makes that discussion specific and evidence-based.
-
-**Significance:** Demonstrates national isolation, own-country confidentiality, revision transparency and prior-state preservation.
-
----
-
-### 2:45–3:25 — International organisation oversight
-
-**Screen:** Administrator view with quarantine off, then on.
-
-**Narration:**
-
-> The platform administrator sees all 22 published observations unmasked across all jurisdictions. When quarantine is included, the view expands to 44 rows: the accepted baseline and the audit-only revisions.
-
-> Published and quarantined versions remain visibly distinct. The administrator can investigate quality outcomes without allowing a failed revision into dissemination.
-
-**On screen:** Toggle quarantine and point to paired `PUBLISHED` and `QUARANTINE` badges for the same period.
-
-**Significance:** Demonstrates cross-jurisdiction oversight, complete lineage and separation of publication from audit.
-
----
-
-### 3:25–4:05 — Show the architecture pattern
-
-**Screen:** Use the technical architecture diagram or briefly show the repository diagram.
+**Screen:** CA submitter, then US submitter. In CA, select Published + quarantine,
+then Quarantine only. Identify a submission ID, timestamps and failure feedback.
 
 **Narration:**
 
-> These are not five separately coded views. The gateway carries the caller's identity to the SQL warehouse, and Unity Catalog evaluates row-level security and dynamic data masking against that identity at query time.
+> Analysts can verify that the latest filing they expect the international
+> organization to hold is actually present, with the expected identity, values
+> and outcome. Each submitter sees its own restricted data and public foreign data.
 
-> The same table therefore produces five outcomes: public, researcher, Canadian submitter, US submitter and administrator. A principal in none of the recognised groups receives zero rows.
+> A later rejected filing remains visible for diagnosis but does not replace the
+> prior accepted publication. Observation-level failures and the batch rejection
+> reason support reconciliation between sender and receiver.
 
-> Quality is enforced separately. SDMx submissions are checked against the published BIS consistency workbook. A failed country-period is quarantined atomically, and Delta Lake keeps the complete SCD Type 2 history.
+> The portal distinguishes current publication and rejected arrivals. Complete
+> accepted history requires an authorized history query; processing timestamps
+> are not an independently attested transport receipt.
 
-**Significance:** Connect the visible product behavior to platform-enforced controls without turning the video into an implementation walkthrough.
+**Expected fixture:** CA has 14 current published rows and 18 with quarantine;
+US has 17 current published rows and 21 with quarantine. Counts depend on this
+fixture and should not be reused as production claims.
 
----
+### 2:50-3:30: Administrator Oversight
 
-### 4:05–4:30 — Close with the claim and boundary
+**Screen:** administrator in Published mode, then Published + quarantine.
 
-**Screen:** Return to the public view or a four-persona montage.
+The supplied administrator screenshot shows Published mode only. A live authorized
+recording or an additional capture is required to illustrate the 44-row audit mode;
+do not relabel the 22-row screenshot as that view.
 
 **Narration:**
 
-> The product idea is straightforward: make public statistics genuinely public, make protected series discoverable without disclosing them, give reporting authorities confidence in what was received, and give the international organisation one governed audit trail.
+> The administrator sees 22 published rows or 44 rows including rejected revisions
+> in this fixture. Accepted and rejected records remain distinct. A smaller accepted
+> replacement closes omitted keys in one country/period/aggregation transaction;
+> rejected arrivals leave current accepted data unchanged.
 
-> This is an independent reference architecture using synthetic data. It is not affiliated with or endorsed by the BIS, any central bank or any vendor named. The whitepaper, architecture diagrams, tests and deployment code are available in the repository.
+### 3:30-4:15: Delivery and Operating Model
 
-> The question I would put to statistical organisations is: could a controlled discovery and submission-feedback layer improve how researchers and reporting authorities work with the data you already govern?
+**Screen:** current [architecture diagrams](ARCHITECTURE_DIAGRAMS.md) and the
+[engagement workflow](ENTERPRISE_ONBOARDING_PLAYBOOK.md#engagement-workflow).
 
----
+**Narration:**
 
-## Recording plan
+> The external provider develops against an approved synthetic contract. The client
+> owns production records, deployment identities, release approval and operations.
+> Repository handover, staging acceptance and production approval are separate steps.
 
-| Shot | Persona | State to capture | Product claim |
-| --- | --- | --- | --- |
-| 1 | Public | 13 published/free observations | Open dissemination is explicit and fail-closed |
-| 2 | Researcher | 22 published rows, 9 values restricted | Series are discoverable without disclosure |
-| 3 | Canadian Regional Submitter (CA) | 14 published rows; own restricted values visible | A submitter sees its jurisdiction in full |
-| 4 | US Regional Submitter (US) | 17 published rows; own restricted values visible | Sovereignty is symmetric between submitters |
-| 5 | Canadian Regional Submitter (CA) | Include quarantine enabled | A submitter can inspect its rejected revision |
-| 6 | Administrator | 22 published rows, then 44 with quarantine | Full oversight and complete audit history |
-| 7 | Architecture | Triple-lock and identity flow | The platform, not the page, enforces entitlement |
+> The core pattern is technology-agnostic. Terraform supports AWS, GCP, Fabric and
+> open-source adaptations, but equivalent identity, policy and history controls
+> require implementation and testing.
 
-Use the compact filters during transitions rather than narrating every dimension. One multi-select example is enough: choose two reporting countries to demonstrate that the portal is an analytical tool, not a sequence of static screenshots.
+### 4:15-4:45: Evidence and Invitation
 
----
+**Narration:**
 
-## Claims and boundaries
+> Live provisioning and teardown completed successfully. The synthetic reference
+> cycle measured about seventy-five minutes up including prerequisites, thirty
+> minutes down and ten US dollars or less in Azure charges for deployment, testing
+> and teardown. Those are observed evaluation results, not production guarantees.
 
-### Demonstrated now
+> Technical feedback is invited on analyst reconciliation, institutional handover
+> and reconstruction from public values or researcher-visible rows. The repository
+> includes the evidence, limitations and security reporting route. No institutional
+> or vendor endorsement is implied.
 
-- Anonymous public dissemination of `PUBLISHED/F` observations.
-- Registered researcher access to all published series with protected values masked.
-- Sovereign submitter access to own restricted observations and own quarantine history.
-- Administrator access across jurisdictions and lifecycle states.
-- Immediate multi-select filtering and persona-scoped filter values.
-- SDMx-ML, SDMx-JSON, SDMx-CSV and tidy CSV exports under the caller's entitlement.
-- Unity Catalog enforcement, atomic quarantine and SCD2 prior-state preservation.
+## Implemented and Proposed Workflows
 
-### Product extensions, not current claims
+| Implemented in the Reference | Requires Additional Design or Acceptance |
+| --- | --- |
+| Public and signed-in persona paths, row/value entitlements | Institution-specific SSO, network and operating acceptance |
+| Published/all/quarantine views, IDs, timestamps and failure feedback | Trusted transport receipts, full latest-arrival dashboard and bilateral case management |
+| Current SDMx exports and submission-aware audit CSV | Researcher accreditation, agreements, expiry and purpose-limited approval workflows |
+| Immutable replay and accepted/rejected history | Distributed conflict handling and production-volume recovery evidence |
+| Researcher masking and structural discovery | Secondary suppression or another approved statistical disclosure-control product |
 
-- Researcher registration, accreditation and agreement workflow.
-- In-portal contact routing to the reporting authority that owns a restricted series.
-- Access-request review, approval, expiry and purpose limitation.
-- Portal presentation of `FAILED_RULE_ID`, validation evidence and bilateral case management.
-- Notifications when a submission is published, quarantined or superseded.
-
-Keeping this boundary explicit strengthens the demo: it shows a complete control pattern and a credible product direction without presenting workflow ideas as implemented features.
-
----
-
-## Demo or whitepaper?
-
-Use both, for different jobs.
-
-- **Demo video:** best for reach, product comprehension and stakeholder conversation. It makes the persona differences tangible in under five minutes.
-- **Whitepaper:** best for architectural review, assurance, procurement and technical challenge. It explains why the behavior is trustworthy and where the design stops.
-- **Recommended sequence:** publish the short demo with a concise motivation post; link the whitepaper and repository in the first comment; follow later with a focused architecture post.
-
-The demo should stand on the institutional problem. The architecture should substantiate the answer, not lead the story.
+Use the [release evidence](RELEASE_EVIDENCE.md) for dated results and measurement
+scope. The brief leads the LinkedIn launch; the full White Paper provides depth.
+A video is supporting material, not a prerequisite or a guaranteed reach multiplier.

@@ -1,0 +1,38 @@
+[
+  {
+    "source": "docs/figures/compute_strategy.svg",
+    "image": "docs/figures/compute_strategy.png",
+    "source_sha256": "88513f5c3222c4f73f2c68e55868f5081f50598b4b69fa7ada2f4f10cdf12370",
+    "image_sha256": "b9fe1367cb7b9d21705554d63b2469264f836f8a6058da378b886429a043a52a"
+  },
+  {
+    "source": "docs/figures/dual_consumption.svg",
+    "image": "docs/figures/dual_consumption.png",
+    "source_sha256": "b25844d9d177fb98711ebd2e16c1083f9674b19e688f604c3b226b6d63aa0092",
+    "image_sha256": "1abc68d40f9a6171250e7490240bb8e2db0c93460b23788264a84dfd198ab9a1"
+  },
+  {
+    "source": "docs/figures/engagement_boundary.svg",
+    "image": "docs/figures/engagement_boundary.png",
+    "source_sha256": "c3b94c76e43676b8dd04c5517d966796332410079d939ce7021c88b829e1dfff",
+    "image_sha256": "7a25521ae7312d8bb0735bb2e2096d2e908d36119e0c6ceb8cb30146bbc67fc1"
+  },
+  {
+    "source": "docs/figures/executive_architecture.svg",
+    "image": "docs/figures/executive_architecture.png",
+    "source_sha256": "d49b814c9b90ba67f65a80ba3d5ff0f1ee9ea2c186fb1eda8cceb6020557b2e0",
+    "image_sha256": "990634ebf0808470fda6e5d1f943653d07fbbfaac760aa8a79b1fba8dd0572a2"
+  },
+  {
+    "source": "docs/figures/submission_history.svg",
+    "image": "docs/figures/submission_history.png",
+    "source_sha256": "b003bbd3dbea34f18c0e15cbf94246c5b215d3f261bbd669ec27e255a889eb4f",
+    "image_sha256": "ec24280970832763452bc87ee6b8ee44e50d33e7ce2e34c636aba7a0269ed6c6"
+  },
+  {
+    "source": "docs/figures/triple_lock.svg",
+    "image": "docs/figures/triple_lock.png",
+    "source_sha256": "5110ca3e8fa839ecc43945d7bf18cd11b8dc57b11a591e5f8c42b9f418ecbdc1",
+    "image_sha256": "09bdd289e2c2692d8e0a746c651db87312ccb1d6183620e8fbdcbb0ffbce637d"
+  }
+]

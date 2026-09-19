@@ -1,11 +1,50 @@
 # Release Evidence and Migration
 
-**Scope:** Independent synthetic reference implementation. The initial local-only
-results below are followed by a [15 September live deployment and recovery record](LIVE_DEPLOYMENT_2026_09_15.md).
-The repaired pipeline, real persona matrix, public exports and authenticated CA
-API workflow passed on Azure. The user confirmed testing complete, and the
-post-test workload teardown was independently verified. Both cloud portals are
-now inactive. Historical screenshots and saved exports are not fresh release evidence.
+**Scope:** Independent synthetic reference implementation. Azure provisioning,
+live controls, public exports and workload teardown have completed successfully.
+The [15 September record](LIVE_DEPLOYMENT_2026_09_15.md) contains independently
+checked pipeline, persona and cleanup evidence; the [18 September recovery record](LIVE_DEPLOYMENT_2026_09_18.md)
+documents subsequent app/gateway recovery. Dated URLs and screenshots identify
+those evaluations, not the current availability of a continuously operated service.
+
+## Reference Evaluation Metrics
+
+| Measure | Observed Reference Result | Boundary |
+| --- | --- | --- |
+| Full project bring-up using `sh/sovereignshield_up.ps1` | Approximately 75 minutes, including prerequisite setup | Synthetic evaluation, not a production provisioning SLA |
+| Workload teardown using `sh/sovereignshield_down.ps1` | Approximately 30 minutes | Separate from the 75-minute bring-up; retained backend/identity artifacts follow the runbook |
+| Azure charges for deployment, testing and teardown | US$10 or less | Measured reference cycle, not a price guarantee or recurring production estimate |
+| Lifecycle completion | Both scripts completed without errors in the confirmed evaluation | Institutional production acceptance remains a separate gate |
+
+**Measurement provenance:** project-operator evaluation confirmed on 18 September
+2026. The supplied timing includes prerequisites. A line-item billing export,
+credit/tax treatment and allocation of persistent shared resources were not supplied.
+The recorded US-dollar cycle cost supports low-cost synthetic evaluation; it does
+not establish an independently audited billing total or a ceiling for other runs.
+Region, capacity, runtime, warehouse activity, storage, logs, egress, retained
+resources and subscription pricing affect subsequent costs. Earlier dated logs
+retain their own timing and billing limits; they are not retroactively assigned
+this cycle's measurement.
+
+## Information Product Boundaries
+
+The modeled international intake is **SDMx files only**. Synthetic bank
+micro-transactions and the protected demo ledger exist solely as educational
+artifacts showing how realistic observations and confidentiality flags can be
+calculated. They are not an institutional intake requirement or system deliverable.
+Domestic granular reporting and other statistical collections are outside scope.
+
+The **Analyst View** is the regional submitter workflow for reconciling expected
+latest filings with actual submission IDs, submitted/received timestamps, values
+and validation outcomes. Latest submitted, latest received and current accepted
+publication are distinct concepts. The portal presents current publication and
+quarantined arrivals; complete accepted history requires an authorized history
+query. `RECEIVED_AT` is processing time, not an independently attested transport receipt.
+
+The architectural pattern is technology-agnostic; the delivered implementation
+uses Azure and Databricks. Terraform boundaries support AWS, GCP, Microsoft Fabric
+and open-source extensions, with new providers/adapters and equivalent control
+acceptance. No unimplemented platform port is represented as tested.
 
 ## Reproducible Methods
 
@@ -81,7 +120,7 @@ For a retained environment, the platform owner must approve and rehearse a migra
 5. Reconcile the existing job/app with the shared bundle state path and stable `run_as` identity. Bind/import existing resources using the CLI-supported procedure for the installed version; do not deploy a second ingestion job from a new state path. Transfer table/function ownership only through reviewed administrative changes.
 6. Switch consumers through a reviewed cutover, test rollback, then restore approved grants. Retire old protected resources only under the retention decision. Do not claim transactionality across this multi-object migration.
 
-For a disposable synthetic environment, an approved teardown and fresh bootstrap is simpler, but it destroys workload data. The existing `down` confirmation is still required. No destruction was run for this revision.
+For a disposable synthetic environment, an approved teardown and fresh bootstrap is simpler, but it destroys workload data. The existing `down` confirmation is required; successful synthetic teardown does not establish legacy migration safety.
 
 ## CI, Ownership and Cost
 
@@ -95,10 +134,18 @@ Company-controlled service principals and a shared bundle workspace path support
 
 `up` preserves state-derived readiness, uses unique temporary plans, checks for destructive changes and holds a checkout-level lifecycle lock. Cross-machine orchestration still requires one authorized controller; Terraform's state lock covers individual Terraform operations, not the entire run. Pause requests scale-to-zero eligibility, not guaranteed shutdown or zero cost.
 
-Default ingestion remains single-node, no Photon. Terraform supplies the complete job-cluster specification and policy ID; larger compute needs `-ApproveComputeScale`. Cloud estimates should parameterize region, VM/DBU runtime, warehouse size/concurrency, app replicas, storage, logs, network egress and retained resources. Obtain estimates from the [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/) and reconcile them with tagged Azure Cost Management and job-run metrics. No savings percentage, production throughput or cloud cost benchmark is claimed.
+Default ingestion remains single-node, no Photon. Terraform supplies the complete job-cluster specification and policy ID; larger compute needs `-ApproveComputeScale`. Cloud estimates must parameterize region, VM/DBU runtime, warehouse size/concurrency, app replicas, storage, logs, network egress and retained resources. Compare the [reference evaluation metrics](#reference-evaluation-metrics) with estimates from the [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/) and tagged Azure Cost Management. The observed low-cost cycle does not establish a savings percentage or production throughput benchmark.
 
 ## Release Limitations
 
 RLS/DDM is entitlement enforcement, not statistical disclosure control. Synthetic public totals can reconstruct restricted components. An originating authority must approve secondary suppression, perturbation or another suitable control before release of real confidential statistics. Logical segregation is not country-level physical residency. A gateway compromise can misuse tokens and returned data. Downloads cannot revoke themselves. Infrastructure administrators remain privileged. This reference implementation is production-isolated, not air-gapped.
 
-Third-party redistribution and exact copyright assignment need independent provenance. Consultancy clearance reported by the author is not presented as certification of this specific publication. See [reference provenance](reference_standards/README.md), [NOTICE](../NOTICE), and the personal-capacity notice in the whitepaper.
+The [statistical reconstruction challenge](../SECURITY.md#statistical-reconstruction-challenge)
+invites synthetic community tests of both values and observation existence.
+Restrict or remove the Researcher role if its metadata makes reconstruction trivial;
+that decision does not replace disclosure review of public totals.
+
+Third-party redistribution, copyright assignment and client-specific publication
+clearance require documented provenance and approval. See [reference provenance](reference_standards/README.md),
+[NOTICE](../NOTICE), and the personal-capacity notice in the White Paper. No employer,
+institutional or vendor endorsement is implied.

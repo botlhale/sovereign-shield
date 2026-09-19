@@ -1,68 +1,143 @@
-# SovereignShield Publication Plan
+# SovereignShield LinkedIn Publication Plan
 
-**Author:** Botlhale Mosweu, in a personal capacity. **Positioning:** independent architect and SDMx practitioner; Augmenta Systems is the project steward, not an institutional sponsor.
+**Recommendation:** publish both documents, with the Executive Brief as the first
+native LinkedIn document and the White Paper as the durable technical companion.
+The common publication title is **Bridging Public Dissemination and Protected Data:
+A Zero-Trust SDMx Architecture on Azure Databricks**. "Executive Brief" and "White
+Paper" identify formats, not different titles.
 
-## Technical Post
+**Author:** Botlhale Mosweu, in a personal capacity.
+**Project steward:** Augmenta Systems (13668754 Canada Inc.).
+No employer, statistical institution or vendor sponsorship is implied.
 
-Use after freezing a tested revision and checking the linked evidence and rights/provenance gates. This is plain text suitable for LinkedIn, not a claim that the revised cloud deployment is already verified.
+## 1. Prepare the Publication Set
+
+1. Freeze a reviewed repository revision and the [release evidence](RELEASE_EVIDENCE.md).
+   Resolve third-party rights, screenshot scope and publication approval before upload.
+2. Export the [Executive Brief](EXECUTIVE_BRIEF.md) and
+   [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) as
+   separate, version-labelled PDFs. Keep the common title, author, date/version,
+   independent-work notice and evidence link visible on both.
+3. Use the brief's eight-page decision sequence: decision, personas, architecture,
+   revision example, evidence/risk, ownership, investment and next questions. Retain
+   readable text and one clear point per page. Keep detailed SQL in the White Paper.
+4. Proof every page on desktop and a phone. Use selectable text, high contrast,
+   descriptive captions and working links; avoid screenshots of paragraphs. The
+   supplied [portal captures](../demo/README.md) must retain their actual states.
+5. Create the reviewed GitHub Release and one canonical archival record using
+   [the publication and release guide](PUBLICATION_AND_RELEASE.md). Link the paper,
+   code version, evidence and limitations so readers can reproduce the stated result.
+
+LinkedIn's [document guidance](https://www.linkedin.com/help/linkedin/answer/a518909)
+allows PDF, PPT/PPTX and DOC/DOCX, up to **100 MB and 300 pages**. PDF is recommended
+for layout consistency. Viewers can download the document. The post description
+can be edited, but its uploaded document cannot be replaced; substantial corrections
+require a new post/version, with the earlier post linked to the correction.
+
+## 2. Launch the Executive Brief
+
+1. From the personal profile, select **Start a post > More > Add a document** and
+   upload the approved brief PDF. Use a short format label such as "SovereignShield:
+   Executive Brief" in the UI; retain the full shared title inside the document.
+2. Use concise objective post copy, three substantive outcomes, one explicit
+   disclosure limitation and one review question. Include a direct canonical
+   paper/release link in the post; do not rely on an unsupported rule that links
+   must be hidden in comments.
+3. Select a relevant audience and publish when there is capacity to respond.
+   Use a small number of specific hashtags such as `#SDMx`, `#DataArchitecture`
+   and `#DataGovernance`. Mention people or organizations only when their actual
+   contribution and permission justify it.
+4. Respond to technical questions with evidence. Invite synthetic reconstruction
+   and analyst-reconciliation cases, not tests against third-party deployments.
+   Record actionable findings in the repository through the appropriate public
+   or private security route.
+
+### Launch Copy
 
 ```text
-How can an external data specialist build a governed statistical platform without access to its production records?
+An external specialist can implement statistical-platform controls without receiving confidential production records.
 
-Through my participation in the SDMx community, I've become interested in the different architectures that can support the same statistical contracts. SovereignShield is one independent Azure-native example I built using synthetic submissions, Azure Databricks, Unity Catalog, Delta Lake and pysdmx.
+SovereignShield demonstrates that delivery model using approved synthetic SDMx submissions, Azure Databricks, Unity Catalog and client-controlled runtime identities.
 
-The delivery model starts with production-shaped synthetic data and an explicit group-access matrix. A submitter sees its own filings plus public foreign observations. Researchers can discover published series with restricted values withheld, providing a basis for a separate agreement with the originating country. The public sees only publishable observations; administrators can inspect the full audit history.
+The accompanying Executive Brief covers three decisions:
+- how analysts reconcile the latest filing they expect the receiver to hold with actual submission and validation state;
+- how current accepted publication remains separate from rejected arrivals;
+- how a client takes ownership of source, deployment identities and operations after an engagement.
 
-The difficult questions sit between those layers: can policy updates preserve existing protection, does replay retain one copy of a filing, what happens when an accepted revision contains fewer observations, and does an export preserve precision and lifecycle meaning?
+The international intake contract is SDMx files only. Synthetic bank micro-transactions explain calculation of the demo observations; they are not a client submission requirement or system deliverable.
 
-The current local tests exercise those cases. Accepted snapshots and rejected filings remain separate, standard SDMx exports are current/published-only, and audit CSV retains submission identity and failure feedback. The reference profile demonstrates three decimal places. Company-controlled runtime identities make continuity independent of an individual contractor's account.
+Live provisioning and teardown succeeded. The reference evaluation measured about 75 minutes up including prerequisites, 30 minutes down and US$10 or less in Azure charges for deploy/test/teardown. These are synthetic-workload observations, not production guarantees.
 
-There are important limits. Row filtering and masking are not complete statistical disclosure control: public totals can reveal a suppressed component. Local tests are not production accreditation, and this revision's live migration and acceptance remain outstanding.
+An open risk remains: public totals and researcher-visible row existence can reveal masked values. Synthetic community challenges are welcome; the Researcher role may need restriction or removal where existence makes inference trivial.
 
-This complements established SDMx tooling. It does not suggest that institutions lack effective controls or have not adopted cloud platforms.
+The framework is technology-agnostic. Terraform supports alternative-provider implementations, but equivalent identity, policy and history controls require engineering and acceptance.
 
-Developed in a personal capacity using synthetic data and public standards. No employer, statistical institution or vendor affiliation or endorsement is implied.
+Which reconciliation and disclosure cases would an architecture board require before approving a pilot?
 
-The repository includes a short executive brief, the full whitepaper, reproducible tests and explicit limitations. I welcome technical review, especially on disclosure control, submission semantics and institutional adoption.
-
+Executive Brief, White Paper, code and evidence:
 https://github.com/botlhale/sovereign-shield
 
-#SDMx #DataArchitecture #Interoperability #DataGovernance
+Independent work by Botlhale Mosweu; project stewardship by Augmenta Systems (13668754 Canada Inc.). No institutional or vendor endorsement.
+
+#SDMx #DataArchitecture #DataGovernance
 ```
 
-## Brief and Video
+The canonical publication/release link should replace or supplement the repository
+root after it exists. Do not fabricate a DOI or release URL in advance.
 
-The accompanying brief is [EXECUTIVE_BRIEF.md](EXECUTIVE_BRIEF.md), a separate eight-section decision document. The [full whitepaper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) is the deeper technical companion. Use a proofread, version-labelled PDF of the brief for a native LinkedIn document, with the repository URL in the post. Keep limitations and independent-work notice visible.
+## 3. Publish the Technical Follow-Up
 
-A video is optional, not a launch prerequisite or a guaranteed reach multiplier. A later short walkthrough can show public, researcher, submitter quarantine feedback, and administrator audit views. Use [the persona script](PERSONA_DEMO_SCRIPT.md), label any local/mocked persona demonstration, and never display tokens, real credentials or institutional data. Historical anonymized screenshots are not fresh deployment captures.
+Approximately one week later, publish a second post or LinkedIn article linking
+the full White Paper. This is an editorial cadence, not a claim about a platform
+algorithm. Focus on one technical question: immutable submission replay, analyst
+data currency, or reconstruction from public totals. Use the reviewed architecture
+specification or a correctly captioned portal capture, then link methods and code.
 
-LinkedIn supports [document uploads](https://www.linkedin.com/help/linkedin/answer/a518909); published documents cannot simply be replaced, so proof the final artifact first. There is no reliable universal rule that outbound links must be hidden in comments. Prefer a directly usable evidence link. Views, clones and impressions are not qualified consulting leads; measure technical reviews, relevant conversations, referrals and concrete enquiries.
+A native upload of the full paper is optional; a durable archival link makes
+versions and corrections easier to manage. The brief and paper should not compete
+as two dense document posts on the same day.
 
-## Workshop Status
+### Technical Follow-Up Copy
 
-The [2026 SDMx Experts Workshop call](https://www.sdmxexperts2026.org/callforabstracts/) states that abstract submission **closed on 7 September 2026**. The event is scheduled for **30 November to 4 December 2026 in Ankara, Turkiye**. The announcement's word "today" referred to 7 September, not the date of this revision. Do not publish it as an open call or imply acceptance.
+```text
+Correct access control does not by itself prevent statistical reconstruction.
 
-Only the organizers can confirm late-submission, poster or discussion opportunities. A possible abstract for an organizer-approved opportunity or a future event follows; it has not been submitted.
+SovereignShield's synthetic fixture includes public totals and components from which a withheld measure can be calculated. Researcher-visible observation existence can provide additional information even when the measure is masked.
 
-### Draft Abstract
+The White Paper separates implemented row/value entitlements from the disclosure decisions still required before production. It also documents submission-aware history, current versus rejected data products, analyst reconciliation and client-controlled handover.
 
-**Synthetic-First Delivery of a Governed SDMx Platform on Azure**
+The open challenge is precise: identify the released inputs, calculation and affected persona using synthetic data. If row presence makes reconstruction trivial, restrict or remove the Researcher role and reassess the public products as well.
 
-External specialists can implement statistical platforms more safely when the delivery contract includes realistic synthetic submissions, explicit group-access boundaries and reproducible lifecycle tests. This independent reference study explores that approach using BIS LBS-shaped synthetic data, pysdmx, Azure Databricks, Unity Catalog and Delta Lake.
+Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks
+https://github.com/botlhale/sovereign-shield
 
-The implementation separates structural and codelist checks from arithmetic acceptance, retains rejected arrivals without displacing accepted state, and distinguishes current SDMx dissemination from submission-aware audit exports. It tests immutable submission identity, replay, smaller full replacements, three-place decimal preservation and policy-deployment failures. Group-based access supports public dissemination, researcher discovery, own-country submission feedback and privileged audit review. Stable service-principal execution supports continuity after contractor offboarding.
+Independent synthetic reference architecture; no institutional or vendor endorsement.
 
-The contribution is an inspectable integration and delivery pattern, not a replacement for existing SDMx registries or reference infrastructure. Local evidence is distinguished from historical cloud demonstrations. Remaining work includes full provisioning constraints, independent rule semantics, live migration acceptance, distributed performance and statistical disclosure control. In particular, query-time masking does not prevent inference from published totals. The study invites discussion of the evidence institutions require before adopting a production-isolated delivery model.
+#StatisticalDisclosureControl #SDMx #DataArchitecture
+```
 
-## Attribution and Release Checks
+## 4. Feature and Maintain the Work
 
-Plain-text technology names describe dependencies; they do not imply sponsorship, certification or a trademark licence. Avoid unapproved logos and organizational endorsements. Naming rules and publication rights are context-dependent; this document is not legal advice.
+Use [LinkedIn Featured](https://www.linkedin.com/help/linkedin/answer/a550399):
+**Me > View Profile > Add profile section > Recommended > Add Featured**.
+Add the published brief post first, the canonical White Paper link second, and
+the tested GitHub Release third. Reorder through the Featured edit controls.
+Use short descriptions identifying the audience and evidence, not unsupported
+claims of production certification or platform endorsement.
 
-Consulting clearance reported by the author is acknowledged, but does not by itself certify this exact publication, ownership assignment or third-party redistribution. Keep Botlhale Mosweu's authorship clear, identify company stewardship separately, and retain the existing copyright line until the rights-holder is confirmed. The personal-capacity disclaimer is context, not immunity.
+After another week, an optional [3-5 minute persona walkthrough](PERSONA_DEMO_SCRIPT.md)
+can demonstrate the Analyst View and disclosure boundary. Do not show password
+entry, account-selection screens, tokens or real records. Reuse the reviewed
+capture inventory and label any simulated or historical presentation.
 
-- Freeze the tested revision, evidence commands and limitations.
-- Complete the [release and migration gates](RELEASE_EVIDENCE.md) before claiming live readiness.
-- Review [third-party provenance](reference_standards/README.md); do not treat public PDFs/workbooks as public domain.
-- Keep the historical password issue accurately described: author reports it is no longer used; no current incident is asserted.
-- Ensure every screenshot, benchmark and credential/control claim identifies its actual environment.
-- Seek technical critique without suggesting shortcomings in an employer or other institution.
+Track relevant technical reviews, saves, evidence-link visits, invitations and
+qualified architecture conversations. Impressions, raw clone counts and posting
+frequency alone do not establish demand. Avoid mass tagging, unsolicited bulk
+messages or guaranteed-reach claims.
+
+## External Publication and Release
+
+Use [Publication Venues and GitHub Release](PUBLICATION_AND_RELEASE.md) for the
+two recommended archival options, SSRN eligibility caveat, exact release steps
+and the optional container-package distinction. No upload, DOI registration,
+tag push or release publication is performed by this document.

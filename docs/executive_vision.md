@@ -1,157 +1,78 @@
-# Executive Vision — Strategic Business Case
+# Executive Vision: Strategic Business Case
 
-**Audience:** senior leadership, board, non-technical sponsors, procurement
-**Affiliation:** Independent Reference Architecture
-**Companion:** [`technical_vision.md`](technical_vision.md) for architects
+**Audience:** sponsors, procurement, senior leadership and architecture boards.
+**Affiliation:** independent reference architecture; no institutional or vendor endorsement.
 
-![Sovereignty as a Platform Guarantee — three abstract reporting jurisdictions labelled AA, BB and CC submit standardised documents along a pathway; an automated rule check deflects one into a "held for correction" tray while the rest continue into a governed vault wrapped in three rings labelled "who you are", "what you may see" and "what is published"; four audiences draw from that single source through beams of increasing width.](sovereign-shield_executive.jpg)
+The decision publications are **Bridging Public Dissemination and Protected Data:
+A Zero-Trust SDMx Architecture on Azure Databricks**, available as an
+[Executive Brief](EXECUTIVE_BRIEF.md) and [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md).
+This document summarizes the investment and operating rationale.
 
----
+## Business Objective
 
-## The problem worth solving
+Synthetic-first delivery enables external specialists to develop statistical
+platform controls without confidential production records. Client-controlled
+runtime identities and repositories support continuity after the engagement.
+The pattern complements established SDMx software and institutional governance;
+it does not replace disclosure decisions, independent assurance or production operations.
 
-A recurring delivery challenge is validating controls without sharing production records.
-
-The people qualified to build confidential statistical infrastructure — specialist
-architects, systems integrators, vendor teams — are, almost by definition, the
-people who should not hold the data. Security policy forbids third-party access to
-production without an approved purpose. Synthetic-first development offers an
-additional delivery option alongside established supervised-access arrangements;
-this is not a claim about any institution's staffing or control maturity.
-
-I treated that as an architecture problem rather than a staffing one.
-
-## The strategic claim
-
-**Entitlement can be a property of the data platform rather than of the
-applications that read it.**
-
-When sovereignty, confidentiality and integrity are expressed as catalogue
-constraints, three things follow that matter commercially:
-
-1. A specialist can build and test the demonstrated control cases without real observations.
-2. The same declarative model can be assessed for production, subject to migration and independent assurance.
-3. Company-controlled execution identities support continuity, while full offboarding remains an identity and ownership review.
-
-## Where the value lands
-
-| Concern | Conventional posture | This architecture |
+| Decision Area | Reference Approach | Client Acceptance |
 | --- | --- | --- |
-| **Engaging external specialists** | Supervised environments, provisioned access, access reviews | The specialist never holds real data at any point |
-| **Off-boarding** | Existing institutional access-review process | Stable runtime identity plus complete membership, session, RBAC and ownership review |
-| **Assurance** | Review the application code that enforces policy | Review the catalogue objects. No code path can skip them |
-| **New consumers** | Each new tool re-implements entitlement | A new dashboard, notebook or API inherits the policy automatically |
-| **Repository exposure** | Review data and credential provenance | Synthetic observations; current source scanning does not certify all historical credentials |
+| Specialist delivery | Approved metadata and generated fixtures | Contract, IP/license review, access scope and deliverable ownership |
+| Trust in current data | Analyst reconciliation of expected latest filing with receiver state | Submission/receipt semantics and current accepted-publication rules |
+| Public and restricted use | Query-time entitlements and distinct publication/audit products | Disclosure control, including reconstruction from public values |
+| Operating continuity | Stable client-owned service principals and ownership review | Operator-led handover, recovery and complete offboarding |
+| Platform choice | Technology-agnostic information/delivery pattern, implemented on Azure/Databricks | Equivalent controls and adapters for any alternative stack |
 
-## Governance and audit posture
+## Scope of the Demonstration
 
-* **One enforcement point.** Policy is evaluated per caller, per row, at query
-  time, inside the metastore. The same entitlement holds across a notebook, a SQL
-  warehouse, a BI tool and the public API.
-* **Auditable anonymity.** The public tier is an explicit identity group, not an
-  unauthenticated fall-through. Anonymous entitlement appears in the directory
-  like any other and is reviewed the same way.
-* **Fails closed.** A principal in no group resolves to zero rows. Not an error,
-  not a partial view.
-* **Rulebook as metadata.** Consistency checks are parsed from the published
-  standards workbook with explicit coverage; changes still need review and regression tests.
-* **Integrity over availability, deliberately.** A submission that fails validation
-  is quarantined whole. The previously published figure stays live and the
-  rejection is recorded for audit — stale data, never missing data.
+The modeled international exchange accepts **SDMx files only**. Synthetic bank
+micro-transactions are educational artifacts explaining how realistic observations
+are calculated. The demo ledger is not a system deliverable or a requirement for
+an institution to transmit granular records. Domestic reporting arrangements are
+outside this contract.
 
-## Regulatory positioning
+The **Analyst View** gives regional submitters a basis for verifying that the latest
+filing they expect the international organization to hold matches actual submission
+identities, timestamps, values and validation feedback. A rejected latest filing
+does not replace the current accepted publication.
 
-This is an **independent reference architecture** operating on 100% synthetic
-data. It is not a system of, affiliated with, or endorsed by any central bank or
-international organisation.
+## Information Risk
 
-The data structure and consistency rulebook it exercises are published public
-standards artefacts. The figures flowing through them are generated. Vendor and
-standards names appear as typeset text — describing what was used — never as
-reproduced brand marks.
+The Researcher role exposes published structure while withholding restricted
+measures. Observation existence, public totals, related breakdowns and revisions
+may make masked data reconstructable. This is an identified open challenge, not
+a completed confidentiality guarantee. Synthetic community review is invited;
+restrict or remove the role if row presence makes reconstruction trivial. Public
+releases also require an approved disclosure-control method.
 
-That scoping is not a disclaimer bolted on afterwards. Accurate scope is what
-makes the technical claims credible to the standards community, and overstating
-provenance is the fastest way to lose a specialist audience.
+Logical jurisdictional segregation in a shared workspace is not physical country
+residency. Privileged operators, gateway tokens, archives and downloaded products
+remain trust boundaries. Full offboarding is an identity, access and ownership
+review, not group removal alone.
 
-## What this does not claim
+## Evaluation Economics
 
-The credibility of the work rests on the boundaries, so they are stated rather
-than buried:
+Provisioning and teardown have completed successfully on Azure. The reference
+synthetic cycle measured approximately **75 minutes for bring-up including
+prerequisites**, **30 minutes for teardown**, and **US$10 or less in Azure charges
+for deployment, testing and teardown**. See [measurement provenance](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 
-* **It does not replace existing tooling.** Institutions uphold these obligations
-  today, rigorously, with mature software and decades of protocol.
-* **It does not demonstrate behaviour at real volume.** Correctness of the control
-  model is demonstrated; volumetrics, skew and cost at production scale need a
-  dry-run that has not been done.
-* **It does not eliminate the trusted set.** Someone must hold administrative
-  rights to run a rotation. The model shrinks that set to the organisation's own
-  administrators.
-* **The builder knows the design.** Intentionally — security depends on group
-  membership and catalogue policy, not on the architecture being secret.
+This supports a low-cost bounded evaluation. It does not include a consulting-fee
+estimate, production SLA, savings percentage or recurring production cost model.
+Scale, region, subscription pricing, idle resources, logs and retained artifacts
+must be budgeted separately for adoption.
 
----
+## Adoption Options
 
-## Five-minute narrative
+Retain existing SDMx infrastructure, extend it, or pilot this implementation based
+on the institution's interoperability, residency, ownership and operating needs.
+Terraform provider/module boundaries support AWS, GCP, Microsoft Fabric and
+open-source combinations, but identity, policy, storage and lifecycle adapters
+require engineering and equivalent acceptance. No alternate stack is represented
+as already deployed.
 
-For presenting the diagram above.
-
-> **Slide up. Pause. Let them read the title.**
-
-Every quarter, national authorities send confidential banking statistics to an
-international body. Three obligations apply at once, and they pull against each
-other.
-
-**One — sovereignty.** A country's detailed figures are its own. They must not be
-visible to another country, even one sitting inside the same shared system.
-
-**Two — confidentiality.** Inside a country's own submission, some figures could
-identify a single institution. Those must be withheld from researchers while the
-surrounding structure stays intact.
-
-**Three — integrity.** Nothing internally inconsistent may be published. Not the
-inconsistent part — *none of it*, because the totals that reconcile depend on the
-components that did not.
-
-*(Gesture to Zone 2.)*
-
-Today those obligations are upheld by careful process and specialised software,
-and they are upheld well. The question this work asks is different: **what if
-they were properties of the platform itself, rather than rules the application
-is trusted to follow?**
-
-*(Gesture to Zone 3 — the cylinder and its rings.)*
-
-That is what this is. The rules live *with the data*, not in the software that
-reads it. Which means they apply the same way whether someone arrives through a
-report, a spreadsheet, a public web page, or a direct database connection.
-
-There is no code path that can forget to apply them, because they are not in the
-code path at all.
-
-*(Gesture to Zone 4 — the four figures and the widening beams.)*
-
-Same data. Four audiences. Four different answers — and the difference is
-produced by the platform, not by four separate applications that must be kept in
-step with each other.
-
-**Three things worth taking away.**
-
-**Correct by construction.** A new report, a new tool, a new analyst — the rules
-already apply. Nobody has to remember.
-
-**Continuity is designed in.** Runtime service principals outlast individual
-engagements. Group removal, session revocation, RBAC and ownership review must all
-be checked; this demonstration does not promise instant universal revocation.
-
-**It was built without the real data.** Everything you are looking at was
-developed and demonstrated against generated figures. The specialist who built it
-never held a real submission. That is not a limitation of the demonstration — it
-is the delivery model.
-
-> **Anticipated question: "Is this in production?"**
-> No. It is a working reference architecture on synthetic data, built to test
-> whether the approach holds. What it demonstrates is that the controls can be
-> expressed as platform constraints. Production hardening, disclosure control,
-> migration and live acceptance remain required. The separate [executive brief](EXECUTIVE_BRIEF.md)
-> and [release evidence](RELEASE_EVIDENCE.md) are the current decision material.
+The [Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md) defines
+client prerequisites, independent-versus-client repository options, synthetic
+staging, production approval, code transfer and provider offboarding. A repository
+clone is a transfer mechanism; production acceptance remains a client decision.

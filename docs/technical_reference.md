@@ -4,9 +4,14 @@ The full implementation narrative for SovereignShield: compute isolation, the
 Triple-Lock security matrix, the atomic quarantine engine, SCD2 mechanics, the
 dissemination gateway, and anonymous access.
 
-This is the *reference*, not the *tour*. If you are reading the codebase for the
-first time, start with [technical_guide.md](technical_guide.md), which sequences
-these topics into a reading order and tells you which parts matter most.
+The [reading guide](technical_guide.md) provides an implementation reading order.
+This reference defines the current contracts and their enforcement boundaries.
+
+**Intake scope:** SDMx files are the international submission contract. Synthetic
+bank micro-transactions exist solely as educational fixtures illustrating the
+calculation of realistic observations; the demo ledger is not an institutional
+intake requirement or system deliverable. Domestic granular-data collection is
+outside this modeled exchange.
 
 **Related:**
 [README](../README.md) ·
@@ -29,11 +34,21 @@ This deployment pins `USER_ISOLATION`. Dedicated compute supports governed acces
 | `spark.master` | `local[*, 4]` | Executes in-driver with 4 retry attempts |
 | `node_type_id` | `Standard_DS3_v2` | Stays clear of restrictive `DSv5` family core quotas |
 | `availability` | `SPOT_WITH_FALLBACK_AZURE` | Spot pricing with automatic on-demand fallback if evicted |
-| `data_security_mode` | `USER_ISOLATION` | Non-negotiable prerequisite for RLS/DDM enforcement |
+| `data_security_mode` | `USER_ISOLATION` | Supported mode selected for this deployment; alternatives require runtime-specific validation |
 
-Spot eviction is safe because the pipeline is fully idempotent: a re-run reproduces the same end state.
+Replay of the same archived submission is idempotent. After interruption, repair
+the failed job tasks rather than regenerating arrivals: a new generator run creates
+new submission identities even when values match.
 
-**Single-node is a default, not a ceiling.** The envelope is owned by a Terraform cluster policy in [`terraform/modules/databricks_workspace/compute.tf`](../terraform/modules/databricks_workspace/compute.tf); raising `worker_count_max`, switching `node_type_id` to a memory-optimised family and setting `enable_photon = true` widens it without touching pipeline code. See [technical_guide.md § Pass 6a](technical_guide.md) for the full sizing blueprint and the reasoning behind each lever.
+**Single-node is a default, not a ceiling.** Terraform supplies the governed cluster
+specification in [compute.tf](../terraform/modules/databricks_workspace/compute.tf).
+Larger worker counts and Photon require approval. Driver-bound pandas XML parsing
+and arithmetic checks do not become distributed by increasing workers.
+
+The successful synthetic evaluation took about **75 minutes to provision including
+prerequisites**, **30 minutes to tear down**, and **US$10 or less in Azure charges
+for deploy/test/teardown**. These are reference-cycle observations, not production
+capacity or cost guarantees; see [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 
 * **Immutable execution:** scripts run via `spark_python_task` against the synchronised `src/` workspace directory, avoiding intermediate `.whl` compilation.
 
@@ -66,22 +81,30 @@ Resolution is deliberately **lazy** (inside a function, not at module import). E
 The pipeline honours two SDMx conventions that are easy to get wrong and that materially change validation behaviour:
 
 * **Values are signed.** LBS positions are legitimately negative as well as positive. A negative observation is never, by itself, a validation failure.
-* **Zeros are not reported.** A position that nets to exactly zero is dropped after aggregation rather than published as a `0` observation.
+* **Zeros are retained.** Genuine zero, missing input and a masked value are distinct. Measures use `DECIMAL(38,3)` with decimal half-up intake rounding; three places are the reference profile, not a universal SDMx requirement.
 
-Because values are signed, the disclosure-control dominance rule is computed on **absolute** contributions (`|bank| / Σ|bank|`). A signed share would divide by zero on offsetting positions and could exceed `1`.
+The educational synthetic generator illustrates classification using absolute
+contribution shares and a 0.60 dominance threshold. This is not a complete
+disclosure-control method or a required calculation by the receiving platform.
 
-**Frequency is a dimension, not a constant.** Segment 1 of the key is `FREQ`. LBS is collected quarterly (`Q`), but a statistical hub holds annual (`A`), semi-annual (`S`), quarterly and monthly (`M`) collections in the same history table, with reporting-period labels shaped per cadence (`2026`, `2026-S1`, `2026-Q1`, `2026-03`).
+**Frequency is a dimension.** Segment 1 is `FREQ`; this BIS LBS fixture is quarterly
+(`Q`). Generic stress fixtures use several cadence labels, but only values and
+period shapes allowed by the pinned data contract are accepted as LBS submissions.
 
 ---
 
 ## 4. The Zero-Trust Triple-Lock security matrix
 
-Security is centralised at the Unity Catalog **metastore** level rather than in pipeline code — the same obligations application layers enforce today, relocated one layer down. Because the policy is attached to the object rather than the query, it applies identically whether the caller arrives via PySpark, a SQL warehouse, Power BI, or an ad-hoc JDBC connection. There is no code path that can "forget" to apply it.
+Unity Catalog table policies enforce row/value entitlements on supported query
+paths independently of application predicates. Runtime/access-mode limitations,
+privileged control-plane access, direct storage, gateway tokens and exports remain
+explicit trust boundaries. Policies evaluate Databricks account groups; Entra
+reconciliation during setup is not continuous deprovisioning.
 
 | | **Lock 1 — RLS** | **Lock 2 — DDM** | **Lock 3 — Quarantine View** |
 | --- | --- | --- | --- |
 | **Object** | `fn_rls_multi_persona_lock`<br/>`fn_rls_micro_country_lock` | `fn_ddm_obs_conf_mask` | `v_agg_sdmx_published` |
-| **Binding** | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)`<br/>`ON (reporting_country)` | `OBS_VALUE DOUBLE MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | `CREATE OR REPLACE VIEW` |
+| **Binding** | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)`<br/>`ON (reporting_country)` | `OBS_VALUE DECIMAL(38,3) MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | `CREATE OR REPLACE VIEW` |
 | **Granularity** | Row | Cell | Result set |
 | **Threat addressed** | Cross-border leakage, unpublished-state leakage | Confidential value disclosure | Unvalidated data reaching publication |
 | **Effect** | Non-matching rows disappear | `OBS_VALUE` → `NULL` | `QUARANTINE` / superseded rows invisible |
@@ -101,7 +124,7 @@ FREQ . L_MEASURE . L_POSITION . L_INSTR . L_DENOM . L_CURR_TYPE
 
 The persona matrix the filter implements:
 
-| Entra ID group | Visible rows |
+| Databricks account group | Visible rows |
 | --- | --- |
 | `sg-sovereignshield-admin` | `1 = 1` — every jurisdiction, every lifecycle state |
 | `sg-sovereignshield-submitter-ca` / `-us` | **Own** segment-9 rows in full, including `QUARANTINE` and `C`/`N`; **other** jurisdictions only where `BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'` |
@@ -113,17 +136,26 @@ Four implementation details are load-bearing:
 
 * **`try_element_at`, never `element_at`.** Under ANSI mode an out-of-range index raises `INVALID_ARRAY_INDEX`. Because a row filter is evaluated on *every row of every query*, one malformed key would abort **all** access to the table — converting a data-quality defect into a total outage. `try_element_at` returns `NULL`, and a `coalesce` turns that into `FALSE`, so the predicate fails **closed**.
 * **Tiers compose with `OR`, not `CASE`.** A `CASE` expression stops at its first matching branch, so a Canadian Regional Submitter (CA) who is also a researcher would be silently downgraded to whichever branch happened to be written first. Composing the tiers as a disjunction makes entitlement additive — a principal receives the union of their memberships.
-* **The public tier is a group, not an absence.** The fail-closed default returns zero rows, so "unauthenticated" cannot be a fall-through case. The portal's proxy service principal is an explicit member of `sg-sovereignshield-public`, which means the anonymous entitlement is auditable in Entra ID like any other.
-* **Defense in depth on the raw ledger.** `fn_rls_micro_country_lock` applies sovereign isolation to `lbs_micro_transactions.reporting_country`, and grants neither researchers nor the public tier any access at all. Protecting only the aggregate would leave the institution-level source fully exposed.
+* **The public tier is explicit.** The proxy principal belongs to `sg-sovereignshield-public` at Databricks account scope. No recognized group returns no entitled rows.
+* **Educational ledger isolation.** `fn_rls_micro_country_lock` filters the synthetic bank micro-transaction ledger by country. Researchers and the public have no access. This additional demo object is not the international intake contract.
 
 ### Lock 2 — Dynamic data masking (confidentiality)
 
-`fn_ddm_obs_conf_mask(obs_val DOUBLE, obs_conf STRING, time_series_code STRING)` is bound via `USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`, letting the mask branch on *different* columns than the one it redacts. Observations flagged Confidential (`C`) or Non-publishable (`N`) resolve to `NULL` for unprivileged readers.
+`fn_ddm_obs_conf_mask(obs_val DECIMAL(38,3), obs_conf STRING, time_series_code STRING)`
+is bound via `USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`. After administrator and
+own-country checks, only explicit `F` reveals a measure. Other flags, including
+unknown or missing classifications, return `NULL`.
 
 * **Why the key is an input.** Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells. The mask therefore repeats the segment-9 test, and the fixture includes restricted rows in multiple jurisdictions.
-* **Why `NULL` and not `'xxx'`:** a masking function must return the column's own type, and `OBS_VALUE` is a `DOUBLE`. A string sentinel is not representable.
+* **Typed absence:** the mask returns `DECIMAL(38,3)` or `NULL`, never a string sentinel or a fabricated zero.
 * **Privilege ordering:** administrators and the owning submitter are evaluated *before* the confidentiality branch, so an entitled reader always sees the true value.
 * **Structural density preserved:** the row still exists with all its dimensions intact, so researcher joins and dimensional counts remain correct — only the metric is withheld. The portal surfaces this explicitly, reporting how many values a query had withheld rather than silently returning blanks.
+
+That structural visibility is an information release. Published totals, related
+breakdowns and row presence can reconstruct masked values. Community synthetic
+tests are invited through the [reconstruction challenge](../SECURITY.md#statistical-reconstruction-challenge).
+Restrict or remove the Researcher role if existence disclosure makes inference
+trivial; public totals also require an approved disclosure method.
 
 ### Lock 3 — Quarantine view isolation (integrity)
 
@@ -152,7 +184,11 @@ Both predicates are required. `BATCH_STATUS` alone would expose superseded histo
 
 BIS statistical submissions are accepted or rejected **as an indivisible unit**. Partial publication is not merely undesirable — it is incoherent: the aggregates that reconcile depend on the components that did not, so publishing the passing subset would emit an internally contradictory dataset.
 
-`SDMxRuleValidator` parses the official consistency checks from `docs/reference_standards/checks_lbs.xls` at runtime — rules are **metadata, not code** — then evaluates them and applies the verdict atomically per `(reporting_country, date_scope)`:
+`SDMxRuleValidator` parses the reviewed workbook and evaluates its implemented
+within-dataset rules. The interpreter is code and requires independent semantic
+review; changing metadata requires review and regression tests. Input contracts
+enforce one country/period/aggregation per full submission. Checks 22-27 are
+explicitly unsupported, and missing breakdowns are reported as not evaluated.
 
 | Batch outcome | `QUALITY_STATUS` | `BATCH_STATUS` | `FAILED_RULE_ID` |
 | --- | --- | --- | --- |
@@ -170,12 +206,14 @@ The critical property: **a rejected revision never degrades what consumers can a
 | Incoming | Prior active record | Row written | Visible in `v_agg_sdmx_published` |
 | --- | --- | --- | --- |
 | `PUBLISHED` (changed) | Expired → `IS_CURRENT = false` | `IS_CURRENT = true` | The new value |
-| `PUBLISHED` (unchanged) | Untouched | None | Unchanged |
+| New `PUBLISHED` filing with identical values | Previous current scope closed | New submission identity retained | Same values, new accepted filing |
+| Replay of the same submission | Untouched | None | Unchanged |
 | `QUARANTINE` | **Untouched — remains `IS_CURRENT = true`** | Audit row, `IS_CURRENT = false`, `VALID_TO = VALID_FROM` | **The last valid value** |
 
 Quarantined rows are excluded from both the expire-merge *and* the scoped logical delete. A failed resubmission therefore degrades to **stale data, never to missing data** — the rejection is fully recorded for audit and diagnosis, while the published series continues uninterrupted.
 
-Replay is safe: a `left_anti` join on natural key + `version_hash` prevents a re-run from stacking duplicate audit rows.
+Replay is keyed by immutable submission identity and payload validation. Reusing
+an ID with altered bytes/content is refused; a genuinely new identical filing is retained.
 
 ### Demonstrable behaviour
 
@@ -193,18 +231,23 @@ the 22 revision observations remain audit-only quarantine rows.
 
 ## 6. SCD2 historisation mechanics
 
-The merge against `agg_sdmx_history` runs in four stages, keyed on `(TIME_SERIES_CODE, DATE, AGG_CODE)`:
+The [shared submission contract](../src/submission_history.py) and
+[Spark adapter](../src/spark_submission_history.py) stage expiry and inserts into
+**one Delta MERGE per submission**. Natural observation identity is
+`(TIME_SERIES_CODE, DATE, AGG_CODE)`; `RECORD_ID` also includes `SUBMISSION_ID`.
 
-1. **Expire changed records** *(published only)* — matches where `target.version_hash != source.version_hash`, setting `IS_CURRENT = false` and `VALID_TO = current_timestamp()`.
-2. **Insert new active records** *(published only)* — written with `IS_CURRENT = true` and `VALID_TO = 9999-12-31T00:00:00`, an explicit end-of-time sentinel rather than `NULL` so range predicates need no special-casing.
-3. **Append quarantine audit rows** — recorded with `IS_CURRENT = false` and `VALID_TO = VALID_FROM`, deliberately bypassing stage 1.
-4. **Scoped logical delete** — closes series that existed previously but are absent from the current submission.
+1. Validate nonempty full-snapshot scope, duplicate keys, source digest and message identity.
+2. For a newer accepted filing, close every current row in the exact
+    country/period/aggregation scope, including keys absent from a smaller replacement.
+3. Insert the complete accepted snapshot with `IS_CURRENT=true` and `VALID_TO=NULL`.
+    Rejected and older accepted arrivals remain audit-only with closed intervals.
+4. Commit staged operations once. Macro history and the educational ledger remain
+    separate transactions; replay-safe ledger IDs support repair, not distributed atomicity.
 
-Three details prevent subtle corruption:
-
-* **`version_hash` sentinel.** The payload fingerprint coalesces each component against `\u0000NULL`, not `""`. With an empty-string default, a genuine `NULL` and an empty value would hash identically and a real revision could be missed entirely.
-* **Post-insert re-read.** Stage 4 re-reads the target rather than reusing the pre-insert snapshot, which would otherwise immediately expire the rows just written in stage 2.
-* **Scope restriction.** Stage 4 is confined to the `(reporting_country, DATE)` pairs present in the *published* portion of the batch. Without it, submitting Canada's period would logically delete every other jurisdiction's series.
+`SUBMITTED_AT` is sender-reported; `RECEIVED_AT` is processing time. Production
+requires a trusted sequence/receipt contract. The job is single-writer, and a local
+file lock coordinates cooperating local writers only. See the
+[migration and concurrency boundaries](RELEASE_EVIDENCE.md#submission-contract).
 
 ---
 
@@ -232,20 +275,26 @@ Token validation is delegated rather than reimplemented: the gateway resolves th
 | `GET /api/v1/export/sdmx-ml` | SDMX-ML 3.0 structure-specific message |
 | `GET /api/v1/export/sdmx-json` | SDMX-JSON 2.0.0 data message |
 | `GET /api/v1/export/csv` | SDMX-CSV 2.0.0, or `?format=tidy` for a plain analyst CSV |
+| `GET /api/v1/export/audit-csv` | Submission-aware export; quarantine requires submitter/admin entitlement |
 | `GET /api/v1/whoami` | The security context the portal banner renders |
 | `GET /api/v1/health` | Catalog connectivity, backend mode, and structure availability |
 | `GET /api/v1/auth-diagnostics` | Presence-only Easy Auth diagnostics; never returns token or claim values |
 
 Every caller-supplied value is bound as a query parameter, and code values are additionally constrained to `[A-Za-z0-9_]{1,12}` before they reach the warehouse — parameter binding already prevents injection, the pattern check keeps malformed input from being blamed on the metastore.
 
-**Cross-frequency dissemination.** `frequency` is a first-class filter card, presented first because it partitions the catalogue: an analyst comparing a monthly series against a quarterly aggregate of the same position is making a category error, and the filter is the cheapest place to prevent it.
+**Analyst reconciliation.** `lifecycle=published|all|quarantine` distinguishes
+current accepted data from rejected arrivals. The Analyst View is the submitter
+workflow for checking that the international organization's actual latest filing
+state matches the analyst's expected submission. IDs, submitted/received timestamps,
+values and failure feedback support this check. The portal does not replace an
+authorized full-history query or a transport receipt service.
 
 ### SDMx 3.0 serialization
 
 `src/sdmx_ml_exporter.py` replaces the flat CSV export with the formats a statistical portal is expected to speak, all reported against the BIS Data Portal dataflow `BIS:WS_LBS_D_PUB(1.0)`.
 
 * **SDMX-ML 3.0.** SDMX 3.0.0 **removed** the Generic Data format, so `StructureSpecificData` is the only XML data message the standard still defines; the `output_type` argument exists for forward compatibility and rejects anything else rather than silently emitting a 2.1-era payload. Serialization runs through `pysdmx`, which writes against the published schemas, and the emitted document is round-tripped through the reader before it is returned — an invalid message is caught here, not by the receiving institution.
-* **Degraded mode.** The BIS structure endpoint is a live third-party HTTP dependency. It is fetched once and cached for the life of the process, and a dependency-free ElementTree writer stands behind it so an export never fails because BIS is having a bad morning. Messages produced that way are flagged `Test` so a consumer can tell they were written without structure validation.
+* **Pinned structure.** Normal serialization uses the reviewed local BIS LBS 1.0 component/codelist snapshot and pysdmx 1.18.0. It does not silently fall back to an unvalidated writer or depend on a registry request for each export. `Test=true` identifies synthetic messages, not standards accreditation.
 * **SDMX-JSON 2.0.0** for browsers and **SDMX-CSV 2.0.0** for tabular consumers — the latter carrying the standard's `STRUCTURE,STRUCTURE_ID,ACTION` prefix so a file is self-describing rather than depending on an out-of-band agreement about column order.
 
 A masked observation is serialized as an **absent** value, never as zero. Under SDMx semantics those mean entirely different things, and conflating them would turn a confidentiality control into a data-quality defect.
@@ -253,11 +302,14 @@ A masked observation is serialized as an **absent** value, never as zero. Under 
 ### Deploying the portal
 
 ```bash
-databricks bundle deploy -t dev --var="warehouse_id=<sql-warehouse-id>"
-databricks bundle run sovereignshield_portal -t dev
+python sh/activate_databricks_app.py --host <workspace-url> --app-name sovereignshield-portal --target dev --resume
 ```
 
-The bundle uploads `./src` as the app source, so `src/app.yaml` and `src/requirements.txt` travel with the modules they launch. The app's dependency set is deliberately separate from the repository root manifest: the portal has no use for PySpark, Delta or the Excel rulebook parsers, and installing them would add hundreds of megabytes to every deployment.
+Use [Stage 6 of the operations runbook](AUTOMATION_RUNBOOK.md#resume-or-bound-a-run)
+for the complete identity-and-activation sequence. Stage 3 uploads the source;
+Stage 6 resolves its workspace path from the selected bundle even before an App
+has a default path. Bounded waits verify the exact deployment; resumes do not
+submit a duplicate snapshot. App dependencies exclude ingestion/Spark components.
 
 The app's own service principal must be a member of `sg-sovereignshield-public`. Without it the fail-closed default returns zero rows and the portal renders empty for every anonymous visitor.
 
@@ -288,13 +340,15 @@ The module uses a **user-assigned** managed identity rather than system-assigned
     -WarehouseId <sql-warehouse-id>
 ```
 
-Nothing about the security model changes — only who can knock. The row filter remains the sole arbiter of what is returned, and the container holds no entitlement of its own.
+The public proxy identity has explicit public entitlement. The gateway handles
+that credential and signed-in bearer tokens/results, selects lifecycle filters,
+and remains trusted. UC independently enforces table row/value entitlements.
 
 | Concern | How the deployment handles it |
 | --- | --- |
 | Credentials | Public proxy credentials use Key Vault references. The Easy Auth SAS is generated transiently, stored as a Container App secret through a Windows-safe quoted handoff, and never written to tracked files or logs. |
 | Image build | `az acr build` — built in Azure, so no local Docker daemon and no image pushed from a workstation |
-| Container privileges | Runs as an unprivileged UID with only the four serving modules and the template directory copied in. The ingestion job, the synthetic data, and the BIS rulebook workbook are not in the serving path and are not in the image. |
+| Container privileges | Runs as an unprivileged UID with serving modules, decimal/contract helpers, pinned structure, templates and local CSS. Ingestion, synthetic records and the rulebook workbook are excluded. |
 | Elevated personas | `-EnableEntraSignIn` configures Easy Auth with `AllowAnonymous`, ID-token issuance, admin consent, and `openid profile offline_access AzureDatabricks/user_impersonation`. A Blob-backed token store retains provider tokens. The browser reads same-origin `/.auth/me`, keeps the access token in memory, and attaches it to API requests. |
 | Token-store integrity | A dedicated storage account holds Easy Auth session material. The Windows script preserves the complete SAS through a quoted environment-variable handoff, validates `se`, `sp`, `spr`, `sv`, `sr`, and `sig`, and restarts the active revision after secret updates. |
 
