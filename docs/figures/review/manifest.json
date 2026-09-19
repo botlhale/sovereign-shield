@@ -1,0 +1,14 @@
+[
+  {
+    "source": "docs/figures/review/engagement_workflow.svg",
+    "image": "docs/figures/review/engagement_workflow.png",
+    "source_sha256": "57a5ccfcc38cbb88b8c0c5bfd009c3ff06b5ac8948a4516fb195ae519a1604bf",
+    "image_sha256": "b7daad94f3c7fb37a7e0f4b1ba13b23dbdda0258f11c231c610c46de32479ade"
+  },
+  {
+    "source": "docs/figures/review/submission_reconciliation.svg",
+    "image": "docs/figures/review/submission_reconciliation.png",
+    "source_sha256": "78854c9f34324ec75fc86324b025775438661d9bb0f125457e5891393a913565",
+    "image_sha256": "b4c8ff6b80644fb1ed56cb6a9a013b9d8c712da38d02ff9901d6beea100acc3b"
+  }
+]

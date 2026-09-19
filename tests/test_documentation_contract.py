@@ -2,6 +2,7 @@ from pathlib import Path
 import hashlib
 import json
 import re
+import struct
 from xml.etree import ElementTree
 
 import pytest
@@ -162,3 +163,69 @@ def test_publication_diagrams_match_their_source_manifest():
         assert root.attrib["width"] == "1600" and root.attrib["height"] == "900"
         assert root.find("{http://www.w3.org/2000/svg}title") is not None
         assert root.find("{http://www.w3.org/2000/svg}desc") is not None
+
+
+def test_review_diagrams_are_4k_and_match_their_separate_manifest():
+    directory = ROOT / "docs/figures/review"
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    assert {Path(item["source"]).name for item in manifest} == {
+        "engagement_workflow.svg", "submission_reconciliation.svg",
+    }
+    for item in manifest:
+        source = ROOT / item["source"]
+        image = ROOT / item["image"]
+        assert source.parent == directory and image.parent == directory
+        assert hashlib.sha256(source.read_text(encoding="utf-8").encode("utf-8")).hexdigest() == item["source_sha256"]
+        image_bytes = image.read_bytes()
+        assert hashlib.sha256(image_bytes).hexdigest() == item["image_sha256"]
+        assert image_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+        assert struct.unpack(">II", image_bytes[16:24]) == (3840, 2160)
+        root = ElementTree.parse(source).getroot()
+        assert root.attrib["width"] == "3840" and root.attrib["height"] == "2160"
+        assert root.find("{http://www.w3.org/2000/svg}title") is not None
+        assert root.find("{http://www.w3.org/2000/svg}desc") is not None
+
+
+def test_engagement_review_diagram_preserves_owners_and_approval_routes():
+    namespaces = {"svg": "http://www.w3.org/2000/svg"}
+    diagram = ElementTree.parse(ROOT / "docs/figures/review/engagement_workflow.svg").getroot()
+    nodes = {node.attrib["id"]: node for node in diagram.findall(".//svg:g[@data-owner]", namespaces)}
+    expected_positions = {
+        "A1": ("A", "1"), "G1": ("A", "1"), "B1": ("B", "2"), "C1": ("C", "2"),
+        "B2": ("B", "3"), "A2": ("A", "4"), "G2": ("A", "4"), "B3": ("B", "5"),
+        "C2": ("C", "5"), "C3": ("C", "5"), "C4": ("C", "6"), "G3": ("A", "6"),
+        "C5": ("C", "6"), "C6": ("C", "7"), "C7": ("C", "7"), "C8": ("C", "7"),
+    }
+    assert set(nodes) == set(expected_positions)
+    owners = {"A": "client-review", "B": "provider", "C": "client-operations"}
+    for identity, (lane, phase) in expected_positions.items():
+        assert nodes[identity].attrib["data-lane"] == lane
+        assert nodes[identity].attrib["data-phase"] == phase
+        assert nodes[identity].attrib["data-owner"] == owners[lane]
+    assert {identity for identity, node in nodes.items() if node.find("svg:polygon", namespaces) is not None} == {"G1", "G2", "G3"}
+    edges = {(edge.attrib["data-from"], edge.attrib["data-to"], edge.attrib["data-kind"])
+             for edge in diagram.findall(".//svg:path[@data-from]", namespaces)}
+    approved_routes = {
+        ("A1", "G1"), ("G1", "B1"), ("G1", "C1"), ("B1", "B2"), ("B2", "A2"),
+        ("A2", "G2"), ("G2", "B3"), ("B3", "C2"), ("C2", "C3"), ("C3", "C4"),
+        ("C4", "G3"), ("G3", "C5"), ("C5", "C6"), ("C6", "C7"), ("C7", "C8"),
+    }
+    optional_routes = {("C1", "B1"), ("G2", "B2"), ("G3", "C4")}
+    assert edges == {(start, end, "solid") for start, end in approved_routes} | {
+        (start, end, "dashed") for start, end in optional_routes
+    }
+
+
+def test_reconciliation_review_diagram_keeps_analyst_as_consumer():
+    namespaces = {"svg": "http://www.w3.org/2000/svg"}
+    diagram = ElementTree.parse(ROOT / "docs/figures/review/submission_reconciliation.svg").getroot()
+    nodes = {node.attrib["id"]: node for node in diagram.findall(".//svg:g[@data-owner]", namespaces)}
+    assert set(nodes) == {f"S{number}" for number in range(1, 9)}
+    for identity, node in nodes.items():
+        assert node.attrib["data-owner"] == ("reporting-authority" if identity in {"S1", "S8"} else "client")
+    edges = {(edge.attrib["data-from"], edge.attrib["data-to"])
+             for edge in diagram.findall(".//svg:path[@data-from]", namespaces)}
+    assert edges == {
+        ("S1", "S2"), ("S2", "S3"), ("S3", "S4"), ("S4", "S5"), ("S4", "S6"),
+        ("S5", "S7"), ("S6", "S7"), ("S8", "S7"),
+    }

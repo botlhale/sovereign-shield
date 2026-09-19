@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 1920 1080" role="img" aria-labelledby="title description">
+  <title id="title">SovereignShield: Nature of Engagement and Handover</title>
+  <desc id="description">Review Figure A. Seven phases and three accountable-owner lanes separate client review, external synthetic-only development and client operations. Release approval precedes handover and import. Synthetic staging supplies evidence to a single production approval gate. Client operators accept handover, offboard the provider and verify runtime continuity. Dashed arrows denote optional sandbox access or rework, never production-data transfer.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L8 4 L0 8 Z" fill="#344f5c"/></marker>
+    <marker id="optional-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L8 4 L0 8 Z" fill="#9b732b"/></marker>
+  </defs>
+  <style>
+    text{font-family:'Segoe UI',sans-serif;fill:#18323b;letter-spacing:0}
+    .title{font-size:37px;font-weight:700}.subtitle{font-size:22px;fill:#47606a}
+    .eyebrow{font-size:14px;font-weight:700}.phase{font-size:18px;font-weight:600}
+    .owner{font-size:19px;font-weight:600}.owner-note{font-size:14px;fill:#47606a}
+    .node text{font-size:18px;font-weight:600;text-anchor:middle}.node rect{rx:6;stroke-width:1.6}
+    .gate text{font-size:17px;font-weight:600;text-anchor:middle}.gate polygon{fill:#fff0c8;stroke:#b98527;stroke-width:1.6}
+    .label{font-size:14px;fill:#344f5c}.optional-label{font-size:14px;fill:#856120}
+    .flow{fill:none;stroke:#344f5c;stroke-width:2.4;stroke-linejoin:round;marker-end:url(#arrow)}
+    .optional{fill:none;stroke:#9b732b;stroke-width:2;stroke-dasharray:7 5;stroke-linejoin:round;marker-end:url(#optional-arrow)}
+    .grid{stroke:#d9e3e7;stroke-width:1}.rule{stroke:#cbd8dc;stroke-width:1}
+  </style>
+  <rect width="1920" height="1080" fill="#ffffff"/>
+  <text x="48" y="38" class="eyebrow" fill="#16786b">SOVEREIGNSHIELD / FIGURE A</text>
+  <text x="1872" y="38" class="eyebrow" text-anchor="end">REVIEW DRAFT</text>
+  <text x="48" y="91" class="title">Nature of Engagement and Handover</text>
+  <text x="48" y="132" class="subtitle">Synthetic-first development; client-controlled production</text>
+
+  <g id="phase-headers">
+    <rect x="210" y="158" width="1680" height="48" fill="#edf2f4"/>
+    <text x="330" y="188" class="phase" text-anchor="middle">1  Agree</text>
+    <text x="570" y="188" class="phase" text-anchor="middle">2  Establish</text>
+    <text x="810" y="188" class="phase" text-anchor="middle">3  Build and test</text>
+    <text x="1050" y="188" class="phase" text-anchor="middle">4  Review</text>
+    <text x="1290" y="188" class="phase" text-anchor="middle">5  Hand over</text>
+    <text x="1530" y="188" class="phase" text-anchor="middle">6  Accept and deploy</text>
+    <text x="1770" y="188" class="phase" text-anchor="middle">7  Operate and exit</text>
+  </g>
+  <g id="lane-A" data-lane="A">
+    <rect x="32" y="218" width="1858" height="259" fill="#f5f7f8"/>
+    <path d="M32 218 V477" stroke="#8ba1aa" stroke-width="5"/>
+    <text x="49" y="310" class="owner">Client sponsor,</text>
+    <text x="49" y="337" class="owner">data authority</text>
+    <text x="49" y="364" class="owner">and review</text>
+    <text x="49" y="402" class="owner-note">Decision authority</text>
+  </g>
+  <g id="lane-B" data-lane="B">
+    <rect x="32" y="489" width="1858" height="196" fill="#ecf6f2"/>
+    <path d="M32 489 V685" stroke="#16786b" stroke-width="5"/>
+    <text x="49" y="556" class="owner">External</text>
+    <text x="49" y="583" class="owner">technical</text>
+    <text x="49" y="610" class="owner">provider</text>
+    <text x="49" y="648" class="owner-note">Synthetic-only work</text>
+  </g>
+  <g id="lane-C" data-lane="C">
+    <rect x="32" y="697" width="1858" height="303" fill="#edf3fb"/>
+    <path d="M32 697 V1000" stroke="#50799a" stroke-width="5"/>
+    <text x="49" y="796" class="owner">Client platform</text>
+    <text x="49" y="823" class="owner">and operations</text>
+    <text x="49" y="861" class="owner-note">Runtime ownership</text>
+  </g>
+  <path d="M210 158 V1000 M450 158 V1000 M690 158 V1000 M930 158 V1000 M1170 158 V1000 M1410 158 V1000 M1650 158 V1000" class="grid"/>
+  <g id="client-production-boundary" data-boundary="client">
+    <rect x="1420" y="716" width="464" height="280" rx="6" fill="none" stroke="#50799a" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <text x="1870" y="736" font-size="12" font-weight="600" text-anchor="end">CLIENT-CONTROLLED</text>
+    <text x="1870" y="753" font-size="12" font-weight="600" text-anchor="end">STAGING / PRODUCTION</text>
+  </g>
+
+  <g id="A1" class="node" data-owner="client-review" data-lane="A" data-phase="1">
+    <rect x="236" y="233" width="188" height="74" fill="#ffffff" stroke="#a6bcc3"/>
+    <text x="330" y="264">Scope and</text><text x="330" y="289">SDMx contract</text>
+  </g>
+  <g id="G1" class="node gate" data-owner="client-review" data-lane="A" data-phase="1">
+    <polygon points="330,327 434,397 330,467 226,397"/>
+    <text x="330" y="375">Approve</text><text x="330" y="398">synthetic</text><text x="330" y="421">development</text>
+  </g>
+  <g id="B1" class="node" data-owner="provider" data-lane="B" data-phase="2">
+    <rect x="476" y="534" width="188" height="90" fill="#ffffff" stroke="#16786b"/>
+    <text x="570" y="559">Approved repository</text><text x="570" y="585">Synthetic-only</text><text x="570" y="611">development</text>
+  </g>
+  <g id="C1" class="node" data-owner="client-operations" data-lane="C" data-phase="2">
+    <rect x="476" y="784" width="188" height="94" fill="#ffffff" stroke="#91abc0"/>
+    <text x="570" y="810">Client sandbox</text><text x="570" y="837">Time-bounded</text><text x="570" y="863">access</text>
+  </g>
+  <g id="B2" class="node" data-owner="provider" data-lane="B" data-phase="3">
+    <rect x="716" y="534" width="188" height="90" fill="#ffffff" stroke="#16786b"/>
+    <text x="810" y="574">Build, test and</text><text x="810" y="601">submit PR</text>
+  </g>
+  <g id="A2" class="node" data-owner="client-review" data-lane="A" data-phase="4">
+    <rect x="956" y="233" width="188" height="74" fill="#ffffff" stroke="#a6bcc3"/>
+    <text x="1050" y="253">Independent</text><text x="1050" y="275">security and</text><text x="1050" y="297">disclosure review</text>
+  </g>
+  <g id="G2" class="node gate" data-owner="client-review" data-lane="A" data-phase="4">
+    <polygon points="1050,327 1154,397 1050,467 946,397"/>
+    <text x="1050" y="375">Accept</text><text x="1050" y="398">release and</text><text x="1050" y="421">residual risks</text>
+  </g>
+  <g id="B3" class="node" data-owner="provider" data-lane="B" data-phase="5">
+    <rect x="1196" y="534" width="188" height="90" fill="#ffffff" stroke="#16786b"/>
+    <text x="1290" y="574">Versioned</text><text x="1290" y="601">handover package</text>
+  </g>
+  <g id="C2" class="node" data-owner="client-operations" data-lane="C" data-phase="5">
+    <rect x="1196" y="765" width="188" height="66" fill="#ffffff" stroke="#91abc0"/>
+    <text x="1290" y="792">Import approved</text><text x="1290" y="818">release</text>
+  </g>
+  <g id="C3" class="node" data-owner="client-operations" data-lane="C" data-phase="5">
+    <rect x="1196" y="889" width="188" height="66" fill="#ffffff" stroke="#91abc0"/>
+    <text x="1290" y="916">Client identities,</text><text x="1290" y="942">vault and state</text>
+  </g>
+  <g id="C4" class="node" data-owner="client-operations" data-lane="C" data-phase="6">
+    <rect x="1460" y="765" width="140" height="86" fill="#ffffff" stroke="#50799a"/>
+    <text x="1530" y="791">Synthetic</text><text x="1530" y="814">staging</text><text x="1530" y="837">acceptance</text>
+  </g>
+  <g id="G3" class="node gate" data-owner="client-review" data-lane="A" data-phase="6">
+    <polygon points="1530,327 1634,397 1530,467 1426,397"/>
+    <text x="1530" y="375">Production</text><text x="1530" y="398">and disclosure</text><text x="1530" y="421">approval</text>
+  </g>
+  <g id="C5" class="node" data-owner="client-operations" data-lane="C" data-phase="6">
+    <rect x="1460" y="883" width="140" height="84" fill="#e4edf8" stroke="#50799a"/>
+    <text x="1530" y="909">Client</text><text x="1530" y="932">production</text><text x="1530" y="955">deployment</text>
+  </g>
+  <g id="C6" class="node" data-owner="client-operations" data-lane="C" data-phase="7">
+    <rect x="1676" y="768" width="188" height="58" fill="#ffffff" stroke="#50799a"/>
+    <text x="1770" y="791">Operate and</text><text x="1770" y="814">reconcile</text>
+  </g>
+  <g id="C7" class="node" data-owner="client-operations" data-lane="C" data-phase="7">
+    <rect x="1676" y="863" width="188" height="50" fill="#ffffff" stroke="#50799a"/>
+    <text x="1770" y="883">Offboard</text><text x="1770" y="904">provider</text>
+  </g>
+  <g id="C8" class="node" data-owner="client-operations" data-lane="C" data-phase="7">
+    <rect x="1676" y="941" width="188" height="51" fill="#e6f4ef" stroke="#16786b"/>
+    <text x="1770" y="962">Verify runtime</text><text x="1770" y="984">continuity</text>
+  </g>
+
+  <g id="workflow-flows">
+    <path data-from="A1" data-to="G1" data-kind="solid" d="M330 307 V324" class="flow"/>
+    <path data-from="G1" data-to="B1" data-kind="solid" d="M434 397 H462 V511 H570 V531" class="flow"/>
+    <path data-from="G1" data-to="C1" data-kind="solid" d="M330 467 V830 H473" class="flow"/>
+    <path data-from="B1" data-to="B2" data-kind="solid" d="M664 579 H713" class="flow"/>
+    <path data-from="B2" data-to="A2" data-kind="solid" d="M810 534 V503 H919 V270 H953" class="flow"/>
+    <path data-from="A2" data-to="G2" data-kind="solid" d="M1050 307 V324" class="flow"/>
+    <path data-from="G2" data-to="B3" data-kind="solid" d="M1154 397 H1160 V513 H1290 V531" class="flow"/>
+    <path data-from="B3" data-to="C2" data-kind="solid" d="M1290 624 V762" class="flow"/>
+    <path data-from="C2" data-to="C3" data-kind="solid" d="M1290 831 V886" class="flow"/>
+    <path data-from="C3" data-to="C4" data-kind="solid" d="M1384 922 H1444 V824 H1457" class="flow"/>
+    <path data-from="C4" data-to="G3" data-kind="solid" d="M1460 803 H1412 V397 H1423" class="flow"/>
+    <path data-from="G3" data-to="C5" data-kind="solid" d="M1634 397 H1640 V925 H1603" class="flow"/>
+    <path data-from="C5" data-to="C6" data-kind="solid" d="M1530 967 V982 H1658 V797 H1673" class="flow"/>
+    <path data-from="C6" data-to="C7" data-kind="solid" d="M1770 826 V860" class="flow"/>
+    <path data-from="C7" data-to="C8" data-kind="solid" d="M1770 913 V938" class="flow"/>
+    <path data-from="C1" data-to="B1" data-kind="dashed" d="M570 784 V627" class="optional"/>
+    <path data-from="G2" data-to="B2" data-kind="dashed" d="M1050 467 V660 H810 V627" class="optional"/>
+    <path data-from="G3" data-to="C4" data-kind="dashed" d="M1530 467 V762" class="optional"/>
+  </g>
+  <g id="flow-labels">
+    <text x="482" y="498" class="label">Approved scope</text>
+    <text x="342" y="814" class="label">Approved sandbox</text>
+    <text x="1196" y="499" class="label">Approved</text>
+    <text x="1304" y="698" class="label">Reviewed</text><text x="1304" y="719" class="label">artifacts</text>
+    <text x="1426" y="553" class="label">Acceptance</text><text x="1426" y="574" class="label">evidence</text>
+    <text x="1553" y="553" class="label">Approved</text>
+    <text x="1787" y="839" class="label">Handover</text><text x="1787" y="857" class="label">accepted</text>
+    <text x="581" y="708" class="optional-label">Optional</text><text x="581" y="729" class="optional-label">sandbox access</text>
+    <text x="880" y="650" class="optional-label">Rework findings</text>
+    <text x="1543" y="650" class="optional-label">Rework</text><text x="1543" y="671" class="optional-label">findings</text>
+  </g>
+
+  <path d="M48 1027 H103" class="flow"/><text x="115" y="1032" class="label">Workflow / approved artifact handoff</text>
+  <path d="M445 1027 H500" class="optional"/><text x="512" y="1032" class="label">Optional access or rework</text>
+  <polygon points="850,1017 864,1027 850,1037 836,1027" fill="#fff0c8" stroke="#b98527"/>
+  <text x="879" y="1032" class="label">Client approval</text>
+  <text x="1090" y="1032" class="label">Swimlane = accountable owner</text>
+  <rect x="1420" y="1018" width="31" height="18" fill="none" stroke="#50799a" stroke-dasharray="4 4"/>
+  <text x="1462" y="1032" class="label">Client-controlled boundary</text>
+  <path d="M48 1049 H1872" class="rule"/>
+  <text x="48" y="1071" class="label">Independent reference architecture; no institutional or vendor endorsement. Production administration and acceptance remain client-owned.</text>
+</svg>

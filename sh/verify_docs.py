@@ -56,14 +56,14 @@ def check_links():
     print(f"Verified {checked} local Markdown links and heading anchors.")
 
 
-def render_diagrams():
+def render_diagrams(directory=ROOT / "docs/figures"):
     chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
     if not chrome.is_file():
         raise RuntimeError("Chrome is required to render the publication diagram PNGs.")
-    output = ROOT / ".pytest_cache" / "publication-diagrams"
+    output = ROOT / ".pytest_cache" / "publication-diagrams" / directory.name
     output.mkdir(parents=True, exist_ok=True)
     manifest = []
-    for source in sorted((ROOT / "docs/figures").glob("*.svg")):
+    for source in sorted(directory.glob("*.svg")):
         root = ElementTree.parse(source).getroot()
         width, height = int(root.attrib["width"]), int(root.attrib["height"])
         image = source.with_suffix(".png")
@@ -83,7 +83,7 @@ def render_diagrams():
             "image_sha256": hashlib.sha256(data).hexdigest(),
         })
         print(f"Rendered {image.relative_to(ROOT)}: {width}x{height}")
-    (ROOT / "docs/figures/manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    (directory / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
 def render_proofs():
@@ -120,9 +120,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--print-proof", action="store_true")
     parser.add_argument("--render-diagrams", action="store_true")
+    parser.add_argument("--diagram-set", choices=("publication", "review"), default="publication")
     args = parser.parse_args()
     if args.render_diagrams:
-        render_diagrams()
+        directory = ROOT / "docs/figures"
+        if args.diagram_set == "review":
+            directory /= "review"
+        render_diagrams(directory)
     check_links()
     if args.print_proof:
         render_proofs()

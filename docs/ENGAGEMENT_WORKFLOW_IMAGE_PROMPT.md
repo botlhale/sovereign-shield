@@ -5,104 +5,262 @@
 specification and renderable Mermaid remain authoritative if generated labels or
 arrows differ. Verify every label and connection before publication.
 
-## Image Generation Prompt
+Editable SVGs and 3840x2160 PNGs for both revised figures are available in the
+[review gallery](figures/review/README.md). These are manually laid out review
+assets, not approved replacements for the current publication images.
 
-Create a precise enterprise consulting delivery and handover diagram titled
-"SovereignShield: Nature of Engagement and Handover". Subtitle: "Synthetic-first
-development; client-controlled production". Output a high-resolution 16:9 bitmap
-(3840x2160 or larger), legible at presentation scale and suitable for an A3
-landscape print. Use a white background, charcoal text, restrained teal for
-provider development, blue for client-controlled environments, and amber for
-approval gates. Use aligned rectangular process nodes, subtle 2-4px corners,
-orthogonal connectors and ample whitespace. No gradients, 3D effects, decorative
-shields, padlock wallpaper, mascots or stock imagery. Do not use institution or
-vendor logos; names are plain text. Use consistent, readable sans-serif typography
-with no dense paragraphs or text embedded in tiny icons.
+## Assessment of the First Gemini Pro Rendering
 
-Organize the diagram left-to-right into seven numbered phases across three
-horizontal swimlanes. Label the lanes "Client Sponsor, Data Authority and Review",
-"External Technical Provider", and "Client Platform and Operations". Show a
-distinct dashed vertical trust boundary before client staging/production, and a
-separate provider repository boundary enclosing only approved metadata, code and
-synthetic fixtures. Avoid crossing arrows; route feedback along the bottom.
+**Disposition:** suitable for concept discussion after explanation, not ready as
+an authoritative architecture or stakeholder handover diagram.
 
-PHASE 1 - AGREE
-Top lane node: "Scope, ownership, budget and acceptance".
-Adjacent top node: "Approved SDMx contract, access matrix and disclosure policy".
-Small inputs: "DSD / codelists", "snapshot and receipt semantics", "residency / retention".
-Gate diamond: "Approved for synthetic development".
-Only an arrow labeled "approved metadata; no production records" crosses into
-the provider lane. Do not show bank micro-transactions as a client submission.
+The supplied image preserves the title, restrained palette, three participant
+lanes, seven phase labels and important disclosure/continuity concepts. Several
+connectors and placements change the meaning of the workflow:
 
-PHASE 2 - ESTABLISH
-Provider node: "Approved independent or client repository" and "Local development; no cloud credentials".
-Client platform node: "Client-owned sandbox, state backend and time-bounded access".
-Show a dashed optional arrow labeled "approved synthetic sandbox access" to the
-provider. Place "Production administration retained by client" beside the boundary.
+| Priority | Observed Issue | Required Correction |
+| --- | --- | --- |
+| Critical | `Client confidential data` and `Approved SDMx file intake` occupy the External Technical Provider lane | All confidential records, intake and production operations must stay visibly inside the client boundary |
+| Critical | A direct staging-to-production arrow bypasses approval; production/disclosure approval appears twice | Show one production approval diamond, with every promotion path passing through it |
+| High | Build/tests connect directly to client import, while the approved-version gate mainly routes back to tests | Approved release must precede handover and client import; rejection feedback is a separate labelled path |
+| High | The Analyst View points toward the publication/audit boxes as if it creates them | Governed history supplies distinct products; the Analyst View consumes entitled results and sender evidence |
+| High | Provider offboarding is placed in the provider lane and points toward operations; the final feedback loop reaches the sandbox | Client operators own revocation after operational handover; feedback is approved findings, never production data or a runtime dependency |
+| Medium | Phase headings repeat inside the grid and nodes drift under the wrong phase | One header per phase and one assigned lane/column per node |
+| Medium | Dense small labels, ambiguous crossings and the literal instruction `Bank micro-transactions not shown` reduce clarity | Reduce text, separate workflow from data flow, and never render instructions as labels |
 
-PHASE 3 - BUILD AND TEST
-Provider nodes: "Generate synthetic fixtures", then "Infrastructure, SDMx intake,
-history and access controls", then "Credential-free tests and pull request".
-Place a small secondary fixture node under generation: "Educational synthetic
-micro-transactions: calculation example only". Connect it only to the fixture
-generator, not to the international intake or production platform.
+This is evidence about this rendering, not a general performance claim about all
+Gemini versions. The first prompt mixed placement guidance, long explanatory
+labels and several kinds of arrows. The revised prompts use a finite node table,
+explicit allowed edges and separate diagrams for engagement control flow and
+production information flow. A model self-check does not replace human inspection.
 
-PHASE 4 - REVIEW
-Top lane nodes: "Independent technical and security review" and "Disclosure challenge".
-The disclosure node contains three short lines: "public-total reconstruction",
-"row-existence inference", "restrict/remove Researcher if necessary".
-Gate diamond: "Approved version and residual risks". A feedback arrow returns
-to provider tests, labeled "review findings". The gate does not automatically
-grant production access or trigger deployment.
+## Gemini Pro Generation Method
 
-PHASE 5 - HAND OVER
-Across provider/client lanes: "Versioned source, licenses, tests, runbooks and knowledge transfer".
-Client platform node: "Clone / fork / reviewed import into client repository".
-Next node: "Client runtime identities, OIDC, vault, state and ownership".
-Arrow note: "No provider credentials or sandbox state transferred".
-Show one ownership transition: "client accepts repository and operational control".
+1. Generate **Figure A only** first. Use the previous image as a style reference,
+   not as a topology to preserve. Request a fresh redraw rather than a cosmetic edit.
+2. Supply only the Figure A prompt below, keeping its fixed node list and connectors.
+   Do not append the entire playbook. Inspect ownership and gate order before style.
+3. Generate Figure B in a separate request with the same visual style. Do not
+   compress the two specifications into one 16:9 image.
+4. Request 3840x2160 where the selected Gemini image model supports it, or its highest
+   native output resolution. Confirm the downloaded dimensions; a prompt asking for
+   4K does not prove that the supplied preview or file is 4K. Do not repair tiny text
+   by upscaling alone.
+5. Correct a misplaced node or edge by naming its ID and permitted connection.
+   For final publication, reconstruct persistent topology or typography errors in
+   a diagram editor using the same node/edge specification. Preserve editable source.
 
-PHASE 6 - ACCEPT AND DEPLOY
-Client platform nodes: "Synthetic staging: live persona, replay and recovery tests",
-then a top-lane gate "Production and disclosure approval", then "Client production deployment".
-A protected cylinder labeled "Client confidential data" connects only to a
-client-side "Approved SDMx file intake" node and the production platform.
-No arrow from confidential data to the provider or public repository.
-Label the platform "Azure + Databricks reference implementation".
-A small side box says "Technology-agnostic pattern: AWS / GCP / Fabric / open source;
-adapters and equivalent controls required". This is an option, not a deployed
-multi-cloud topology or an automatically portable workload.
+## Figure A Prompt: Engagement Control Flow
 
-PHASE 7 - OPERATE AND EXIT
-Client lane: "Operate, monitor, recover and review access".
-Top lane: "Analyst reconciliation: expected latest filing vs receiver state".
-Show two distinct outputs from governed history: "Current accepted publication"
-and "Restricted submission / quarantine audit". Do not depict latest received
-as automatically published.
-Provider/client boundary node: "Offboard provider; verify continuity".
-Below it list: "groups, sessions, RBAC, vault, GitHub, ownership".
-Final node: "Client-owned runtime continues". Do not show deleting stable service
-principals as routine personnel offboarding.
+```text
+Redraw an enterprise engagement diagram from the specification below. If a previous
+image is attached, reuse only its white background and restrained teal/blue/amber
+palette. Do not preserve its node positions or arrows.
 
-FOOTER AND LEGEND
-Legend: solid arrow = approved artifact/data flow; dashed arrow = optional access
-or feedback; diamond = client approval; dashed enclosure = trust/ownership boundary.
-Small footer: "Independent synthetic reference architecture. No institutional or
-vendor endorsement. Production acceptance remains client-owned."
-Optional evaluation strip, separate from the production lane: "Reference synthetic
-cycle: about 75 min up including prerequisites; 30 min down; Azure US$10 or less.
-Observed evaluation, not an SLA or price guarantee." Do not imply these are
-consulting fees, all-cloud benchmarks or production operating costs.
+Priority order: correct ownership; correct approval sequence; readable text; style.
+Produce one 16:9 landscape image, preferably 3840x2160 if supported. Use a clean
+white canvas, charcoal text, pale teal provider lane, pale blue client-operations
+lane and amber approval diamonds. Use flat rectangular nodes, consistent typography,
+orthogonal connectors and generous margins. No gradients, 3D effects or logos.
 
-## Editorial Checks
+RENDER THIS TITLE:
+SovereignShield: Nature of Engagement and Handover
+RENDER THIS SUBTITLE:
+Synthetic-first development; client-controlled production
 
-- The provider never receives production data or standing production credentials.
-- The international submission arrow contains SDMx files only; the educational
-  micro-data artifact has no production intake arrow.
-- Repository transfer, staging acceptance and production approval are separate.
-- The Analyst View compares submitted evidence with actual receiver state.
-- Researcher discovery is conditional on disclosure review; masking is not labeled
-  reconstruction-proof.
-- Terraform extensibility is not drawn as an already deployed multi-cloud system.
-- Historical measurements are not represented as guaranteed cost or duration.
-- Recreate any inaccurate AI-rendered text in a diagram editor before release.
+LAYOUT - instructions, not visible text:
+Use a fixed seven-column, three-swimlane grid. Exactly one phase header per column:
+1 Agree | 2 Establish | 3 Build and test | 4 Review | 5 Hand over |
+6 Accept and deploy | 7 Operate and exit
+Do not repeat phase headers within any lane. Keep every node fully inside its
+assigned column and lane. Use a wider left margin for horizontal lane labels:
+A: Client sponsor, data authority and review
+B: External technical provider
+C: Client platform and operations
+Keep A and C visibly client-owned. Lane B contains synthetic-only development
+artifacts. No confidential data, production intake or revocation authority in B.
+
+VISIBLE NODES - IDs are instructions only; do not print IDs:
+A1 | lane A, column 1 | rectangle | Scope and SDMx contract
+G1 | lane A, column 1, below A1 | diamond | Approve synthetic development
+B1 | lane B, column 2 | rectangle | Approved repository / Synthetic-only development
+C1 | lane C, column 2 | rectangle | Client sandbox / Time-bounded access
+B2 | lane B, column 3 | rectangle | Build, test and submit PR
+A2 | lane A, column 4 | rectangle | Independent security and disclosure review
+G2 | lane A, column 4, below A2 | diamond | Accept release and residual risks
+B3 | lane B, column 5 | rectangle | Versioned handover package
+C2 | lane C, column 5, upper | rectangle | Import approved release
+C3 | lane C, column 5, lower | rectangle | Client identities, vault and state
+C4 | lane C, column 6, upper | rectangle | Synthetic staging acceptance
+G3 | lane A, column 6 | diamond | Production and disclosure approval
+C5 | lane C, column 6, lower | rectangle | Client production deployment
+C6 | lane C, column 7, upper | rectangle | Operate and reconcile
+C7 | lane C, column 7, middle | rectangle | Offboard provider
+C8 | lane C, column 7, lower | rectangle | Verify runtime continuity
+
+Use two or three readable lines per node. A slash indicates a line break, not
+literal punctuation to print. Do not add explanatory paragraphs inside nodes.
+Exactly three diamonds exist: G1, G2 and G3. G3 appears once only.
+
+EXACT SOLID CONNECTORS - ordered workflow or artifact handoff, not data flow:
+A1 -> G1
+G1 -> B1, label: Approved scope
+G1 -> C1, label: Approved sandbox
+B1 -> B2
+B2 -> A2
+A2 -> G2
+G2 -> B3, label: Approved
+B3 -> C2, label: Reviewed artifacts
+C2 -> C3
+C3 -> C4
+C4 -> G3, label: Acceptance evidence
+G3 -> C5, label: Approved
+C5 -> C6
+C6 -> C7, label: Handover accepted
+C7 -> C8
+
+EXACT DASHED CONNECTORS:
+C1 -> B1, label: Optional sandbox access
+G2 -> B2, label: Rework findings
+G3 -> C4, label: Rework findings
+
+No other connectors. In particular, no B2 -> C2, B2 -> C5, C4 -> C5,
+G2 -> C5, C8 -> C1 or production-to-provider feedback loop.
+Route C4 -> G3 and G3 -> C5 in separate vertical gutters within column 6.
+Crossing a lane with a connector does not transfer ownership of its endpoint.
+Use visible arrowheads. No arrow through a node, no ambiguous junction and no
+double-headed arrow. A line crossing without a connection uses a bridge.
+
+BOUNDARIES:
+Enclose C4, C5, C6, C7 and C8 in a labelled client-controlled staging/production
+boundary entirely within lane C, columns 6-7. Keep G3 in the client review lane.
+Do not extend that enclosure through the provider lane. Do not confuse a dashed
+enclosure with a feedback arrow.
+
+VISIBLE LEGEND:
+Solid arrow: workflow / approved artifact handoff
+Dashed arrow: optional access or rework
+Diamond: client approval
+Swimlane: accountable owner
+
+VISIBLE FOOTER:
+Independent reference architecture; no institutional or vendor endorsement.
+Production administration and acceptance remain client-owned.
+
+Do not draw confidential-data cylinders or publication/audit data products in
+this figure; those belong in the separate production-information figure.
+Do not render negative instructions such as "not shown". Do not add extra phase
+labels, side panels, cost strips, portability lists or decorative shapes. Leave
+space around each label; shorten line breaks, not the specified meaning.
+
+Before returning the image, check node ownership against the table and every
+arrow against the allowed connectors. Every route into C5 must pass G3. Every
+route into C2 must pass G2 and B3. Offboarding is client-owned and follows
+operational handover. Do not print this checklist on the image.
+```
+
+### Figure A Caption
+
+The approved SDMx contract covers structure/codelists, access and disclosure rules,
+snapshot/receipt semantics, residency and retention. Local synthetic development
+needs no cloud credentials; sandbox access is optional and time-bounded. The
+versioned package includes source, licenses, tests, runbooks, evidence and knowledge
+transfer. No provider credentials or sandbox state accompany repository transfer.
+Staging acceptance includes live persona, replay, recovery and disclosure tests.
+Offboarding reviews groups, sessions/tokens, RBAC, vault, GitHub, ownership and
+exports while retaining stable client runtime identities.
+
+## Figure B Prompt: Client Production Information Flow
+
+```text
+Create a separate 16:9 enterprise information-flow diagram with the same white,
+charcoal, restrained teal/blue palette as the engagement workflow. Prefer 3840x2160
+where supported. Use large readable labels, flat shapes, clear arrowheads and ample
+whitespace. No phase headers, approval diamonds, costs, cloud logos or provider lane.
+
+TITLE: SovereignShield: Submission and Analyst Reconciliation
+SUBTITLE: Latest submitted is distinct from current accepted publication
+
+Place every main node inside one enclosure labelled "Client-controlled service".
+The reporting authority is a separate box to its left. Draw only these nodes:
+S1: Reporting authority / SDMx submission
+S2: Approved SDMx file intake
+S3: Protected archive and validation
+S4: Governed submission history
+S5: Current accepted publication
+S6: Restricted submission / quarantine audit
+S7: Analyst reconciliation / Expected filing versus receiver state
+S8: Sender's expected filing evidence
+
+All nodes except S1 and S8 are inside the client-controlled service. S8 belongs
+beside S1 under the reporting authority, not inside a provider development area.
+
+Allowed data arrows only:
+S1 -> S2, labelled "SDMx files only"
+S2 -> S3
+S3 -> S4, labelled "Validated outcome and submission identity"
+S4 -> S5, labelled "Current accepted selection"
+S4 -> S6, labelled "Authorized audit selection"
+S5 -> S7, labelled "Entitled current data"
+S6 -> S7, labelled "Own-country submission feedback"
+S8 -> S7, labelled "Expected ID, values and submission time"
+
+S7 is a read/compare activity, not a producer or approver of S5 and S6. Never draw
+arrows from S7 to either product. Do not call S6 the complete accepted history.
+Show two product boxes side by side so publication and quarantine are distinct.
+Use separate arrow routes into S7 to avoid overlapping labels or merged meanings.
+
+Inside the client enclosure, place a short annotation beside S7:
+"Compare IDs, submitted/received times, values and validation outcome."
+Below S4, place:
+"Rejected arrivals do not replace current accepted data."
+
+Outside all data paths, add a small grey NOTE, with no arrows:
+"Synthetic bank micro-transactions: educational calculation fixtures only;
+not international submissions or production deliverables."
+Do not draw a bank-transaction intake, a client-data cylinder in an external
+provider area, or an arrow carrying confidential production records to a provider.
+
+Separate amber review note, with no flow arrows:
+"Disclosure review: public totals and row presence can reveal masked values.
+Restrict or remove Researcher discovery where required."
+
+FOOTER:
+"Processing timestamps are not attested transport receipts.
+Full accepted history requires an authorized history query."
+
+Check that every publication/audit product originates at S4, and that S7 only
+consumes evidence and entitled outputs. Do not print node IDs, rendering
+instructions, "not shown", or this checklist in the finished image.
+```
+
+## Caption-Only Context
+
+Keep these statements in document captions or surrounding prose instead of adding
+small crowded panels to Figure A:
+
+- **Portability:** technology-agnostic information/delivery pattern; Terraform
+  provider/module adaptations for AWS, GCP, Microsoft Fabric or open-source stacks
+  require equivalent controls and tests. Azure/Databricks is the implementation shown.
+- **Evaluation:** approximately 75 minutes up including prerequisites, 30 minutes
+  down and US$10 or less in Azure charges for the reference deploy/test/teardown
+  cycle. These are observed synthetic-workload results, not SLAs or a price guarantee;
+  see [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
+- **Disclosure:** observation existence is itself information. Removing researcher
+  discovery does not repair reconstruction possible from public totals. Follow the
+  [synthetic challenge and release criteria](../SECURITY.md#statistical-reconstruction-challenge).
+
+## Editorial Acceptance Checks
+
+- Every node occupies the specified phase and accountable-owner lane; headings do not repeat.
+- There is one production approval gate and no staging-to-production bypass.
+- Only an approved release reaches handover and client import; rework arrows are distinct.
+- Confidential records and SDMx intake remain client-side; educational micro-data has no production path.
+- Client operators accept handover, revoke provider access and verify runtime continuity in that order.
+- Governed history supplies the products; the Analyst View consumes evidence and entitled results.
+- Optional sandbox access and rework do not imply production-data feedback or standing credentials.
+- Researcher discovery is conditional on disclosure approval; no reconstruction-proof masking claim appears.
+- Inspect the downloaded image dimensions and text at the intended slide/PDF size.
+  Pixel count alone does not establish readability.
+- Review every arrow manually. Recreate persistent AI-rendering errors in an editable
+  diagram source before publication; model-generated self-assurance is not evidence.

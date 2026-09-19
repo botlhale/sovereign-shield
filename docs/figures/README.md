@@ -5,6 +5,10 @@ information, policy and deployment contracts. They are schematics, not live
 screenshots. The [portal capture inventory](../../demo/README.md) covers the
 unaltered synthetic screenshots separately.
 
+The separate [engagement review gallery](review/README.md) contains two 3840x2160
+drafts with editable sources. They are not yet replacements for the publication
+figures below. Render them with `--render-diagrams --diagram-set review`.
+
 | Figure | Editable Source | Publication Image |
 | --- | --- | --- |
 | Governed SDMx exchange | [SVG](executive_architecture.svg) | [PNG](executive_architecture.png) |

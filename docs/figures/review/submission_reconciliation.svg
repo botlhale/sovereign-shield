@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 1920 1080" role="img" aria-labelledby="title description">
+  <title id="title">SovereignShield: Submission and Analyst Reconciliation</title>
+  <desc id="description">Review Figure B. A reporting authority sends SDMx files into a client-controlled archive, validation and governed history service. History supplies current accepted publication and restricted submission or quarantine audit. Analysts consume those entitled products and sender evidence to reconcile their expected filing with actual receiver state. No production records enter a provider environment.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L9 4.5 L0 9 Z" fill="#344f5c"/></marker>
+  </defs>
+  <style>
+    text{font-family:'Segoe UI',sans-serif;fill:#18323b;letter-spacing:0}
+    .title{font-size:38px;font-weight:700}.subtitle{font-size:23px;fill:#47606a}
+    .eyebrow{font-size:14px;font-weight:700}.node-title{font-size:24px;font-weight:600}
+    .label{font-size:16px;fill:#344f5c}.note{font-size:17px;fill:#47606a}
+    .flow{fill:none;stroke:#344f5c;stroke-width:2.5;stroke-linejoin:round;marker-end:url(#arrow)}
+    .node rect{stroke-width:1.6;rx:6}.rule{stroke:#cbd8dc;stroke-width:1}
+  </style>
+  <rect width="1920" height="1080" fill="#ffffff"/>
+  <text x="60" y="42" class="eyebrow" fill="#16786b">SOVEREIGNSHIELD / FIGURE B</text>
+  <text x="1860" y="42" class="eyebrow" text-anchor="end">REVIEW DRAFT</text>
+  <text x="60" y="101" class="title">Submission and Analyst Reconciliation</text>
+  <text x="60" y="148" class="subtitle">Latest submitted is distinct from current accepted publication</text>
+  <path d="M60 184 H1860" class="rule"/>
+
+  <g id="reporting-authority" data-boundary="reporting-authority">
+    <rect x="60" y="230" width="340" height="685" rx="6" fill="#f4f7f8" stroke="#cbd8dc"/>
+    <text x="86" y="272" class="eyebrow">REPORTING AUTHORITY</text>
+  </g>
+  <g id="client-service" data-boundary="client">
+    <rect x="450" y="230" width="1410" height="685" rx="6" fill="#f3f7fc" stroke="#50799a" stroke-width="1.6"/>
+    <text x="480" y="272" class="eyebrow">CLIENT-CONTROLLED SERVICE</text>
+  </g>
+
+  <g id="S1" class="node" data-owner="reporting-authority">
+    <rect x="88" y="346" width="268" height="120" fill="#ffffff" stroke="#a6bcc3"/>
+    <text x="222" y="395" class="node-title" text-anchor="middle">Reporting authority</text>
+    <text x="222" y="429" class="node-title" text-anchor="middle">SDMx submission</text>
+  </g>
+  <g id="S2" class="node" data-owner="client">
+    <rect x="486" y="346" width="254" height="120" fill="#ffffff" stroke="#91abc0"/>
+    <text x="613" y="395" class="node-title" text-anchor="middle">Approved SDMx</text>
+    <text x="613" y="429" class="node-title" text-anchor="middle">file intake</text>
+  </g>
+  <g id="S3" class="node" data-owner="client">
+    <rect x="826" y="346" width="280" height="120" fill="#ffffff" stroke="#91abc0"/>
+    <text x="966" y="395" class="node-title" text-anchor="middle">Protected archive</text>
+    <text x="966" y="429" class="node-title" text-anchor="middle">and validation</text>
+  </g>
+  <g id="S4" class="node" data-owner="client">
+    <rect x="1390" y="346" width="375" height="120" fill="#e6f4ef" stroke="#16786b"/>
+    <text x="1577.5" y="395" class="node-title" text-anchor="middle">Governed</text>
+    <text x="1577.5" y="429" class="node-title" text-anchor="middle">submission history</text>
+  </g>
+  <g id="S5" class="node" data-owner="client">
+    <rect x="760" y="584" width="380" height="116" fill="#e6f4ef" stroke="#16786b"/>
+    <text x="950" y="632" class="node-title" text-anchor="middle">Current accepted</text>
+    <text x="950" y="666" class="node-title" text-anchor="middle">publication</text>
+  </g>
+  <g id="S6" class="node" data-owner="client">
+    <rect x="1340" y="584" width="380" height="116" fill="#fff4dc" stroke="#b98527"/>
+    <text x="1530" y="632" class="node-title" text-anchor="middle">Restricted submission /</text>
+    <text x="1530" y="666" class="node-title" text-anchor="middle">quarantine audit</text>
+  </g>
+  <g id="S7" class="node" data-owner="client">
+    <rect x="910" y="746" width="650" height="118" fill="#ffffff" stroke="#50799a" stroke-width="2"/>
+    <text x="1235" y="793" class="node-title" text-anchor="middle">Analyst reconciliation</text>
+    <text x="1235" y="832" font-size="22" text-anchor="middle">Expected filing versus receiver state</text>
+  </g>
+  <g id="S8" class="node" data-owner="reporting-authority">
+    <rect x="88" y="728" width="268" height="120" fill="#ffffff" stroke="#a6bcc3"/>
+    <text x="222" y="777" class="node-title" text-anchor="middle">Sender's expected</text>
+    <text x="222" y="811" class="node-title" text-anchor="middle">filing evidence</text>
+  </g>
+
+  <g id="information-flows">
+    <path data-from="S1" data-to="S2" d="M356 406 H483" class="flow"/>
+    <path data-from="S2" data-to="S3" d="M740 406 H823" class="flow"/>
+    <path data-from="S3" data-to="S4" d="M1106 406 H1387" class="flow"/>
+    <path data-from="S4" data-to="S5" d="M1500 466 V514 H950 V581" class="flow"/>
+    <path data-from="S4" data-to="S6" d="M1700 466 V581" class="flow"/>
+    <path data-from="S5" data-to="S7" d="M950 700 V743" class="flow"/>
+    <path data-from="S6" data-to="S7" d="M1530 700 V743" class="flow"/>
+    <path data-from="S8" data-to="S7" d="M356 788 H907" class="flow"/>
+  </g>
+  <g id="flow-labels">
+    <text x="421" y="379" class="label" text-anchor="middle">SDMx files only</text>
+    <text x="1248" y="369" class="label" text-anchor="middle">Validated outcome</text>
+    <text x="1248" y="392" class="label" text-anchor="middle">and submission identity</text>
+    <text x="1200" y="499" class="label" text-anchor="middle">Current accepted selection</text>
+    <text x="1720" y="518" class="label">Authorized</text>
+    <text x="1720" y="541" class="label">audit selection</text>
+    <text x="980" y="730" class="label">Entitled current data</text>
+    <text x="1260" y="730" class="label">Own-country submission feedback</text>
+    <text x="468" y="744" class="label">Expected ID, values</text>
+    <text x="468" y="770" class="label">and submission time</text>
+  </g>
+  <text x="1220" y="560" class="note" text-anchor="middle">Rejected arrivals do not replace current accepted data.</text>
+  <text x="1235" y="894" class="note" text-anchor="middle">Compare IDs, submitted/received times, values and validation outcome.</text>
+
+  <rect x="60" y="943" width="810" height="82" rx="4" fill="#f4f7f8"/>
+  <text x="82" y="966" class="eyebrow">EDUCATIONAL FIXTURES</text>
+  <text x="82" y="990" class="label">Synthetic bank micro-transactions explain calculations only.</text>
+  <text x="82" y="1013" class="label">Not international submissions or production deliverables.</text>
+  <rect x="900" y="943" width="960" height="82" rx="4" fill="#fff4dc"/>
+  <text x="922" y="966" class="eyebrow">DISCLOSURE REVIEW</text>
+  <text x="922" y="990" class="label">Public totals and row presence can reveal masked values.</text>
+  <text x="922" y="1013" class="label">Restrict or remove Researcher discovery where required.</text>
+  <text x="60" y="1062" class="label">Processing timestamps are not attested transport receipts.</text>
+  <text x="1860" y="1062" class="label" text-anchor="end">Full accepted history requires an authorized history query.</text>
+</svg>
