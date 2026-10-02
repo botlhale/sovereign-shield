@@ -64,8 +64,11 @@ def done(payload=None):
         print(json.dumps(payload))
     sys.exit(0)
 
-def missing():
-    print("ResourceNotFound", file=sys.stderr)
+def missing(name=None, code="ResourceNotFound"):
+    if tool == "databricks":
+        print(f"Error: Resource '{name}' does not exist.", file=sys.stderr)
+    else:
+        print(f"ERROR: ({code}) The requested resource was not found.\nCode: {code}", file=sys.stderr)
     sys.exit(1)
 
 def tags():
@@ -105,7 +108,7 @@ def azure():
     if path[0] == "group":
         name = opt("--name")
         if path[1] == "show":
-            group = state["groups"].get(name) or missing()
+            group = state["groups"].get(name) or missing(code="ResourceGroupNotFound")
             done({"id": f"/subscriptions/{sub}/resourceGroups/{name}", "name": name, "location": "canadacentral", "tags": group["tags"]})
         if path[1] == "create":
             state["groups"][name] = {"tags": tags()}
@@ -164,7 +167,11 @@ def azure():
             done([view(rid) for rid, r in state["resources"].items() if r["rg"] == opt("--resource-group")])
     if path == ("rest",):
         rid = opt("--url").split("?")[0]
-        done(view(rid)) if rid in state["resources"] else missing()
+        if rid not in state["resources"]:
+            print('Not Found({"error":{"code":"RoleAssignmentNotFound","message":"The role assignment does not exist."}})',
+                  file=sys.stderr)
+            sys.exit(1)
+        done(view(rid))
     raise SystemExit(f"unhandled az {argv}")
 
 def databricks():
@@ -177,13 +184,13 @@ def databricks():
         done([{"displayName": group} for group in state["account_groups"]])
     objects = state["uc"].setdefault(kinds[noun], {})
     if verb in ("get", "read"):
-        done(objects[args[0]]) if args[0] in objects else missing()
+        done(objects[args[0]]) if args[0] in objects else missing(args[0])
     if verb == "list":
         done([item for item in objects.values() if item.get("state") != "DELETED"])
     if verb == "delete":
         key = args[0]
         if key not in objects:
-            missing()
+            missing(key)
         children = [name for kind in ("schema", "volume", "table", "function") for name in state["uc"].get(kind, {})
                     if name.startswith(key + ".")]
         if noun in ("catalogs", "schemas") and children:
@@ -433,6 +440,35 @@ def test_down_never_records_a_deletion_it_could_not_confirm(estate):
     estate.edit_state(lambda state: state.pop("failures"))
     assert estate.run(DOWN, "--yes").returncode == 0
     assert all(estate.provenance().values()), "a rerun completes the teardown"
+
+
+@pytest.mark.parametrize("failures, stop", [
+    ({"az resource show": "ERROR: (SubscriptionNotFound) The subscription 'sub-1' could not be found.\nCode: SubscriptionNotFound",
+      "az group show": "ERROR: (SubscriptionNotFound) The subscription 'sub-1' could not be found.\nCode: SubscriptionNotFound",
+      "az rest": 'Not Found({"error":{"code":"SubscriptionNotFound","message":"Subscription not found."}})'},
+     "Nothing was deleted"),
+    ({"az resource show": "ERROR: (TooManyRequests) Throttled; the endpoint was not found in time.\nCode: TooManyRequests"},
+     "Nothing was deleted"),
+    ({"databricks": "Error: Workspace adb-1.azuredatabricks.net not found; the metastore does not exist."},
+     "Teardown stopped at volume"),
+])
+def test_down_treats_only_an_object_not_found_error_as_absence(estate, failures, stop):
+    """Control-plane failures that merely mention 'not found' never close a manifest entry."""
+    assert estate.up("--yes").returncode == 0
+    before = estate.provenance()
+    estate.edit_state(lambda state: state.update(failures=failures))
+    estate.reset_log()
+
+    result = estate.run(DOWN, "--yes")
+
+    assert result.returncode == 2
+    assert stop in result.stderr
+    assert estate.provenance() == before
+    assert not [call for call in estate.calls() if call[0] == "az" and "delete" in call]
+
+    estate.edit_state(lambda state: state.pop("failures"))
+    assert estate.run(DOWN, "--yes").returncode == 0
+    assert all(estate.provenance().values())
 
 
 def test_down_closes_an_entry_only_once_its_object_is_reported_missing(estate):

@@ -134,7 +134,7 @@ def verify_policy_functions(spark, statements: list[str]) -> None:
 
 
 def verify_existing_table_contracts(spark) -> None:
-    required = {"SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "SUBMITTED_AT", "RECEIVED_AT", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"}
+    required = {"L_REP_CTY", "SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "SUBMITTED_AT", "RECEIVED_AT", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"}
     for schema, table, measure in (
         ("sovereign_shield", "agg_sdmx_history", "OBS_VALUE"),
         ("sovereign_intake", "lbs_micro_transactions", "transaction_amount"),
@@ -156,14 +156,14 @@ def verify_existing_table_contracts(spark) -> None:
 
 
 def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
-    lineage = "OBS_CONF,TIME_SERIES_CODE"
+    mask_inputs = "OBS_CONF,L_REP_CTY"
     expected = (
-        ("row_filters", "sovereign_shield", "agg_sdmx_history", "filter", "fn_rls_multi_persona_lock", "TIME_SERIES_CODE,BATCH_STATUS,OBS_CONF", ""),
-        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_obs_conf_mask", "OBS_CONF,TIME_SERIES_CODE", "AND column_name = 'OBS_VALUE'"),
-        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_series_key_mask", "OBS_CONF", "AND column_name = 'TIME_SERIES_CODE'"),
-        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", lineage, "AND column_name = 'RECORD_ID'"),
-        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", lineage, "AND column_name = 'version_hash'"),
-        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", lineage, "AND column_name = 'VALIDATION_NOTES'"),
+        ("row_filters", "sovereign_shield", "agg_sdmx_history", "filter", "fn_rls_multi_persona_lock", "L_REP_CTY,BATCH_STATUS,OBS_CONF", ""),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_obs_conf_mask", mask_inputs, "AND column_name = 'OBS_VALUE'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_series_key_mask", mask_inputs, "AND column_name = 'TIME_SERIES_CODE'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'RECORD_ID'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'version_hash'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'VALIDATION_NOTES'"),
         ("row_filters", "sovereign_intake", "lbs_micro_transactions", "filter", "fn_rls_micro_country_lock", "reporting_country", ""),
     )
     for relation, schema, table, kind, function, columns, extra in expected:

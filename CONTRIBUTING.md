@@ -60,7 +60,7 @@ SovereignShield is intentionally fail-closed. Contributions must preserve these 
 
 - a principal in no recognized persona group sees zero rows;
 - the public tier is an explicit service principal and group, not anonymous fall-through;
-- reporting-country sovereignty is derived from segment 9 (`L_REP_CTY`) of the SDMX key;
+- reporting-country sovereignty is derived from segment 9 (`L_REP_CTY`) of the SDMX key, stored as the unmasked `L_REP_CTY` column that every Unity Catalog policy reads, since a masked column cannot be another policy's input;
 - restricted values are absent or `NULL`, never replaced with zero;
 - quarantined revisions cannot replace the last valid published version;
 - no secret, token, private key, backend configuration, state file, or real institutional data is committed; and

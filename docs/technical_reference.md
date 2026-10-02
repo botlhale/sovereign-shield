@@ -95,7 +95,7 @@ reconciliation during setup is not continuous deprovisioning.
 | | **Lock 1 — RLS** | **Lock 2 — DDM** | **Lock 3 — Quarantine View** |
 | --- | --- | --- | --- |
 | **Object** | `fn_rls_multi_persona_lock`<br/>`fn_rls_micro_country_lock` | `fn_ddm_obs_conf_mask`<br/>`fn_ddm_series_key_mask`<br/>`fn_ddm_lineage_mask` | `v_agg_sdmx_published` |
-| **Binding** | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)`<br/>`ON (reporting_country)` | `OBS_VALUE ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`<br/>`TIME_SERIES_CODE ... USING COLUMNS (OBS_CONF)`<br/>`RECORD_ID`, `version_hash`, `VALIDATION_NOTES` | `CREATE OR REPLACE VIEW` |
+| **Binding** | `WITH ROW FILTER ... ON (L_REP_CTY, BATCH_STATUS, OBS_CONF)`<br/>`ON (reporting_country)` | `OBS_VALUE`, `TIME_SERIES_CODE`, `RECORD_ID`, `version_hash`, `VALIDATION_NOTES` ... `USING COLUMNS (OBS_CONF, L_REP_CTY)` | `CREATE OR REPLACE VIEW` |
 | **Granularity** | Row | Cell | Result set |
 | **Threat addressed** | Cross-border leakage, unpublished-state leakage | Value disclosure, counterparty identification, hash look-ups | Unvalidated data reaching publication |
 | **Effect** | Non-matching rows disappear | `OBS_VALUE` → `NULL`; key `...xx.xx`; lineage → `NULL` | `QUARANTINE` / superseded rows invisible |
@@ -132,15 +132,16 @@ Four implementation details are load-bearing:
 
 ### Lock 2 — Dynamic data masking (confidentiality)
 
-`fn_ddm_obs_conf_mask(obs_val DECIMAL(38,3), obs_conf STRING, time_series_code STRING)`
-is bound via `USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`. After administrator and
+`fn_ddm_obs_conf_mask(obs_val DECIMAL(38,3), obs_conf STRING, l_rep_cty STRING)`
+is bound via `USING COLUMNS (OBS_CONF, L_REP_CTY)`. After administrator and
 own-country checks, only explicit `F` reveals a measure. Other flags, including
 unknown or missing classifications, return `NULL`.
 
-* **Why the key is an input.** Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells. The mask therefore repeats the segment-9 test, and the fixture includes restricted rows in multiple jurisdictions.
+* **Why the reporting country is an input.** Without it the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells. The mask therefore repeats the own-country test, and the fixture includes restricted rows in multiple jurisdictions.
+* **Why `L_REP_CTY` is a separate column.** Unity Catalog rejects a masked column as the input of another policy, and `TIME_SERIES_CODE` carries the coordinate mask. The writer stores segment 9 of the key in the unmasked `L_REP_CTY`, the Spark merge refuses any row where they differ, and every filter and mask reads it instead of the key.
 * **Typed absence:** the mask returns `DECIMAL(38,3)` or `NULL`, never a string sentinel or a fabricated zero.
 * **Privilege ordering:** administrators and the owning submitter are evaluated *before* the confidentiality branch, so an entitled reader always sees the true value.
-* **Coordinates follow the value:** `fn_ddm_series_key_mask` uses the same four reveal branches and otherwise rewrites `Q.S.C.A.USD.D.5J.A.US.A.5J` as `Q.S.C.A.USD.D.5J.A.US.xx.xx`. Segment 9 survives, so the row filter and the value mask behave identically on either key. Masks resolve before predicates, so a counterparty filter cannot match a masked row, and facets skip the `xx` token. Keys without eleven segments mask to `NULL`.
+* **Coordinates follow the value:** `fn_ddm_series_key_mask` uses the same four reveal branches and otherwise rewrites `Q.S.C.A.USD.D.5J.A.US.A.5J` as `Q.S.C.A.USD.D.5J.A.US.xx.xx`. Segment 9 survives, so a masked key still agrees with `L_REP_CTY`. Masks resolve before predicates, so a counterparty filter cannot match a masked row, and facets skip the `xx` token. Keys without eleven segments mask to `NULL`.
 * **Lineage follows the value:** `RECORD_ID` hashes the full key with a visible `SUBMISSION_ID`, so 20 sectors × 432 areas would recover the coordinates by enumeration; `version_hash` hashes the measure with visible attributes and would confirm a guessed value; `VALIDATION_NOTES` names coordinate-dependent rules. `fn_ddm_lineage_mask` nulls all three for the same callers.
 * **Discovery, not data:** the row remains, so researchers can count restricted series per family and approach the originating authority. The gateway excludes coordinate-masked rows from every download before its row limit; a download that matches only such rows returns 204 with the withheld count.
 

@@ -109,7 +109,7 @@ Four entitled roles are evaluated through Databricks account-group membership, w
 
 The SQL examples are in Appendix A. The [deployment executor](../../src/apply_security.py) creates content-addressed functions, checks their definitions, changes bindings without a detach operation, and verifies binding metadata. It aborts on any error and does not automatically migrate legacy table types. A failed deployment can leave old and new protected bindings on different objects; this is not a cross-object atomic policy migration.
 
-`try_element_at` prevents an out-of-range indexing exception; it does not by itself prove malformed keys are invisible through every branch. Strict input checks now verify canonical keys and pinned codelists before persistence. The mask independently checks segment 9 for own-country access.
+Every policy reads the reporting country from `L_REP_CTY`, an unmasked column the writer copies from segment 9 of the key and checks against it, because Unity Catalog rejects a masked column, such as the coordinate-masked key, as the input of another policy. A missing anchor fails closed. Strict input checks verify canonical keys and pinned codelists before persistence. The mask independently checks the reporting country for own-country access.
 
 Memberships compose additively. A principal who is both a submitter and a researcher receives the union of the matching row entitlements, while the mask still reveals restricted values only for the principal's own jurisdiction. This is why the functions use independent `OR` branches rather than a first-match `CASE` expression.
 
@@ -117,7 +117,7 @@ Memberships compose additively. A principal who is both a submitter and a resear
 
 A withheld value must not carry its exact coordinates. `fn_ddm_series_key_mask` applies the same reveal rule as the value mask: administrators, the owning submitter and explicitly free observations keep the stored key; for everyone else segments 10 and 11, `L_CP_SECTOR` and `L_CP_COUNTRY`, become `xx`. `Q.S.C.A.USD.D.5J.A.US.A.5J` is shown as `Q.S.C.A.USD.D.5J.A.US.xx.xx`, and the portal renders the suffix in the same muted italic style as the word *restricted*.
 
-Four properties make this more than presentation. Segments 1-9 are preserved, so every policy that reads the segment-9 sovereignty anchor behaves identically on the stored or masked key. Masks resolve before query predicates, so filtering on a counterparty cannot probe which restricted row it belongs to, and filter lists never offer codes held only by restricted rows. `RECORD_ID` hashes the full key with a visible submission ID, `version_hash` hashes the value with visible attributes and `VALIDATION_NOTES` names the rules a row takes part in; `fn_ddm_lineage_mask` nulls all three, closing a key-enumeration and value-confirmation side channel. Finally, coordinate-masked rows are discovery metadata, never data: every download excludes them before its row limit applies, so the researcher's product equals the public one and the two cannot be differenced.
+Four properties make this more than presentation. Segments 1-9 are preserved, so a masked key still names the reporting country held in `L_REP_CTY`, the unmasked sovereignty anchor every policy reads. Masks resolve before query predicates, so filtering on a counterparty cannot probe which restricted row it belongs to, and filter lists never offer codes held only by restricted rows. `RECORD_ID` hashes the full key with a visible submission ID, `version_hash` hashes the value with visible attributes and `VALIDATION_NOTES` names the rules a row takes part in; `fn_ddm_lineage_mask` nulls all three, closing a key-enumeration and value-confirmation side channel. Finally, coordinate-masked rows are discovery metadata, never data: every download excludes them before its row limit applies, so the researcher's product equals the public one and the two cannot be differenced.
 
 Coordinate masking hides *which* counterparty a restricted cell describes. It does not hide the residual of a published margin across dimensions that remain visible. In the fixture, the CA claims total (1000), domestic currency (400) and foreign currency (500) are public, so the unallocated-currency cell is still $1000-400-500=100$ even though its counterparty coordinates are masked. Complementary suppression of a margin, or withholding the role, remains the disclosure authority's decision.
 
@@ -369,21 +369,21 @@ These are logical templates from the [policy source](../../src/unity_catalog_tri
 
 ```sql
 CREATE OR REPLACE FUNCTION fn_ddm_obs_conf_mask(
-  obs_val DECIMAL(38,3), obs_conf STRING, time_series_code STRING
+  obs_val DECIMAL(38,3), obs_conf STRING, l_rep_cty STRING
 )
 RETURNS DECIMAL(38,3)
 RETURN CASE
   WHEN is_account_group_member('sg-sovereignshield-admin') THEN obs_val
   WHEN is_account_group_member('sg-sovereignshield-submitter-ca')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'CA', FALSE) THEN obs_val
+    AND coalesce(l_rep_cty = 'CA', FALSE) THEN obs_val
   WHEN is_account_group_member('sg-sovereignshield-submitter-us')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'US', FALSE) THEN obs_val
+    AND coalesce(l_rep_cty = 'US', FALSE) THEN obs_val
   WHEN upper(trim(coalesce(obs_conf, ''))) = 'F' THEN obs_val
   ELSE NULL
 END;
 
 CREATE OR REPLACE FUNCTION fn_ddm_series_key_mask(
-  time_series_code STRING, obs_conf STRING
+  time_series_code STRING, obs_conf STRING, l_rep_cty STRING
 )
 RETURNS STRING
 RETURN CASE
@@ -400,7 +400,7 @@ END;
 
 ```sql
 CREATE OR REPLACE FUNCTION fn_rls_multi_persona_lock(
-  time_series_code STRING, batch_status STRING, obs_conf STRING
+  l_rep_cty STRING, batch_status STRING, obs_conf STRING
 )
 RETURNS BOOLEAN
 RETURN
@@ -417,9 +417,9 @@ RETURN
     AND upper(trim(coalesce(obs_conf, ''))) = 'F'
   )
   OR (is_account_group_member('sg-sovereignshield-submitter-ca')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'CA', FALSE))
+    AND coalesce(l_rep_cty = 'CA', FALSE))
   OR (is_account_group_member('sg-sovereignshield-submitter-us')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'US', FALSE));
+    AND coalesce(l_rep_cty = 'US', FALSE));
 ```
 
 </div>

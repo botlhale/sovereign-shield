@@ -302,6 +302,10 @@ that estate from bash on Linux, macOS or WSL. The scripts look up every resource
 first, reuse what exists without modifying or re-tagging it, and create only the
 missing delta. A resource counts as missing only when the CLI reports it not found;
 any other lookup error, such as an expired login or throttling, stops the run.
+Teardown is stricter: it accepts only the object's own not-found error, an Azure code
+such as `ResourceNotFound` or `RoleAssignmentNotFound`, or Databricks naming that
+object as not existing. Subscription, authentication, throttling, endpoint or
+missing-parent errors stop it with the manifest entry still open.
 
 ```bash
 scripts/sovereign_up_custom.sh --dry-run      # prompts for the estate and prints the plan

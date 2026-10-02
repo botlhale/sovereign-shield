@@ -197,18 +197,19 @@ def test_sovereignty_anchor_is_segment_nine(repo_root):
     assert DIMENSION_SEGMENTS["L_REP_CTY"] == 9
     assert sdmx.REP_CTY_SEGMENT == 9
     assert sdmx.SDMX_DIMENSIONS[8] == "L_REP_CTY"
-    assert "try_element_at(split(time_series_code, '\\\\.'), 9)" in ddl
+    assert "coalesce(l_rep_cty = 'CA', FALSE)" in ddl
+    assert "concat(substring_index(time_series_code, '.', 9), '.xx.xx')" in ddl
 
 
 def test_row_filter_fails_closed(repo_root):
-    """The DDL must coalesce a NULL segment to FALSE, not leave it NULL."""
+    """The DDL must coalesce a NULL anchor to FALSE, not leave it NULL."""
     ddl = (Path(repo_root) / "src" / "unity_catalog_triple_lock.sql").read_text(encoding="utf-8")
 
     assert "element_at(split" not in ddl.replace("try_element_at(split", ""), (
         "element_at raises INVALID_ARRAY_INDEX under ANSI mode, aborting every "
         "query against the table"
     )
-    assert ddl.count("coalesce(try_element_at") >= 4
+    assert ddl.count("coalesce(l_rep_cty = ") >= 8
 
 
 def test_no_destructive_ddl_in_the_idempotent_path(repo_root):

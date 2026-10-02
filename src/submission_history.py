@@ -15,7 +15,7 @@ from decimal_measures import decimal_text, decimal_value
 
 NATURAL_KEY = ["TIME_SERIES_CODE", "DATE", "AGG_CODE"]
 PAYLOAD_COLUMNS = ["OBS_VALUE", "OBS_STATUS", "OBS_CONF", "QUALITY_STATUS", "FAILED_RULE_ID", "BATCH_STATUS", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"]
-STRING_COLUMNS = NATURAL_KEY + [name for name in PAYLOAD_COLUMNS if name != "OBS_VALUE"] + ["SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "version_hash"]
+STRING_COLUMNS = NATURAL_KEY + ["L_REP_CTY"] + [name for name in PAYLOAD_COLUMNS if name != "OBS_VALUE"] + ["SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "version_hash"]
 TIME_COLUMNS = ["SUBMITTED_AT", "RECEIVED_AT", "VALID_FROM", "VALID_TO"]
 HISTORY_COLUMNS = STRING_COLUMNS + ["OBS_VALUE"] + TIME_COLUMNS + ["IS_CURRENT"]
 
@@ -64,6 +64,8 @@ def prepare_submission(frame, context):
     if not source["QUALITY_STATUS"].eq(expected_quality).all():
         raise ValueError("Quality and publication verdicts disagree.")
     source["OBS_VALUE"] = source["OBS_VALUE"].map(decimal_value)
+    # The unmasked policy anchor: Unity Catalog cannot feed the masked key into other policies.
+    source["L_REP_CTY"] = scopes["REPORTING_COUNTRY"]
     for name in PAYLOAD_COLUMNS:
         if name not in source:
             source[name] = None

@@ -11,8 +11,8 @@
 # what was built on it, so nothing is deleted.
 # Schemas and catalogs are dropped without force: anything added since stays.
 # An object counts as gone, and its manifest entry closes, only once the CLI
-# reports it missing; the first object kept or not confirmed gone stops the
-# teardown, so nothing beneath it is removed.
+# reports that object missing by its own not-found error; the first object kept
+# or not confirmed gone stops the teardown, so nothing beneath it is removed.
 # =====================================================================
 set -euo pipefail
 
@@ -89,11 +89,26 @@ group_tagged() {
   [[ "$(az group show --name "$1" -o json 2>/dev/null | jq -r '.tags.ManagedBy // empty')" == SovereignShield ]]
 }
 
-# Succeeds only when the CLI positively reports the object missing; any other error counts as present.
+# The error an object answers with when it alone is missing: an Azure error code, or Databricks naming
+# the object itself. Subscription, authentication, throttling, endpoint or missing-parent errors match none.
+missing_pattern() {
+  case "$1" in
+    resource_group) printf '%s' '\(ResourceGroupNotFound\)|Code: ResourceGroupNotFound' ;;
+    role_assignment) printf '%s' '"code": ?"RoleAssignmentNotFound"' ;;
+    storage_container) printf '%s' '\((ResourceNotFound|ContainerNotFound)\)|Code: (ResourceNotFound|ContainerNotFound)' ;;
+    access_connector|databricks_workspace|storage_account|key_vault) printf '%s' '\(ResourceNotFound\)|Code: ResourceNotFound' ;;
+    view|table|function|volume|schema|catalog|external_location|storage_credential|sql_warehouse)
+      printf "(^|[^[:alnum:]_.-])'?%s'? does not exist" "$(sed 's/[][\\.*^$+?(){}|]/\\&/g' <<<"$2")" ;;
+  esac
+}
+
+# Succeeds only when the CLI reports this object missing; any other error counts as present.
 gone() {
-  local error
+  local pattern="$1" error
+  shift
+  [[ -n "$pattern" ]] || return 1
   error="$("$@" 2>&1 >/dev/null)" && return 1
-  grep -qiE 'not[ _]?found|not be found|does not exist|RESOURCE_DOES_NOT_EXIST' <<<"$error"
+  grep -qE -- "$pattern" <<<"$error"
 }
 
 show() {
@@ -119,7 +134,9 @@ absent() {
     [[ "$(jq -r '.state // empty' <<<"$json")" == DELETED ]]
     return
   fi
-  gone show "$@"
+  local identifier="$2"
+  [[ "$1" != sql_warehouse ]] || identifier="$3"
+  gone "$(missing_pattern "$1" "$identifier")" show "$@"
 }
 
 # A created Azure resource is still ours while it is confirmed gone or still carries our marker.
@@ -142,7 +159,8 @@ remove() {
     schema) databricks schemas delete "$name" ;;
     catalog)
       # Unity Catalog creates an empty default schema with every catalog; a non-empty one blocks the drop.
-      gone databricks schemas get "$name.default" -o json || databricks schemas delete "$name.default" || return 1
+      gone "$(missing_pattern schema "$name.default")" databricks schemas get "$name.default" -o json ||
+        databricks schemas delete "$name.default" || return 1
       databricks catalogs delete "$name" ;;
     external_location) databricks external-locations delete "$name" ;;
     storage_credential) databricks storage-credentials delete "$name" ;;

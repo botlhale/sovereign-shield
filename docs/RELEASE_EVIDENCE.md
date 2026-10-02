@@ -84,7 +84,7 @@ Unset Databricks connection variables first; a configured warehouse deliberately
 | Official SDMx-JSON 2.0.0 schema used independently | Pinned schema and `jsonschema.Draft7Validator` | Formal accreditation by a standards owner |
 | Real local Delta commits preserve replay identity, shorter replacements, rejection isolation and failure atomicity | [History tests](../tests/test_submission_history.py) | Distributed concurrency, multi-table transactions or cloud throughput |
 | Published/quarantine/all views, feedback and separate audit export | [API tests](../tests/test_lifecycle_api.py) | Live Easy Auth, Entra or Databricks persona session acceptance |
-| Coordinate and lineage masks share the value reveal rule; restricted keys keep segments 1-9; counterparty filters and facets cannot reveal masked coordinates | [Persona tests](../tests/test_persona_access_matrix.py), [policy tests](../tests/test_policy_deployment.py) | Live Unity Catalog evaluation; see [Discovery Gateway acceptance](#discovery-gateway-acceptance) |
+| Coordinate and lineage masks share the value reveal rule; restricted keys keep segments 1-9; no policy takes the masked key as input; counterparty filters and facets cannot reveal masked coordinates | [Persona tests](../tests/test_persona_access_matrix.py), [policy tests](../tests/test_policy_deployment.py) | Live Unity Catalog evaluation; see [Discovery Gateway acceptance](#discovery-gateway-acceptance) |
 | Downloads carry releasable rows only; a masked key is refused by every serializer | [API tests](../tests/test_lifecycle_api.py), [wire tests](../tests/test_sdmx_validation_rules.py) | Disclosure control of published margins |
 | Bring-your-own scripts attach existing resources, create and tag only the delta, and delete only recorded creations | [Custom deployment tests](../tests/test_custom_deployment.py) with stub `az` and `databricks` | Real Azure and Databricks API behaviour; preview with `--dry-run` in a sandbox first |
 | No PR federation; state readiness and destructive-plan checks | [Deployment tests](../tests/test_deployment_boundaries.py) | Live GitHub protection or Terraform apply |
@@ -99,7 +99,8 @@ run on a workspace. Before a publication presents them as live-verified, deploy 
 synthetic workspace and confirm:
 
 1. The pipeline's `verify_synthetic_runtime` task passes. It checks five column-mask
-   bindings and one row filter on the history table, and exercises MERGE while the merge
+   bindings and one row filter on the history table, all reading the unmasked `L_REP_CTY`
+   rather than the masked key, and exercises MERGE while the merge
    key `RECORD_ID` is masked for everyone except the administrator runtime identity.
 2. [live_persona_checks.py](../sh/live_persona_checks.py) passes: researcher keys for the
    nine restricted rows end in `.xx.xx`, entitled keys never do, and direct SQL returns NULL
@@ -137,7 +138,7 @@ The structure snapshot is an extracted component/code contract, not a full regis
 
 ## Mandatory Migration Gate
 
-**Do not deploy this release over the old DOUBLE history as a routine update.** The policy executor refuses incompatible existing schemas before changing bindings; the Spark writer also refuses missing or legacy tables. The live evaluation used a fresh empty workload, not an in-place legacy-history migration.
+**Do not deploy this release over the old DOUBLE history, or over a history table without the `L_REP_CTY` policy anchor, as a routine update.** The policy executor refuses incompatible existing schemas before changing bindings; the Spark writer also refuses missing or legacy tables. The live evaluation used a fresh empty workload, not an in-place legacy-history migration.
 
 For a retained environment, the platform owner must approve and rehearse a migration:
 

@@ -13,7 +13,7 @@ def test_policy_binding_failure_cannot_report_success(tmp_path, monkeypatch, cap
     script.write_text(
         "-- @tolerate-failure\n"
         "ALTER TABLE agg_sdmx_history SET ROW FILTER fn_rls_multi_persona_lock "
-        "ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);\n",
+        "ON (L_REP_CTY, BATCH_STATUS, OBS_CONF);\n",
         encoding="utf-8",
     )
 
@@ -60,12 +60,24 @@ def test_coordinate_and_lineage_masks_share_the_value_reveal_rule():
 def test_withheld_rows_mask_coordinates_and_lineage_inline_and_on_rebind():
     ddl = Path(apply_security.resolve_sql_path()).read_text(encoding="utf-8")
 
-    assert "TIME_SERIES_CODE STRING MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF)" in ddl
-    assert "ALTER COLUMN TIME_SERIES_CODE SET MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF)" in ddl
+    assert "TIME_SERIES_CODE STRING MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF, L_REP_CTY)" in ddl
+    assert "ALTER COLUMN TIME_SERIES_CODE SET MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF, L_REP_CTY)" in ddl
     assert "concat(substring_index(time_series_code, '.', 9), '.xx.xx')" in ddl
     for column in ("RECORD_ID", "version_hash", "VALIDATION_NOTES"):
-        assert f"{column} STRING MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)" in ddl
-        assert f"ALTER COLUMN {column} SET MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)" in ddl
+        assert f"{column} STRING MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY)" in ddl
+        assert f"ALTER COLUMN {column} SET MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY)" in ddl
+
+
+def test_masked_key_is_never_a_policy_input():
+    """Unity Catalog rejects a masked column in another policy's USING COLUMNS or ON clause."""
+    ddl = Path(apply_security.resolve_sql_path()).read_text(encoding="utf-8")
+    bindings = re.findall(r"(?:USING COLUMNS|ROW FILTER \w+ ON) \(([^)]*)\)", ddl)
+    masked = {name.upper() for name in re.findall(r"(\w+) (?:STRING|DECIMAL\(38,3\)) MASK", ddl)}
+
+    assert "TIME_SERIES_CODE" in masked and "L_REP_CTY" not in masked
+    assert len(bindings) >= 12
+    for columns in bindings:
+        assert not masked & {name.strip().upper() for name in columns.split(",")}, columns
 
 
 def test_policy_names_are_content_addressed_and_never_replaced():
@@ -104,11 +116,11 @@ def test_current_runtime_metadata_preserves_strict_binding_checks(wrong_field):
              "fn_ddm_lineage_mask", "fn_rls_micro_country_lock")
     versions = {name: name + "__verified" for name in names}
     masks = {
-        "OBS_VALUE": ("fn_ddm_obs_conf_mask", "OBS_CONF,TIME_SERIES_CODE"),
-        "TIME_SERIES_CODE": ("fn_ddm_series_key_mask", "OBS_CONF"),
-        "RECORD_ID": ("fn_ddm_lineage_mask", "OBS_CONF, TIME_SERIES_CODE"),
-        "version_hash": ("fn_ddm_lineage_mask", "`OBS_CONF`,`TIME_SERIES_CODE`"),
-        "VALIDATION_NOTES": ("fn_ddm_lineage_mask", "OBS_CONF,TIME_SERIES_CODE"),
+        "OBS_VALUE": ("fn_ddm_obs_conf_mask", "OBS_CONF,L_REP_CTY"),
+        "TIME_SERIES_CODE": ("fn_ddm_series_key_mask", "OBS_CONF, L_REP_CTY"),
+        "RECORD_ID": ("fn_ddm_lineage_mask", "OBS_CONF, L_REP_CTY"),
+        "version_hash": ("fn_ddm_lineage_mask", "`OBS_CONF`,`L_REP_CTY`"),
+        "VALIDATION_NOTES": ("fn_ddm_lineage_mask", "OBS_CONF,L_REP_CTY"),
     }
 
     def query(statement):
@@ -120,7 +132,7 @@ def test_current_runtime_metadata_preserves_strict_binding_checks(wrong_field):
             function, arguments = masks[re.search(r"column_name = '(\w+)'", statement).group(1)]
         else:
             function = "fn_rls_micro_country_lock" if micro else "fn_rls_multi_persona_lock"
-            arguments = "reporting_country" if micro else "TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF"
+            arguments = "reporting_country" if micro else "L_REP_CTY, BATCH_STATUS, OBS_CONF"
         row = {"table_catalog": "dbw_sovereignshield", "table_schema": schema,
                f"{kind}_name": f"dbw_sovereignshield.{schema}.{versions[function]}",
                "using_columns" if mask else "target_columns": arguments}

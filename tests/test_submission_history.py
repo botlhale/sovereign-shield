@@ -39,6 +39,15 @@ def test_replay_is_noop_but_identical_new_filing_is_retained(tmp_path):
     assert not rows["RECORD_ID"].duplicated().any()
 
 
+def test_policy_anchor_is_written_from_key_segment_nine(tmp_path):
+    """L_REP_CTY is the unmasked input of every Unity Catalog policy; it must equal segment 9."""
+    path = tmp_path / "history"
+    merge_local_submission(path, batch(country="US"), context("us-q1"))
+    rows = DeltaTable(str(path)).to_pandas()
+    assert rows["L_REP_CTY"].eq(rows["TIME_SERIES_CODE"].str.split(".").str[8]).all()
+    assert rows["L_REP_CTY"].eq("US").all()
+
+
 def test_shorter_accepted_snapshot_retires_only_its_scope(tmp_path):
     path = tmp_path / "history"
     merge_local_submission(path, batch(), context("ca-q1"))
