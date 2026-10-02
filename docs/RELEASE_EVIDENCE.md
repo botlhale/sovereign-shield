@@ -104,7 +104,8 @@ synthetic workspace and confirm:
 2. [live_persona_checks.py](../sh/live_persona_checks.py) passes: researcher keys for the
    nine restricted rows end in `.xx.xx`, entitled keys never do, and direct SQL returns NULL
    lineage columns for restricted rows.
-3. A researcher download contains 13 observations with `X-SovereignShield-Withheld: 9`.
+3. A researcher download equals the public one (13 observations), including when its
+   row limit is smaller than the number of matching rows.
 
 If an engine refuses a mask on a merge-key column, keep the value and coordinate masks and
 move lineage protection to a researcher view that omits those columns.

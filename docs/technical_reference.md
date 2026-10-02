@@ -142,7 +142,7 @@ unknown or missing classifications, return `NULL`.
 * **Privilege ordering:** administrators and the owning submitter are evaluated *before* the confidentiality branch, so an entitled reader always sees the true value.
 * **Coordinates follow the value:** `fn_ddm_series_key_mask` uses the same four reveal branches and otherwise rewrites `Q.S.C.A.USD.D.5J.A.US.A.5J` as `Q.S.C.A.USD.D.5J.A.US.xx.xx`. Segment 9 survives, so the row filter and the value mask behave identically on either key. Masks resolve before predicates, so a counterparty filter cannot match a masked row, and facets skip the `xx` token. Keys without eleven segments mask to `NULL`.
 * **Lineage follows the value:** `RECORD_ID` hashes the full key with a visible `SUBMISSION_ID`, so 20 sectors × 432 areas would recover the coordinates by enumeration; `version_hash` hashes the measure with visible attributes and would confirm a guessed value; `VALIDATION_NOTES` names coordinate-dependent rules. `fn_ddm_lineage_mask` nulls all three for the same callers.
-* **Discovery, not data:** the row remains, so researchers can count restricted series per family and approach the originating authority. The gateway drops coordinate-masked rows from every download and reports how many were withheld.
+* **Discovery, not data:** the row remains, so researchers can count restricted series per family and approach the originating authority. The gateway excludes coordinate-masked rows from every download before its row limit; a download that matches only such rows returns 204 with the withheld count.
 
 That structural visibility is an information release. Published totals, related
 breakdowns and row presence can reconstruct masked values; coordinate masking hides
@@ -303,8 +303,9 @@ authorized full-history query or a transport receipt service.
 * **SDMX-JSON 2.0.0** for browsers and **SDMX-CSV 2.0.0** for tabular consumers — the latter carrying the standard's `STRUCTURE,STRUCTURE_ID,ACTION` prefix so a file is self-describing rather than depending on an out-of-band agreement about column order.
 
 Coordinate-masked observations never reach a download: `xx` is not a codelist value,
-so the gateway drops them and reports the count in `X-SovereignShield-Withheld`, and
-the serializer refuses them if they arrive. Any other missing measure is written as
+so the gateway excludes them in the query, before the row limit, and the serializer
+refuses them if they arrive. A download that matches only such rows returns 204 with
+the count in `X-SovereignShield-Withheld`. Any other missing measure is written as
 **absent**, never as zero; conflating the two would turn a confidentiality control
 into a data-quality defect.
 

@@ -4,8 +4,9 @@
 #
 # Every resource is looked up first. Existing resources are attached and never
 # modified, re-tagged or re-created; only the missing delta is provisioned. Each
-# created resource is tagged ManagedBy=SovereignShield and ProvisionedScope=Delta,
-# and everything attached or created is written to the provisioning manifest that
+# created resource carries ManagedBy=SovereignShield and ProvisionedScope=Delta as
+# tags (metadata on the container, comments on Unity Catalog objects), and
+# everything attached or created is written to the provisioning manifest that
 # scripts/sovereign_down_custom.sh reads for surgical teardown.
 #
 # Requires: az (logged in), jq, the Databricks CLI and, for the policy plane, the
@@ -189,13 +190,34 @@ retry() {
 
 need_location() { [[ -n "$LOCATION" ]] || die "--location is required to create $1."; }
 
+# Sets FOUND and succeeds when the object exists; fails only on a confirmed not-found. Any other error
+# (expired login, throttling, outage) aborts, so an existing resource is never created or relabelled.
+FOUND=""
+lookup() {
+  local error
+  error="$(mktemp)"
+  if FOUND="$("$@" 2>"$error")"; then
+    rm -f "$error"
+    return 0
+  fi
+  if grep -qiE 'not[ _]?found|not be found|does not exist|RESOURCE_DOES_NOT_EXIST' "$error"; then
+    rm -f "$error"
+    return 1
+  fi
+  printf 'ERROR: could not tell whether this exists, so nothing more was changed: %s\n' "$*" >&2
+  cat "$error" >&2
+  rm -f "$error"
+  exit 1
+}
+
 # ---------------------------------------------------------------------
 # Azure control plane
 # ---------------------------------------------------------------------
 provision_azure() {
   local json principal assignment
   log "Azure resources in subscription $SUBSCRIPTION"
-  if json="$(az group show --name "$RESOURCE_GROUP" -o json 2>/dev/null)"; then
+  if lookup az group show --name "$RESOURCE_GROUP" -o json; then
+    json="$FOUND"
     attach resource_group "$RESOURCE_GROUP" "$(jq -r .id <<<"$json")"
     [[ -n "$LOCATION" ]] || LOCATION="$(jq -r .location <<<"$json")"
   else
@@ -204,8 +226,8 @@ provision_azure() {
       --tags "${TAGS[@]}" -o json >/dev/null
   fi
 
-  if json="$(az keyvault show --name "$KEY_VAULT" -o json 2>/dev/null)"; then
-    attach key_vault "$KEY_VAULT" "$(jq -r .id <<<"$json")"
+  if lookup az keyvault show --name "$KEY_VAULT" -o json; then
+    attach key_vault "$KEY_VAULT" "$(jq -r .id <<<"$FOUND")"
   else
     need_location "Key Vault $KEY_VAULT"
     create key_vault "$KEY_VAULT" az keyvault create --name "$KEY_VAULT" --resource-group "$RESOURCE_GROUP" \
@@ -213,7 +235,8 @@ provision_azure() {
       --tags "${TAGS[@]}" -o json >/dev/null
   fi
 
-  if json="$(az storage account show --name "$STORAGE_ACCOUNT" -o json 2>/dev/null)"; then
+  if lookup az storage account show --name "$STORAGE_ACCOUNT" -o json; then
+    json="$FOUND"
     [[ "$(jq -r '.isHnsEnabled // false' <<<"$json")" == true ]] ||
       die "Storage account $STORAGE_ACCOUNT exists without a hierarchical namespace; Unity Catalog needs ADLS Gen2."
     attach storage_account "$STORAGE_ACCOUNT" "$(jq -r .id <<<"$json")"
@@ -226,11 +249,12 @@ provision_azure() {
   fi
   STORAGE_ID="$(jq -r .id <<<"$json")"
 
-  if json="$(az storage container-rm show --storage-account "$STORAGE_ID" --name "$CONTAINER" -o json 2>/dev/null)"; then
-    attach storage_container "$STORAGE_ACCOUNT/$CONTAINER" "$(jq -r .id <<<"$json")"
+  if [[ "$STORAGE_ID" != planned/* ]] &&
+    lookup az storage container-rm show --storage-account "$STORAGE_ID" --name "$CONTAINER" -o json; then
+    attach storage_container "$STORAGE_ACCOUNT/$CONTAINER" "$(jq -r .id <<<"$FOUND")"
   else
     create storage_container "$STORAGE_ACCOUNT/$CONTAINER" az storage container-rm create \
-      --storage-account "$STORAGE_ID" --name "$CONTAINER" -o json >/dev/null
+      --storage-account "$STORAGE_ID" --name "$CONTAINER" --metadata "${TAGS[@]}" -o json >/dev/null
   fi
 
   if [[ -n "$WORKSPACE_URL" ]]; then
@@ -240,7 +264,8 @@ provision_azure() {
     [[ -n "$json" ]] || die "No workspace with URL $host is visible in subscription $SUBSCRIPTION."
     WORKSPACE_NAME="$(jq -r .name <<<"$json")"
     attach databricks_workspace "$WORKSPACE_NAME" "$(jq -r .id <<<"$json")"
-  elif json="$(az databricks workspace show --resource-group "$RESOURCE_GROUP" --name "$WORKSPACE_NAME" -o json 2>/dev/null)"; then
+  elif lookup az databricks workspace show --resource-group "$RESOURCE_GROUP" --name "$WORKSPACE_NAME" -o json; then
+    json="$FOUND"
     attach databricks_workspace "$WORKSPACE_NAME" "$(jq -r .id <<<"$json")"
   else
     need_location "workspace $WORKSPACE_NAME"
@@ -255,7 +280,8 @@ provision_azure() {
     WORKSPACE_HOST=""
   fi
 
-  if json="$(az databricks access-connector show --resource-group "$RESOURCE_GROUP" --name "$ACCESS_CONNECTOR" -o json 2>/dev/null)"; then
+  if lookup az databricks access-connector show --resource-group "$RESOURCE_GROUP" --name "$ACCESS_CONNECTOR" -o json; then
+    json="$FOUND"
     attach access_connector "$ACCESS_CONNECTOR" "$(jq -r .id <<<"$json")"
   else
     need_location "access connector $ACCESS_CONNECTOR"
@@ -303,15 +329,16 @@ provision_databricks() {
     die "The workspace uses metastore $metastore, not the expected $METASTORE_ID."
   attach metastore "$metastore" "$metastore"
 
-  if json="$(databricks storage-credentials get "$STORAGE_CREDENTIAL" -o json 2>/dev/null)"; then
-    attach storage_credential "$STORAGE_CREDENTIAL" "$(jq -r '.id // .name' <<<"$json")"
+  if lookup databricks storage-credentials get "$STORAGE_CREDENTIAL" -o json; then
+    attach storage_credential "$STORAGE_CREDENTIAL" "$(jq -r '.id // .name' <<<"$FOUND")"
   else
     create storage_credential "$STORAGE_CREDENTIAL" databricks storage-credentials create -o json --json "$(jq -nc \
       --arg name "$STORAGE_CREDENTIAL" --arg connector "$CONNECTOR_ID" --arg comment "$TAG_COMMENT" \
       '{name: $name, azure_managed_identity: {access_connector_id: $connector}, comment: $comment}')" >/dev/null
   fi
 
-  if json="$(databricks external-locations get "$EXTERNAL_LOCATION" -o json 2>/dev/null)"; then
+  if lookup databricks external-locations get "$EXTERNAL_LOCATION" -o json; then
+    json="$FOUND"
     attach external_location "$EXTERNAL_LOCATION" "$(jq -r '.id // .name' <<<"$json")"
   else
     json="$(create external_location "$EXTERNAL_LOCATION" retry databricks external-locations create \
@@ -321,7 +348,7 @@ provision_databricks() {
   root="$(jq -r '.url // empty' <<<"$json")"
   root="${root:-abfss://$CONTAINER@$STORAGE_ACCOUNT.dfs.core.windows.net/}"
 
-  if databricks catalogs get "$CATALOG" -o json >/dev/null 2>&1; then
+  if lookup databricks catalogs get "$CATALOG" -o json; then
     attach catalog "$CATALOG" "$CATALOG"
     CATALOG_CREATED=0
   else
@@ -331,14 +358,14 @@ provision_databricks() {
   fi
 
   for schema in "${SCHEMAS[@]}"; do
-    if databricks schemas get "$CATALOG.$schema" -o json >/dev/null 2>&1; then
+    if lookup databricks schemas get "$CATALOG.$schema" -o json; then
       attach schema "$CATALOG.$schema" "$CATALOG.$schema"
     else
       create schema "$CATALOG.$schema" databricks schemas create "$schema" "$CATALOG" --comment "$TAG_COMMENT" -o json >/dev/null
     fi
   done
 
-  if databricks volumes read "$CATALOG.sovereign_submissions.submissions" -o json >/dev/null 2>&1; then
+  if lookup databricks volumes read "$CATALOG.sovereign_submissions.submissions" -o json; then
     attach volume "$CATALOG.sovereign_submissions.submissions" "$CATALOG.sovereign_submissions.submissions"
   else
     create volume "$CATALOG.sovereign_submissions.submissions" databricks volumes create "$CATALOG" \
@@ -375,7 +402,7 @@ provision_databricks() {
 # Policy plane: content-addressed functions, protected tables, verified bindings
 # ---------------------------------------------------------------------
 provision_policies() {
-  local python="$REPO_ROOT/.venv/bin/python" result grant_flag=()
+  local python="$REPO_ROOT/.venv/bin/python" result status=0 grant_flag=()
   ((SKIP_POLICIES)) && { note "policy plane skipped (--skip-policies)"; return 0; }
   [[ -n "$WORKSPACE_HOST" ]] || { note "policy plane is planned once the workspace exists."; return 0; }
   case "$GRANTS" in
@@ -391,12 +418,13 @@ provision_policies() {
   [[ -x "$python" ]] || python="$(command -v python3)"
   result="$(mktemp)"
   "$python" "$REPO_ROOT/scripts/apply_policies.py" --host "$WORKSPACE_HOST" --warehouse-id "$WAREHOUSE_ID" \
-    --result "$result" "${grant_flag[@]}"
+    --result "$result" "${grant_flag[@]}" || status=$?
   while read -r item; do
     record "$(jq -r .kind <<<"$item")" "$(jq -r .name <<<"$item")" "$(jq -r .name <<<"$item")" \
       "$(jq -r .pre_existing <<<"$item")"
   done < <(jq -c '.[]' "$result")
   rm -f "$result"
+  ((status == 0)) || die "Policy application failed; what it created is recorded for teardown. Fix the cause and rerun."
 }
 
 provision() {

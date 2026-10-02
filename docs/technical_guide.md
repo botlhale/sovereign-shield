@@ -104,9 +104,10 @@ workflows; processing time is not transport attestation.
 
 The trusted gateway selects identity, lifecycle and user filters; UC applies row/value
 entitlement. Standard SDMx exports are current/published-only; audit CSV is separate.
-Every download drops coordinate-masked rows, so a researcher's file equals the public
-one. The serializer uses pinned offline components and exact decimal formatting.
-Masked values are absent, never zero. Exported files cannot enforce future revocation.
+Every download drops coordinate-masked rows before its row limit, so a researcher's
+file equals the public one. The serializer uses pinned offline components and exact
+decimal formatting. Masked values are absent, never zero. Exported files cannot
+enforce future revocation.
 
 ## Pass 6: Infrastructure and Ownership
 

@@ -122,7 +122,7 @@ Flash draft, Pro final. The enclave is a concept: draw it dashed.
 Create a 16:9 hub diagram titled "One Governed Store, Three Consumption Planes".
 CENTRE: a teal shield-shaped hub "Unity Catalog governed history".
 LEFT, sky panel "Public dissemination": "Releasable SDMx-ML, JSON and CSV",
-"One product for every download".
+"Researchers download the public file".
 TOP RIGHT, indigo panel "Discovery Gateway": "Restricted series exist ·
 key …US.xx.xx · value restricted". From it, a dashed arrow to a dashed-outline panel
 "Secure Data Enclave (concept)": "Approved researchers · regressions on restricted

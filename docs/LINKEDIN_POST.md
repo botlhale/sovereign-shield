@@ -12,11 +12,12 @@ Architecture on Azure Databricks**.
 
 ## Gates Before Posting
 
-1. **Employer clearance.** Confirm outside-activity, intellectual-property and
-   public-communication rules in writing. Describe prior experience generically, as in the
-   draft below; do not name an employer or describe its systems, controls, data or incidents.
-   Keep the independent-work notice, and do not speculate about which cloud any named
-   international organization uses.
+1. **Employer clearance.** Confirm in writing that the existing outside-activity approval also
+   covers this project's intellectual property, public articles and talks on the subject, and
+   any new client category. Describe prior work only at the level already public, add "views
+   are my own", and never describe internal systems, controls, data or incidents. Keep other
+   organizations' technology choices out of public material, even when known from professional
+   contact.
 2. **Evidence.** Freeze a reviewed commit and record its test output. Complete the
    [Discovery Gateway acceptance](RELEASE_EVIDENCE.md#discovery-gateway-acceptance) on a
    synthetic workspace, or describe coordinate masking as "implemented and tested offline".
@@ -54,7 +55,7 @@ The pattern: build without seeing
 Four personas read one governed store: the public sees free values; submitting analysts see their own filings in every state, so they can reconcile what they sent with what the receiver holds; administrators see the full audit trail; and researchers get something new.
 
 The idea I most want feedback on: a Discovery Gateway
-A researcher should be able to discover that confidential data exists, so they can approach the submitting central bank, without learning the value or even exactly what it describes. For restricted cells the platform withholds the value and masks the counterparty: Q.S.C.A.USD.D.5J.A.US.A.5J becomes Q.S.C.A.USD.D.5J.A.US.xx.xx. Restricted rows never appear in a download, so a researcher's export is identical to the public one.
+A researcher should be able to discover that confidential data exists, so they can approach the submitting central bank, without learning the value or even exactly what it describes. For restricted cells the platform withholds the value and masks the counterparty: Q.S.C.A.USD.D.5J.A.US.A.5J becomes Q.S.C.A.USD.D.5J.A.US.xx.xx. Masked rows never appear in a download, so a researcher's export is identical to the public one.
 
 Two lessons surprised me.
 Masking a value is not enough if you leave its fingerprints. A row hash built from the full key can be brute-forced back to hidden coordinates in a few thousand guesses, and a payload hash confirms a guessed value. Both are now masked by the same rule.

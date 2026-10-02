@@ -1,5 +1,6 @@
 import csv
 import io
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pandas as pd
@@ -7,7 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 import api_gateway as api
-from uc_query import LocalDeltaBackend, Principal, SeriesFilter, build_search_sql
+from uc_query import (
+    PUBLIC_PRINCIPAL, LocalDeltaBackend, Principal, SeriesFilter, build_search_sql, coordinate_masked,
+)
 
 
 @pytest.fixture
@@ -87,12 +90,28 @@ def test_researcher_downloads_contain_releasable_observations_only(client, path)
     """Discovery metadata stays in the portal; downloads equal the public product."""
     _as_researcher()
     preview = client.get("/api/v1/search").json()
-    response = client.get(f"/api/v1/export/{path}")
+    researcher = client.get(f"/api/v1/export/{path}")
+    api.app.dependency_overrides[api.current_principal] = lambda: PUBLIC_PRINCIPAL
+    public = client.get(f"/api/v1/export/{path}")
 
-    assert response.status_code == 200
-    assert response.headers["x-sovereignshield-withheld"] == str(preview["masked_coordinates"])
-    assert int(response.headers["x-sovereignshield-rows"]) == preview["row_count"] - preview["masked_coordinates"]
-    assert ".xx" not in response.text and "\"xx\"" not in response.text
+    assert researcher.status_code == public.status_code == 200
+    assert int(researcher.headers["x-sovereignshield-rows"]) == preview["row_count"] - preview["masked_coordinates"]
+    assert researcher.headers["x-sovereignshield-rows"] == public.headers["x-sovereignshield-rows"]
+    assert ".xx" not in researcher.text and "\"xx\"" not in researcher.text
+    if "csv" in path:
+        assert researcher.text == public.text
+
+
+def test_restricted_rows_never_consume_the_download_limit(client):
+    """Masked keys sort first in this fixture; releasable rows must still fill the limit."""
+    _as_researcher()
+    researcher = client.get("/api/v1/export/csv?format=sdmx&limit=2")
+    api.app.dependency_overrides[api.current_principal] = lambda: PUBLIC_PRINCIPAL
+    public = client.get("/api/v1/export/csv?format=sdmx&limit=2")
+
+    assert researcher.status_code == 200
+    assert researcher.headers["x-sovereignshield-rows"] == "2"
+    assert researcher.text == public.text
 
 
 def test_fully_restricted_download_is_no_content_with_withheld_count(client):
@@ -105,6 +124,31 @@ def test_fully_restricted_download_is_no_content_with_withheld_count(client):
 
 def test_empty_standard_export_is_no_content(client):
     assert client.get("/api/v1/export/sdmx-json?reporting_country=ZZ").status_code == 204
+
+
+def test_download_query_drops_masked_keys_before_its_limit():
+    sql, _ = build_search_sql(replace(SeriesFilter.build(limit=5), releasable_only=True))
+    where = sql.split(" WHERE ", 1)[1].split(" ORDER BY ", 1)[0]
+
+    assert "TIME_SERIES_CODE NOT LIKE '%.xx.xx'" in where
+    assert "NOT LIKE" not in build_search_sql(SeriesFilter.build())[0]
+
+
+def test_local_download_drops_a_key_the_mask_withheld_entirely(corpus, monkeypatch):
+    """A malformed restricted key masks to NULL, which SQL NOT LIKE excludes; the mirror must agree."""
+    frame = corpus.copy()
+    frame.loc[frame["TIME_SERIES_CODE"].str.contains(".CAD.", regex=False), "TIME_SERIES_CODE"] = "Q.S.C.A"
+    backend = LocalDeltaBackend()
+    monkeypatch.setattr(backend, "_load", lambda: frame.copy())
+    researcher = Principal(display_name="researcher", groups=frozenset({"sg-sovereignshield-researchers"}),
+                           authenticated=True)
+
+    preview = backend.search(SeriesFilter.build(), researcher)
+    download = backend.search(replace(SeriesFilter.build(), releasable_only=True), researcher)
+
+    assert preview["TIME_SERIES_CODE"].isna().sum() == 1
+    assert download["TIME_SERIES_CODE"].notna().all()
+    assert len(download) == len(preview) - int(coordinate_masked(preview).sum())
 
 
 def test_quarantine_query_does_not_require_current_rows():

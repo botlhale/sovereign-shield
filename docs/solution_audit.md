@@ -62,13 +62,13 @@ or read. This replaces the historical audit of commit `1d09269`; its findings ar
 11. **Low: identifiers and history.** `.vscode/tasks.json` carried the Databricks account ID,
     tenant domain and resource names of a torn-down deployment; this revision stops tracking
     it. These are not secrets, but they remain in history, as does the bootstrap password of
-    commit `af8cf06`. Confirm that credential was reset before promotion.
+    commit `af8cf06`; the owner confirmed on 1 October 2026 that it was reset.
 
 ## Resolution of the Historical Audit
 
 | Finding at `1d09269` | Status now | Evidence |
 | --- | --- | --- |
-| P0 bootstrap password in history | Partly resolved: the script generates a password per run; history keeps the old commit | [grp_users_create.sh](../sh/grp_users_create.sh); reset is an owner confirmation |
+| P0 bootstrap password in history | Resolved: the script generates a password per run, and the exposed credential was reset (owner-confirmed, 1 October 2026); history keeps the inert value | [grp_users_create.sh](../sh/grp_users_create.sh) |
 | P0 policy deployment could fail open | Resolved: immutable content-addressed functions, no detach, errors propagate, bindings verified | [Policy tests](../tests/test_policy_deployment.py); live run of 15 September |
 | P0 plan-only CI with deployment rights | Mitigated: pull requests have no cloud federation; plan and deploy need a manual run on `main` behind an environment with independent, non-self reviewers | [promote.yml](../.github/workflows/promote.yml); live GitHub settings not inspected |
 | High masking is not inference protection | Open by design and documented; narrowed by coordinate masking, lineage masking and releasable-only downloads | Finding 2; [security challenge](../SECURITY.md#statistical-reconstruction-challenge) |
@@ -92,7 +92,7 @@ score: real confidential data needs findings 2, 4 and 5 resolved and institution
 | Statistical disclosure | 5/10 | Honest and testable, but margins remain open and counts are visible |
 | Lifecycle engineering | 7/10 | Greenfield proven live; bring-your-own estate stub-tested; greenfield is Windows-bound |
 | Documentation | 8/10 | One README, consolidated runbook, removed duplicates, modern figures; publications still dense |
-| Institutional and IP boundary | 6/10 | Clear notices; clearance, history credential and `NOTICE` ownership wording need owner action |
+| Institutional and IP boundary | 7/10 | Clear notices and a reset history credential; the publication scope of the outside-activity approval and `NOTICE` ownership wording need owner action |
 | Publication readiness | 7/10 | Strong story and evidence; finding 1 and clearance gate the launch |
 
 ## Design Challenges
@@ -131,9 +131,10 @@ reconstruction counter-example. That candour is the differentiator with senior r
 
 ## Legal Boundaries
 
-Repository inspection cannot certify provenance or employment compliance. Obtain written
-clearance for outside work, intellectual property and public communication before posting.
-Describe experience generically. Third-party standards files keep their publishers' terms. The
+Repository inspection cannot certify provenance or employment compliance. Confirm in writing
+that the existing outside-activity approval covers public publication on this subject, the
+project's intellectual property and any new client category, such as central banks or
+international organizations. Describe experience generically. Third-party standards files keep their publishers' terms. The
 slash in `NOTICE` ("Botlhale Mosweu / Augmenta Systems") still leaves the copyright holder
 ambiguous; confirm the rights holder before changing it. Disclose AI assistance where a venue
 requires it, using the [AI-assisted SDLC disclosure](../CONTRIBUTING.md#ai-assisted-software-development-life-cycle).

@@ -397,15 +397,12 @@ def _export(
 ) -> Response:
     if wire_format.startswith("sdmx-") and series_filter.view_mode != "published":
         raise HTTPException(status_code=400, detail="Standard SDMx exports require the Published view. Use audit CSV for quarantine records.")
-    frame = _run(series_filter, principal)
-    # Coordinate-masked rows are discovery metadata, not data: every download
-    # carries releasable observations only, so a researcher's product cannot be
-    # differenced against the public one.
-    discovery_only = coordinate_masked(frame)
-    withheld = str(int(discovery_only.sum()))
-    frame = frame[~discovery_only].reset_index(drop=True)
+    # Coordinate-masked rows are discovery metadata, not data, so a researcher's
+    # download equals the public one for the same filter and limit.
+    frame = _run(replace(series_filter, releasable_only=True), principal)
     if frame.empty:
-        return Response(status_code=204, headers={"X-SovereignShield-Withheld": withheld})
+        withheld = int(coordinate_masked(_run(series_filter, principal)).sum())
+        return Response(status_code=204, headers={"X-SovereignShield-Withheld": str(withheld)})
 
     try:
         payload, media_type, extension = sdmx.serialize(frame, wire_format, **serializer_kwargs)
@@ -421,7 +418,6 @@ def _export(
             "Content-Disposition": f'attachment; filename="{filename}"',
             "X-SovereignShield-Persona": principal.persona,
             "X-SovereignShield-Rows": str(len(frame)),
-            "X-SovereignShield-Withheld": withheld,
         },
     )
 

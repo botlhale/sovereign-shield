@@ -300,7 +300,8 @@ helpers are isolated demonstrations, not a supported deployment route.
 Organizations that already run Azure and Databricks can attach Sovereign Shield to
 that estate from bash on Linux, macOS or WSL. The scripts look up every resource
 first, reuse what exists without modifying or re-tagging it, and create only the
-missing delta.
+missing delta. A resource counts as missing only when the CLI reports it not found;
+any other lookup error, such as an expired login or throttling, stops the run.
 
 ```bash
 scripts/sovereign_up_custom.sh --dry-run      # prompts for the estate and prints the plan
@@ -314,7 +315,7 @@ scripts/sovereign_down_custom.sh              # type DELETE to confirm
 
 | Resource | When present | When missing | Teardown |
 | --- | --- | --- | --- |
-| Resource group, Key Vault, ADLS Gen2 account and container | Attached | Created and tagged | Created ones only; groups only when empty |
+| Resource group, Key Vault, ADLS Gen2 account and container | Attached | Created and tagged; the container through metadata | Created ones only; groups only when empty |
 | Premium Databricks workspace | Attached; Standard is refused | Created and tagged | Created one only |
 | Access connector and its storage role assignment | Attached | Created and tagged | Created ones only |
 | Unity Catalog metastore | Attached; must already be assigned | Never created | Never touched |
@@ -322,12 +323,20 @@ scripts/sovereign_down_custom.sh              # type DELETE to confirm
 | SQL warehouse | Attached by ID or name | 2X-Small serverless, auto-stop 10 minutes, tagged | Created one only |
 | Policy functions, protected tables and published view | Attached | Created through the warehouse by [apply_policies.py](../scripts/apply_policies.py) | Created ones, before their schemas |
 
-Created Azure resources carry `ManagedBy=SovereignShield` and `ProvisionedScope=Delta`.
-Everything attached or created is recorded in `.sovereign_provisioned_manifest.json`,
-which git ignores. Keep it with the change record: it is the only teardown authority,
-and provenance stays sticky across reruns. Teardown runs in reverse dependency order,
-skips any Azure resource whose `ManagedBy` tag has changed, never forces a non-empty
-schema or catalog, and leaves Key Vaults soft-deleted rather than purged.
+Created Azure resources carry `ManagedBy=SovereignShield` and `ProvisionedScope=Delta`
+as tags; the container, which cannot be tagged, carries them as metadata. Everything
+attached or created is recorded in `.sovereign_provisioned_manifest.json`, which git
+ignores; a policy run that fails part-way still records what it created. Keep the
+manifest with the change record: it is the only teardown authority, and provenance
+stays sticky across reruns. Teardown deletes nothing while any Azure resource it created
+has lost its `ManagedBy` marker, because it cannot tell what the new owner relies on:
+restore the marker, or keep the estate and archive the manifest. A team that starts
+using the container should claim it by changing that metadata. Do not edit
+`pre_existing` to hand over a single resource; teardown would still remove what was
+built on it. Teardown then runs in reverse dependency order, never forces a non-empty
+schema or catalog, closes a manifest entry only once the object is reported missing,
+stops at the first object it keeps or cannot confirm removed, and leaves Key Vaults
+soft-deleted rather than purged.
 
 The operator needs rights to create the missing resources, assign Storage Blob Data
 Contributor on the storage account and create Unity Catalog objects in the metastore.

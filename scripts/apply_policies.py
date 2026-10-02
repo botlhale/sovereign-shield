@@ -2,7 +2,8 @@
 
 Runs the same content-addressed DDL, definition checks and binding verification as
 the Asset Bundle task, using the operator's Azure CLI identity instead of Spark.
-Writes the functions, tables and views it found or created to a JSON result file.
+Writes the functions, tables and views it found or created to a JSON result file,
+also when a later statement fails, so partial creations keep teardown ownership.
 """
 
 import argparse
@@ -73,10 +74,12 @@ def main():
     with connect(args.host.removeprefix("https://").rstrip("/"), args.warehouse_id) as connection:
         session = WarehouseSession(connection)
         before = inventory(session)
-        apply_security.apply_security_layer(spark=session)
-        after = inventory(session)
-    result = [{"kind": kind, "name": name, "pre_existing": (kind, name) in before} for kind, name in sorted(after)]
-    args.result.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        try:
+            apply_security.apply_security_layer(spark=session)
+        finally:
+            result = [{"kind": kind, "name": name, "pre_existing": (kind, name) in before}
+                      for kind, name in sorted(inventory(session))]
+            args.result.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(f"Recorded {len(result)} policy-plane objects ({sum(not item['pre_existing'] for item in result)} created).")
 
 

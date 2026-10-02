@@ -124,11 +124,11 @@ def mask_coordinates(keys: pd.Series) -> pd.Series:
 
 
 def coordinate_masked(frame: pd.DataFrame) -> pd.Series:
-    """Rows whose series key arrived coordinate-masked for the calling persona."""
+    """Rows whose series key arrived coordinate-masked, or NULL from a malformed key, for the caller."""
     if "TIME_SERIES_CODE" not in frame.columns:
         return pd.Series(False, index=frame.index)
     keys = frame["TIME_SERIES_CODE"].astype("string")
-    return keys.str.endswith(COORDINATE_MASK_SUFFIX).fillna(False).astype(bool)
+    return keys.str.endswith(COORDINATE_MASK_SUFFIX).fillna(True).astype(bool)
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +146,7 @@ class SeriesFilter:
     include_quarantined: bool = False
     limit: int = DEFAULT_ROWS
     lifecycle: Optional[str] = None
+    releasable_only: bool = False
 
     @property
     def view_mode(self) -> str:
@@ -265,6 +266,10 @@ def build_search_sql(series_filter: SeriesFilter) -> Tuple[str, Dict[str, Any]]:
         predicates.append("IS_CURRENT = true AND BATCH_STATUS = 'PUBLISHED'")
     else:
         raise QueryError("Unknown lifecycle view.")
+
+    if series_filter.releasable_only:
+        # Masks resolve before predicates, so discovery-only rows never take a LIMIT slot.
+        predicates.append(f"TIME_SERIES_CODE NOT LIKE '%{COORDINATE_MASK_SUFFIX}'")
 
     for dimension, codes in series_filter.dimensions.items():
         markers = []
@@ -509,6 +514,8 @@ class LocalDeltaBackend:
         else:
             mask = published
         frame = frame[mask]
+        if series_filter.releasable_only:
+            frame = frame[~coordinate_masked(frame)]
 
         for dimension, codes in series_filter.dimensions.items():
             position = DIMENSION_SEGMENTS[dimension] - 1

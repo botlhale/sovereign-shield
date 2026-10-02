@@ -4,6 +4,7 @@ The scripts run unchanged against stub ``az`` and ``databricks`` executables tha
 a small in-memory estate, so the provenance and teardown rules are checked offline.
 """
 
+import contextlib
 import json
 import os
 import shutil
@@ -46,6 +47,14 @@ while index < len(argv):
     else:
         positional.append(token)
 
+failures = state.get("failures", {})
+for depth in (2, 1, 0):
+    if (key := " ".join([tool] + positional[:depth])) in failures:
+        print(failures[key], file=sys.stderr)
+        sys.exit(1)
+if "delete" in positional and any(" ".join([tool] + positional).startswith(p) for p in state.get("lingering", [])):
+    sys.exit(0)
+
 def opt(name):
     return (options.get(name) or [None])[0]
 
@@ -61,6 +70,9 @@ def missing():
 
 def tags():
     return dict(item.split("=", 1) for item in options.get("--tags", []))
+
+def metadata():
+    return dict(item.split("=", 1) for item in options.get("--metadata", []))
 
 def view(rid):
     resource = state["resources"][rid]
@@ -127,7 +139,8 @@ def azure():
             done(view(rid)) if rid in state["resources"] else missing()
         if path[2] == "create":
             assert parent in state["resources"], "container created on a missing account"
-            state["resources"][rid] = {"provider": "containers", "name": name, "rg": state["resources"][parent]["rg"], "tags": {}}
+            state["resources"][rid] = {"provider": "containers", "name": name, "rg": state["resources"][parent]["rg"], "tags": {},
+                                       "props": {"properties": {"metadata": metadata()}}}
             done(view(rid))
     if path[:2] == ("role", "assignment"):
         if path[2] == "list":
@@ -149,6 +162,9 @@ def azure():
             done()
         if path[1] == "list":
             done([view(rid) for rid, r in state["resources"].items() if r["rg"] == opt("--resource-group")])
+    if path == ("rest",):
+        rid = opt("--url").split("?")[0]
+        done(view(rid)) if rid in state["resources"] else missing()
     raise SystemExit(f"unhandled az {argv}")
 
 def databricks():
@@ -163,7 +179,7 @@ def databricks():
     if verb in ("get", "read"):
         done(objects[args[0]]) if args[0] in objects else missing()
     if verb == "list":
-        done(list(objects.values()))
+        done([item for item in objects.values() if item.get("state") != "DELETED"])
     if verb == "delete":
         key = args[0]
         if key not in objects:
@@ -173,6 +189,9 @@ def databricks():
         if noun in ("catalogs", "schemas") and children:
             print("not empty", file=sys.stderr)
             sys.exit(1)
+        if noun == "warehouses":
+            objects[key]["state"] = "DELETED"
+            done()
         del objects[key]
         done()
     if verb == "create":
@@ -290,6 +309,8 @@ def test_up_attaches_existing_estate_and_creates_only_the_delta(estate):
             assert all(tag in call for tag in TAGS), call
     tagged = {tuple(call[1:3]) for call in created if "--tags" in call}
     assert {("keyvault", "create"), ("storage", "account"), ("databricks", "access-connector")} <= tagged
+    container = next(call for call in created if call[1:3] == ["storage", "container-rm"])
+    assert "--metadata" in container and all(tag in container for tag in TAGS)
     uc_created = [" ".join(call) for call in created if call[0] == "databricks"]
     assert uc_created and all("ManagedBy" in call and "SovereignShield" in call for call in uc_created)
     assert estate.state()["groups"]["rg-shared"]["tags"] == {"owner": "platform"}, "attached group was re-tagged"
@@ -319,6 +340,17 @@ def test_up_refuses_to_create_without_confirmation(estate):
 
     assert result.returncode != 0 and "--yes" in result.stderr
     assert creates(estate.calls()) == []
+
+
+def test_up_aborts_when_a_lookup_fails_for_any_reason_but_absence(estate):
+    """An expired login must not look like a missing vault and trigger a create."""
+    estate.edit_state(lambda state: state.update(failures={"az keyvault show": "(AuthorizationFailed) token expired"}))
+    result = estate.up("--yes")
+
+    assert result.returncode != 0
+    assert "could not tell whether this exists" in result.stderr and "AuthorizationFailed" in result.stderr
+    assert creates(estate.calls()) == []
+    assert not estate.manifest_path.exists()
 
 
 def test_down_removes_only_created_assets_in_dependency_order(estate):
@@ -353,20 +385,73 @@ def test_down_requires_typed_confirmation(estate):
     assert not [call for call in estate.calls() if "delete" in call]
 
 
-def test_down_keeps_resources_whose_ownership_tag_changed(estate):
+@pytest.mark.parametrize("label, name, marker", [
+    ("storage_account stss", "stss", lambda resource: resource["tags"]),
+    ("storage_container stss/sovereignshield", "sovereignshield",
+     lambda resource: resource["props"]["properties"]["metadata"]),
+])
+def test_down_deletes_nothing_while_a_created_resource_is_adopted(estate, label, name, marker):
+    """Nothing is removed while an account tag or container metadata names another owner."""
     assert estate.up("--yes").returncode == 0
+    before = estate.provenance()
 
-    def adopt_vault(state):
-        vault = next(r for r in state["resources"].values() if r["name"] == "kv-ss")
-        vault["tags"] = {"owner": "another-team"}
+    def owner(value):
+        def change(state):
+            marker(next(r for r in state["resources"].values() if r["name"] == name))["ManagedBy"] = value
+        return change
 
-    estate.edit_state(adopt_vault)
+    estate.edit_state(owner("another-team"))
+    estate.reset_log()
     result = estate.run(DOWN, "--yes")
 
     assert result.returncode == 2
-    assert "kept key_vault kv-ss" in result.stderr
-    assert any(r["name"] == "kv-ss" for r in estate.state()["resources"].values())
-    assert estate.provenance()[("key_vault", "kv-ss")] is False
+    assert "Nothing was deleted" in result.stderr and label in result.stderr
+    assert "pre_existing" not in result.stderr
+    assert not [call for call in estate.calls() if "delete" in call]
+    assert estate.provenance() == before
+
+    estate.edit_state(owner("SovereignShield"))
+    assert estate.run(DOWN, "--yes").returncode == 0
+    assert all(estate.provenance().values())
+
+
+def test_down_never_records_a_deletion_it_could_not_confirm(estate):
+    """A Databricks auth failure stops teardown before the storage beneath Unity Catalog."""
+    assert estate.up("--yes").returncode == 0
+    before = estate.provenance()
+    estate.edit_state(lambda state: state.update(failures={"databricks": "Error: invalid access token (401)"}))
+    estate.reset_log()
+
+    result = estate.run(DOWN, "--yes")
+
+    assert result.returncode == 2
+    assert "Teardown stopped at volume" in result.stderr
+    assert estate.provenance() == before
+    assert not [call for call in estate.calls() if call[0] == "az" and "delete" in call]
+    assert any(r["name"] == "stss" for r in estate.state()["resources"].values())
+
+    estate.edit_state(lambda state: state.pop("failures"))
+    assert estate.run(DOWN, "--yes").returncode == 0
+    assert all(estate.provenance().values()), "a rerun completes the teardown"
+
+
+def test_down_closes_an_entry_only_once_its_object_is_reported_missing(estate):
+    """An acknowledged delete that has not taken effect stops teardown and keeps the entry."""
+    assert estate.up("--yes").returncode == 0
+    before = estate.provenance()
+    estate.edit_state(lambda state: state.update(lingering=["databricks volumes delete"]))
+    estate.reset_log()
+
+    result = estate.run(DOWN, "--yes")
+
+    assert result.returncode == 2
+    assert "still reported present" in result.stderr and "Teardown stopped at volume" in result.stderr
+    assert estate.provenance() == before
+    assert not [call for call in estate.calls() if call[:3] == ["databricks", "schemas", "delete"]]
+
+    estate.edit_state(lambda state: state.pop("lingering"))
+    assert estate.run(DOWN, "--yes").returncode == 0
+    assert all(estate.provenance().values())
 
 
 def test_down_dry_run_lists_plan_without_deleting(estate):
@@ -380,8 +465,9 @@ def test_down_dry_run_lists_plan_without_deleting(estate):
     assert not [call for call in estate.calls() if "delete" in call]
 
 
-def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch):
-    """The policy plane runs the shared executor and labels only new objects as created."""
+@pytest.mark.parametrize("fails", [False, True])
+def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch, fails):
+    """The policy plane labels only new objects as created, also when a later statement fails."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("apply_policies", ROOT / "scripts" / "apply_policies.py")
@@ -418,6 +504,8 @@ def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch
     def apply_layer(spark):
         assert spark.sql("SELECT 1 FROM dbw_sovereignshield.information_schema.routines").collect() is not None
         catalog.update({("function", "sovereign_shield", "fn_new"), ("view", "sovereign_shield", "v_agg_sdmx_published")})
+        if fails:
+            raise RuntimeError("a later DDL statement failed")
 
     monkeypatch.setattr(module, "connect", lambda host, warehouse: Connection())
     monkeypatch.setattr(module.apply_security, "apply_security_layer", apply_layer)
@@ -425,7 +513,8 @@ def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch
     result = tmp_path / "result.json"
     monkeypatch.setattr(sys, "argv", ["apply_policies.py", "--host", "https://adb-1.azuredatabricks.net/",
                                       "--warehouse-id", "wh", "--result", str(result), "--skip-grants"])
-    module.main()
+    with pytest.raises(RuntimeError) if fails else contextlib.nullcontext():
+        module.main()
 
     recorded = {item["name"]: item["pre_existing"] for item in json.loads(result.read_text(encoding="utf-8"))}
     assert recorded == {
