@@ -1,26 +1,70 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
-  <title id="title">Two Hosts, Explicit Identities</title>
-  <desc id="description">Databricks App SSO and Azure Container Apps anonymous or signed-in access reach the same trusted gateway. The gateway selects identity and lifecycle; Unity Catalog enforces account-group row and value entitlements.</desc>
-  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10" fill="#52636b"/></marker></defs>
-  <style>text{font-family:'Segoe UI',sans-serif;fill:#183137;font-size:28px;letter-spacing:0}.title{font-size:48px;font-weight:700}.heading{font-size:30px;font-weight:700}.small{font-size:24px}.line{stroke:#52636b;stroke-width:3;fill:none;marker-end:url(#arrow)}</style>
-  <rect width="1600" height="900" fill="white"/>
-  <text x="60" y="82" class="title">Two Hosts, Explicit Identities</text>
-  <text x="60" y="130">Current published SDMx products and authorized audit products remain distinct</text>
-  <rect x="60" y="200" width="650" height="205" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
-  <text x="90" y="252" class="heading">Databricks App</text>
-  <text x="90" y="302">Workspace SSO; forwarded caller token</text>
-  <text x="90" y="350">Not a genuinely anonymous endpoint</text>
-  <rect x="890" y="200" width="650" height="205" rx="6" fill="#edf7f3" stroke="#167d69" stroke-width="2"/>
-  <text x="920" y="252" class="heading">Azure Container Apps</text>
-  <text x="920" y="302">Anonymous: explicit public-proxy principal</text>
-  <text x="920" y="350">Signed in: Easy Auth and caller token</text>
-  <path d="M385 405 V450 H800 V485" class="line"/><path d="M1215 405 V450 H800" class="line"/>
-  <rect x="300" y="495" width="1000" height="140" rx="6" fill="#f6f9fa" stroke="#90a5aa" stroke-width="2"/>
-  <text x="330" y="545" class="heading">Trusted Gateway</text>
-  <text x="330" y="592">Selects SQL identity, user filters and lifecycle; handles tokens and results</text>
-  <path d="M800 635 V690" class="line"/>
-  <rect x="300" y="700" width="1000" height="115" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
-  <text x="330" y="745" class="heading">Unity Catalog</text>
-  <text x="330" y="787">Account-group row/value entitlements on supported query paths</text>
-  <text x="60" y="867" class="small">Masking is not statistical disclosure control. Published totals and researcher-visible row presence require review.</text>
+  <title id="title">Dual Consumption, One Governed Store</title>
+  <desc id="description">A Databricks App with workspace sign-in and an Azure Container Apps gateway with an explicit public principal and optional Easy Auth both reach one trusted gateway. Unity Catalog applies row, value, coordinate and lineage policies. Outcomes are public dissemination, the researcher Discovery Gateway and audit oversight. A Secure Data Enclave is a conceptual future state, not implemented.</desc>
+  <defs>
+    <marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 z" fill="#64748B"/></marker>
+    <marker id="arrow-sky" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 z" fill="#0369A1"/></marker>
+    <filter id="lift" x="-8%" y="-8%" width="116%" height="130%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#0F172A" flood-opacity="0.18"/></filter>
+  </defs>
+  <style>
+    text{font-family:Inter,'Segoe UI',Lato,'Liberation Sans',Arial,sans-serif;font-size:19px;fill:#F8FAFC}
+    .title{font-size:44px;font-weight:700;fill:#FFFFFF}
+    .subtitle{font-size:22px;fill:#7DD3FC}
+    .h{font-size:24px;font-weight:700}
+    .b{font-size:19px;fill:#E2E8F0}
+    .mono{font-family:'JetBrains Mono','Cascadia Code',Consolas,'DejaVu Sans Mono',monospace;font-size:17px}
+    .masked{font-style:italic;fill:#BAE6FD}
+    .ink{fill:#0C4A6E}
+    .foot{fill:#475569;font-size:16px}
+    .flow{stroke:#64748B;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    .bus{stroke:#64748B;stroke-width:3;fill:none}
+    .dash{stroke:#0369A1;stroke-width:2.5;fill:none;stroke-dasharray:8 6;marker-end:url(#arrow-sky)}
+  </style>
+  <rect width="1600" height="900" fill="#F8FAFC"/>
+  <rect width="1600" height="124" fill="#1E293B"/>
+  <rect y="124" width="400" height="6" fill="#6366F1"/><rect x="400" y="124" width="400" height="6" fill="#475569"/>
+  <rect x="800" y="124" width="400" height="6" fill="#14B8A6"/><rect x="1200" y="124" width="400" height="6" fill="#0EA5E9"/>
+  <text x="64" y="70" class="title">Dual Consumption, One Governed Store</text>
+  <text x="64" y="106" class="subtitle">Two hosts choose the SQL identity. Unity Catalog decides which rows and values that identity receives.</text>
+
+  <g filter="url(#lift)">
+    <rect x="64" y="156" width="680" height="112" rx="16" fill="#4338CA"/>
+    <rect x="856" y="156" width="680" height="112" rx="16" fill="#4338CA"/>
+    <rect x="300" y="310" width="1000" height="84" rx="16" fill="#1E293B"/>
+    <rect x="300" y="436" width="1000" height="84" rx="16" fill="#0F766E"/>
+    <rect x="64" y="592" width="464" height="118" rx="16" fill="#0369A1"/>
+    <rect x="568" y="592" width="464" height="118" rx="16" fill="#0369A1"/>
+    <rect x="1072" y="592" width="464" height="118" rx="16" fill="#0369A1"/>
+  </g>
+  <text x="92" y="198" class="h">Databricks App</text>
+  <text x="92" y="236" class="b">Workspace SSO; caller's on-behalf-of token. Not anonymous.</text>
+  <text x="884" y="198" class="h">Azure Container Apps</text>
+  <text x="884" y="236" class="b">Anonymous: explicit public principal. Easy Auth: caller token.</text>
+  <path d="M404 268 V304" class="flow"/><path d="M1196 268 V304" class="flow"/>
+
+  <text x="328" y="346" class="h">Trusted gateway</text>
+  <text x="328" y="378" class="b">Selects SQL identity, user filters and lifecycle; handles tokens and results, so it stays trusted.</text>
+  <path d="M800 394 V430" class="flow"/>
+  <text x="328" y="472" class="h">Unity Catalog</text>
+  <text x="328" y="504" class="b">Row filter plus value, coordinate and lineage masks on every supported query path.</text>
+
+  <path d="M800 520 V552" class="bus"/><path d="M296 552 H1304" class="bus"/>
+  <path d="M296 552 V586" class="flow"/><path d="M800 552 V586" class="flow"/><path d="M1304 552 V586" class="flow"/>
+
+  <text x="92" y="632" class="h">Public dissemination</text>
+  <text x="92" y="666" class="b">Published, explicit-F observations</text>
+  <text x="92" y="694" class="b">One product for every download</text>
+  <text x="596" y="632" class="h">Discovery Gateway</text>
+  <text x="596" y="666" class="b">Restricted series exist, cells hidden</text>
+  <text x="596" y="694" class="mono">…US<tspan class="masked">.xx.xx</tspan>  <tspan class="masked">restricted</tspan></text>
+  <text x="1100" y="632" class="h">Audit oversight</text>
+  <text x="1100" y="666" class="b">Submitters: own filings and verdicts</text>
+  <text x="1100" y="694" class="b">Administrators: full lifecycle</text>
+
+  <path d="M800 710 V736" class="dash"/>
+  <rect x="400" y="742" width="1136" height="62" rx="14" fill="#F0F9FF" stroke="#0369A1" stroke-width="2.5" stroke-dasharray="8 6"/>
+  <text x="424" y="780" class="ink"><tspan font-weight="700">Secure Data Enclave · concept only:</tspan> approved researchers analyse restricted cells; only reviewed outputs leave.</text>
+
+  <text x="64" y="846" class="foot">Logical jurisdictional segregation in one workspace is not physical residency. Exported files cannot revoke themselves.</text>
+  <text x="64" y="872" class="foot">Independent synthetic reference architecture; no institutional or vendor endorsement.</text>
 </svg>

@@ -1,128 +1,139 @@
-# Historical Solution Audit
+# Solution Audit
 
-**Scope:** findings below apply to audited commit `1d09269` and its then-reachable
-history, not the current implementation. The review covered 116 commits and 485
-historical text-file versions; synthetic failure probes and the stress-enabled
-suite recorded **99 passed, 3 skipped**. The audit itself made no source or cloud
-changes. Historical locations and readiness scores are retained as dated evidence.
-Current behavior and resolved controls are specified in [Release Evidence](RELEASE_EVIDENCE.md),
-[the technical reference](technical_reference.md) and [the publication plan](LINKEDIN_POST.md).
+**Scope:** the working tree of 1 October 2026: commit `a1cc707` plus the Discovery Gateway,
+documentation and bring-your-own-estate changes committed with this audit. The review read
+every Markdown document, the reference notes in `.github/skills/`, all source, scripts and
+tests. Offline verification on Linux (Python 3.14.4) recorded **245 passed, 12 skipped**; the
+skips are opt-in live and stress tests. The local demo, a researcher persona fixture, the
+figure renders and the Markdown link check were run. No cloud resource was created, changed
+or read. This replaces the historical audit of commit `1d09269`; its findings are tracked in
+[Resolution of the Historical Audit](#resolution-of-the-historical-audit).
 
-**Critical Findings at the Audited Revision**
+## Findings at This Revision
 
-1. **P0: A bootstrap password remains in public history.** Commit `af8cf06` contains a plaintext password used by `grp_users_create.sh` to create four demo users. Its current validity is unknown. Reset any affected credentials, revoke sessions, and review sign-ins before promoting the repository. History cleanup comes afterward; existing clones cannot be recalled. GitHub’s empty secret-alert list did not detect this generic password.
-2. **P0: Policy deployment can fail open.** `unity_catalog_triple_lock.sql:34` removes active protections before replacing functions, while `apply_security.py:136` tolerates reattachment failures. An injected failure rejected all three reattachments and still printed success. Stop detaching policies during ordinary ingestion; isolate policy migrations, fail on unexpected errors, and verify bindings before restoring consumer access.
-3. **P0 when enabled: “Plan-only” CI has deployment privileges.** `main.tf:79` uses the same application as deployment, with Contributor access and admin-persona membership. Running `terraform plan` does not make its identity read-only. Separate planning and deployment identities, restrict untrusted execution, and enforce reviewed promotion. **Do not merely add the missing CI variable and enable this path unchanged.**
-4. **High: Masking does not prevent statistical inference.** In the saved fixture, public values reconstruct restricted observations exactly: $1000-400-500=100$ and $450-300=150$. This is synthetic, not evidence of a real-data incident, but it disproves a broad confidentiality guarantee. Add secondary suppression or an approved disclosure-control method; meanwhile describe the project as **entitlement enforcement**, not complete statistical disclosure protection.
-5. **High: Unknown classifications can expose values.** The validator accepted an invalid country and unrecognized confidentiality code as `PUBLISHED/PASS`; the researcher mirror returned its value. `unity_catalog_triple_lock.sql:79` likewise reveals anything other than recognized `C`/`N`. Validate codelists, normalize classifications, reject missing/unknown values, and default to withholding.
-6. **High: Export integrity is incomplete.** `sdmx_ml_exporter.py:487` overwrites observations sharing a series/period key: two published/quarantine records became one, while the response header claimed two. `sdmx_ml_exporter.py:582` converted `1234567.891` to `1234570`. Separate current-state SDMX feeds from revision-aware audit exports, reject duplicate keys where inappropriate, preserve precision, and validate with independent schemas/readers.
-7. **High: SCD2 is not transactionally complete.** `scd2_merge_engine.py:259` occur in separate Delta transactions, leaving interruption and concurrency gaps. `scd2_merge_engine.py:182` blindly appends on replay despite deterministic IDs. Add atomic transition design, immutable arrival identifiers/checkpoints, deduplication, and failure-injection/concurrent-writer tests. Rejected-revision protection is valuable, but not sufficient.
-8. **High: The scaling claim is not wired into the job.** `databricks.yml:128` fixes single-node compute and supplies no `policy_id`; changing Terraform’s cluster-policy variables does not resize this job. Ingestion and validation also materialize data in pandas on the driver. The distributed merge is real; the complete ingestion pipeline is not yet a demonstrated distributed-scale system.
-9. **Launch blocker: CI and lifecycle claims exceed current coverage.** The latest five promotion runs failed; the latest offline verification passed, but preflight rejected missing `DATABRICKS_HOST`. Main has PR-review rulesets, but no required status-check rule; production has no required reviewer. `promote.yml:253` also omit the staged grant flags and do not reproduce the complete portal lifecycle. `sovereignshield_up.ps1:134` resets readiness flags on reruns, potentially removing established grants. Separate bootstrap from steady-state deployment and test both.
+1. **High: live acceptance of the Discovery Gateway masks is outstanding.** The policy plane
+   now binds five column masks, including one on the merge key `RECORD_ID`. They are verified
+   against the SQL contract and the local mirror only. Databricks documents `MERGE` support
+   for deterministic, non-nested masks such as these, but until `verify_synthetic_runtime`
+   and [live_persona_checks.py](../sh/live_persona_checks.py) pass on a workspace, every
+   publication must say "tested offline". The
+   [acceptance gate](RELEASE_EVIDENCE.md#discovery-gateway-acceptance) lists the checks and a
+   fallback.
+2. **High: coordinate masking does not stop margin differencing.** In the local fixture the
+   researcher sees `Q.S.C.A.UN9.U.5J.A.CA.xx.xx` as restricted, yet the public CA total
+   (1000), domestic currency (400) and foreign currency (500) give $1000-400-500=100$
+   exactly. The mask hides the counterparty, not a residual across visible dimensions.
+   Before real data, the release product needs complementary suppression, for example with
+   sdcTable or tau-ARGUS, or the totals must be withheld.
+3. **High, fixed in this revision: lineage side channels.** `version_hash` hashed the measure
+   with attributes a researcher can read, so any guessed value, such as the residual above,
+   could be confirmed exactly through direct SQL. `RECORD_ID` hashes the submission ID and full
+   key, so the new coordinate mask could have been undone by enumerating 20 sectors x 432 areas,
+   8,640 candidates. `fn_ddm_lineage_mask` now withholds both, and `VALIDATION_NOTES`, under the
+   value's reveal rule. `SOURCE_SHA256`, a whole-file digest, is not practically invertible.
+4. **Medium: the Discovery Gateway reveals counts.** Restricted rows stay one per cell, so the
+   portal and direct SQL show how many restricted cells share a nine-segment prefix and period.
+   Counts tell an attacker how many cells a residual is spread across. Serve researchers a
+   curated view that collapses restricted rows to one "restricted series exists" flag per
+   prefix and period.
+5. **Medium: every persona holds base-table SELECT.** The gateway queries as the caller, so
+   researcher and public groups can also query `agg_sdmx_history` directly. Masks protect the
+   values, but the surface is wider than the portal: submission IDs, timestamps and counts.
+   Grant researcher and public groups a view, and keep the base table for submitters, the
+   administrator and the runtime identity.
+6. **Medium: jurisdictions are hard-coded.** Twelve `is_account_group_member` branches for CA
+   and US span five policy functions; each new reporting country is a policy release.
+   Databricks now recommends attribute-based access control, governed tags with `CREATE
+   POLICY`, for consistent row filters and masks across tables. Evaluate it before scaling
+   beyond the demonstration.
+7. **Medium: the greenfield lifecycle is Windows-bound.** `sovereignshield_up.ps1` resolves
+   `.venv\Scripts\python.exe` and uses `cmd.exe` for the token-store SAS handoff. Linux and
+   macOS operators have the new bash scripts for an existing estate, but no greenfield path.
+8. **Medium: the bring-your-own-estate scripts are stub-tested.** Nine offline tests prove
+   attach-before-create, tagging, sticky provenance, typed confirmation, tag-checked teardown
+   and dependency order against stub `az` and `databricks` executables. Run `--dry-run`
+   against a sandbox subscription, then one full up and down, before recommending them.
+9. **Low: residual live-registry code.** `fetch_lbs_components` and the ElementTree writer in
+   [sdmx_ml_exporter.py](../src/sdmx_ml_exporter.py), the validator's lazy `dsd` property and
+   `fetch_bis_lbs_dsd` in the generator are unused on runtime paths but contradict the
+   pinned-contract rule. Remove them or move them behind the refresh helper.
+10. **Low: revocation latency.** The gateway caches resolved identities for 300 seconds, so a
+    removed membership can persist that long for an active session.
+11. **Low: identifiers and history.** `.vscode/tasks.json` carried the Databricks account ID,
+    tenant domain and resource names of a torn-down deployment; this revision stops tracking
+    it. These are not secrets, but they remain in history, as does the bootstrap password of
+    commit `af8cf06`. Confirm that credential was reset before promotion.
 
-**Readiness Score**
-**Historical overall score: 5/10 for a promoted portfolio launch.** At the audited
-revision, the reference implementation's claims exceeded its assurance evidence.
-This score is not a current production-readiness assessment.
+## Resolution of the Historical Audit
 
-| Evaluation | Score | Candid assessment |
-|---|---:|---|
-| Zero-Trust enforcement | 5/10 | Real query-engine enforcement and thoughtful additive permissions; unsafe policy updates, classification gaps, and inference remain. Logical segregation is not country-level data residency. |
-| Declarative separation | 5/10 | Sensible ownership structure, but SQL and Terraform still overlap on grants. Secrets are managed securely in some paths, not absent from state. |
-| Temporal/SDMX integrity | 4/10 | Genuine 21-rule parsing and useful revision scenarios; incomplete schema/domain validation, export loss, precision loss, and replay guarantees. |
-| Lifecycle engineering | 6/10 | Ordered teardown, explicit confirmation, discovery, and resumable stages demonstrate systems thinking. Error handling, operational isolation, and automated acceptance need hardening. |
-| Institutional/IP boundary | 4/10 | Improved neutral naming and disclaimers; historical credential exposure, unclear ownership chain, and third-party redistribution questions remain. |
-| Executive whitepaper | 6/10 | Compelling problem and coherent figures; several technical absolutes need correction before executive or journal publication. |
-| Launch strategy | 5/10 | Strong material for an evidence-led release; current red CI and overstated copy weaken first impressions. |
+| Finding at `1d09269` | Status now | Evidence |
+| --- | --- | --- |
+| P0 bootstrap password in history | Partly resolved: the script generates a password per run; history keeps the old commit | [grp_users_create.sh](../sh/grp_users_create.sh); reset is an owner confirmation |
+| P0 policy deployment could fail open | Resolved: immutable content-addressed functions, no detach, errors propagate, bindings verified | [Policy tests](../tests/test_policy_deployment.py); live run of 15 September |
+| P0 plan-only CI with deployment rights | Mitigated: pull requests have no cloud federation; plan and deploy need a manual run on `main` behind an environment with independent, non-self reviewers | [promote.yml](../.github/workflows/promote.yml); live GitHub settings not inspected |
+| High masking is not inference protection | Open by design and documented; narrowed by coordinate masking, lineage masking and releasable-only downloads | Finding 2; [security challenge](../SECURITY.md#statistical-reconstruction-challenge) |
+| High unknown classifications exposed values | Resolved: pinned codelists at intake; every mask reveals explicit `F` only | [Input tests](../tests/test_input_contract.py) |
+| High export integrity | Resolved: exact `DECIMAL(38,3)`, duplicate keys refused, separate audit CSV, masked keys refused | [Wire tests](../tests/test_sdmx_validation_rules.py) |
+| High SCD2 not transactional | Resolved for the single writer: one MERGE per filing, replay is a no-op; distributed writers untested | [History tests](../tests/test_submission_history.py); live run of 15 September |
+| High scaling claim not wired | Resolved: governed `policy_id` and approval flag; pandas parsing remains driver-bound | [compute.tf](../terraform/modules/databricks_workspace/compute.tf) |
+| Launch blocker: CI and lifecycle claims | Partly resolved: state-derived readiness, lifecycle lock, stage recovery; current CI status not inspected | [Deployment tests](../tests/test_deployment_boundaries.py) |
 
-**Recruiter assessment:** The breadth supports Principal Architect/Principal Consultant positioning. Director-level positioning additionally needs an investment case, operating model, decision governance, delivery roadmap, cost/risk trade-offs, and stakeholder outcomes. More diagrams will not substitute for those.
+## Readiness Score
 
-**Line-Level Polish**
-These are substantive corrections, not cosmetic edits.
+**Overall: 7/10 for a promoted portfolio and LinkedIn launch**, up from 5/10. It rises to 8
+once finding 1 passes live and clearance is documented. This is not a production-readiness
+score: real confidential data needs findings 2, 4 and 5 resolved and institutional acceptance.
 
-| Location | Recommended change |
-|---|---|
-| `Bridging_Public_Dissemination_and_Protected_Data.md:10` | Identify the validated revision, environment, and date. Distinguish historical cloud demonstration from current automated verification. |
-| `Bridging_Public_Dissemination_and_Protected_Data.md:23` | Replace “typically stalls” with “A recurring delivery challenge is validating controls without sharing production records.” Avoid asserting that institutions routinely mishandle this problem. |
-| `Bridging_Public_Dissemination_and_Protected_Data.md:174` | Say `try_element_at` prevents an indexing exception. It does not universally reject malformed rows: other policy branches can still admit published rows. |
-| `Bridging_Public_Dissemination_and_Protected_Data.md:265` | Remove “high-efficiency” and “without row duplication” until backed by measurements and replay/failure tests. Distinguish an atomic validation verdict from atomic persistence. |
-| `Bridging_Public_Dissemination_and_Protected_Data.md:270` | State “key-arity and arithmetic validation” accurately. Parsing through `pysdmx` is not proof of complete XSD, DSD, codelist, or content-constraint conformance. |
-| `Bridging_Public_Dissemination_and_Protected_Data.md:353` | Describe multi-node integration as pending until the bundle uses the policy and the driver-bound stages are addressed. Report local benchmarks separately from Databricks throughput. |
-| `README.md:28` | Remove “the curated view is the only researcher path.” Base-table access is granted; the gateway adds `IS_CURRENT`. Explain which controls are mandatory policies and which are query predicates. |
-| `README.md:223` and `README.md:253` | Say current source avoids credential literals, but Terraform state is sensitive and history needs remediation. Rotation occurs on a subsequent Terraform apply, not independently every 90 days; consumer refresh must be verified. |
-| `README.md:369` | Replace the absolute guarantee: a compromised gateway can access elevated users’ bearer tokens and returned data. Its integrity, dependencies, and session handling remain trusted boundaries. |
-| `README.md:438` | Include Databricks account-group membership, sessions/tokens, deployment rights, and Azure RBAC. The account setup script adds memberships; it is not continuous Entra deprovisioning. |
+| Evaluation | Score | Assessment |
+| --- | ---: | --- |
+| Entitlement enforcement | 8/10 | Additive row filter, fail-closed masks, segment-9 re-check, coordinate and lineage masks; direct base-table access is wider than needed |
+| Declarative separation | 8/10 | One writer per object; Terraform grants, bundle policies, verified bindings |
+| Temporal and SDMx integrity | 8/10 | Pinned contract, 21 rules, atomic MERGE, exact decimals, standard feeds published-only |
+| Statistical disclosure | 5/10 | Honest and testable, but margins remain open and counts are visible |
+| Lifecycle engineering | 7/10 | Greenfield proven live; bring-your-own estate stub-tested; greenfield is Windows-bound |
+| Documentation | 8/10 | One README, consolidated runbook, removed duplicates, modern figures; publications still dense |
+| Institutional and IP boundary | 6/10 | Clear notices; clearance, history credential and `NOTICE` ownership wording need owner action |
+| Publication readiness | 7/10 | Strong story and evidence; finding 1 and clearance gate the launch |
 
-The blanket assertion that dynamic views evaluate membership as the owner is also incorrect: [Microsoft documents caller-aware dynamic views](https://learn.microsoft.com/en-us/azure/databricks/views/dynamic). Likewise, [dedicated compute supports governed access under documented conditions](https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/filters-and-masks/); avoid universal `SINGLE_USER` prohibitions. [Terraform explicitly documents sensitive values in state](https://developer.hashicorp.com/terraform/language/manage-sensitive-data).
+## Design Challenges
 
-Figures 1–10 and the print grouping are substantially improved. For executives, move the two pages of SQL into an appendix and lead with one architecture diagram, one persona table, one revision example, and one limitations table. Journal submission additionally needs authoritative references, comparison with existing approaches, reproducible methods/results, and a defensible novelty claim. A formatted PDF is not yet a publication-quality argument.
+- **The user specification keyed masking on `CONF = 'N'` or `OBS_STATUS = 'C'`.** `C` is not
+  in `CL_OBS_STATUS(1.0)`, and `CONF = 'N'` alone would expose `C`, `D` and `S` cells. The masks
+  withhold every observation not explicitly `F`, including unknown and missing codes.
+- **Discovery belongs in a product, not a side effect.** A curated discovery view (finding 4)
+  is easier to approve than reasoning about every column of the base table.
+- **Treat suppression as a release step.** Run complementary suppression on the public product
+  and test it with the reconstruction challenge, rather than relying on access control.
+- **Parameterize the catalog.** `dbw_sovereignshield` is fixed across the policy SQL, bundle,
+  gateway and scripts; an existing estate may need its own naming convention.
+- **Keep the enclave conceptual until it has an owner.** Output checking, agreements and
+  network isolation are operating commitments, not code. Databricks Clean Rooms suit
+  multi-authority analysis.
 
-**Legal Boundaries**
-The audit did not establish employer-proprietary code or data leakage. Historical
-institutional names remained retrievable; repository inspection cannot certify
-provenance, employment compliance or ownership.
-The personal-capacity notice is useful **context, not legal immunity**. Obtain documented clearance on outside work, conflicts, IP assignment, resource use, and public communications. Keep individual authorship prominent; use Augmenta Systems commercially only where appropriate. The slash-separated copyright wording leaves ownership ambiguous: confirm the actual rights-holder, trade name, and any assignment before changing it.
-Public availability is not public-domain status. [BIS redistribution terms](https://www.bis.org/terms_conditions.htm) distinguish non-commercial redistribution and limited extracts. The bundled PDFs/workbook deserve a rights review given the contracting objective; the repository’s Apache license cannot grant rights over them. Avoid the categorical legal advice currently in the LinkedIn guidance.
+## Publication Assessment
 
-**Launch Strategy**
-**Traffic:** August 31–September 13 shows **292 views/2 unique visitors**, versus **446 clones/144 unique cloners**, with zero stars/forks at inspection. This is compatible with scanners, CI, and automated collection, but the aggregates cannot classify visitors. It is not demonstrated buyer traction. [GitHub traffic covers full clones and a rolling 14-day window](https://docs.github.com/en/repositories/viewing-activity-and-data-for-your-repository/viewing-traffic-to-a-repository).
-**Sequence:** remediate credential/control blockers, obtain clearance, establish a green reproducible release, and then promote a versioned evidence package. The repository is already public; do not rewrite history or reset it merely to manufacture a “fresh” launch.
-**Format:** use a native **7–8-page executive document**, with a direct repository link and the full technical whitepaper as supporting material. Do not upload the dense 15-page paper as the primary carousel. LinkedIn documents are downloadable and [cannot be replaced after publication](https://www.linkedin.com/help/linkedin/answer/a518909), so freeze and proofread the release first.
-**Carousel:** 1) delivery problem; 2) threat model/non-goals; 3) architecture; 4) persona outcomes; 5) accepted versus rejected revisions; 6) failure tests and remaining limits; 7) operational ownership; 8) evidence links and independent-work notice.
-**Positioning:** avoid “elite,” “unhackable,” “air-gapped,” “no secrets anywhere,” and suggestions that your employer’s controls are deficient. This environment is production-isolated, not literally air-gapped. Measure relevant technical conversations, reviews, referrals, and qualified enquiries, not clone counts. There is no reliable universal rule that putting links in comments improves reach.
+**Worth publishing, positioned as practitioner evidence rather than a new invention.**
+Row filters, column masks, SDMx tooling, synthetic data and secure enclaves all exist. What is
+uncommon is a working, reproducible integration for international statistical exchange with
+the limits stated in public: synthetic-first delivery for contractors and AI agents, a
+submitter reconciliation view, coordinate masking with its side channels closed, and a
+reconstruction counter-example. That candour is the differentiator with senior readers.
 
-**Executive Post**
-Use after the blockers and clearance questions are resolved:
-```text
-How can external specialists validate a sensitive data platform before they are allowed to see its production data?
+- **Lead with one idea.** The Discovery Gateway and the "masking a value but leaving its hash"
+  lesson are the most shareable; the full pattern belongs in the article body.
+- **Narrow audience, high signal.** SDMx, central-bank statistics and Unity Catalog readers
+  are a small group; expect quality conversations rather than reach. A three-part series,
+  contractor dilemma, Discovery Gateway, analyst reconciliation, builds standing more
+  reliably than one long post.
+- **Avoid** "novel", "guarantee", "air-gapped" and "zero trust" as a selling point, any
+  employer name or system description, and speculation about which cloud an international
+  organization uses. The [LinkedIn plan](LINKEDIN_POST.md) carries a draft that follows these rules.
 
-SovereignShield is an independent reference implementation using synthetic statistical submissions and publicly available standards.
+## Legal Boundaries
 
-The project brings together governed data access, revision handling, validation, and deployment automation. The objective is to make control behavior inspectable before an institution decides what production access an engagement actually requires.
-
-The accompanying brief explains the architecture, the demonstrated outcomes, and the limits. Synthetic proof is a starting point for assurance, not a substitute for institutional review.
-
-Developed in a personal capacity. No employer or statistical institution affiliation or endorsement is implied.
-
-Where would this approach reduce delivery friction, and what additional evidence would your architecture board require?
-https://github.com/botlhale/sovereign-shield
-```
-**Technical Post**
-```text
-A masking rule is not yet a confidentiality guarantee.
-
-SovereignShield separates identity, query-time access controls, statistical validation and revision history using Azure Databricks, Unity Catalog, SDMx and synthetic data.
-
-The difficult questions sit between those layers: Can policy updates fail closed? Does replay preserve history? Can published totals reveal suppressed values? Does an export preserve both precision and lifecycle meaning?
-
-Those questions are more useful than a broad “Zero Trust” label. The repository makes the implementation and its limitations available for inspection.
-
-This is an independent reference study, developed in a personal capacity using synthetic fixtures and public standards, not production accreditation or employer-endorsed work.
-
-Technical review is invited from practitioners working on governed data platforms and statistical disclosure control.
-https://github.com/botlhale/sovereign-shield
-```
-
-## Current Publication Context
-
-The launch drafts in this audit belong to the historical review. Use the current
-[LinkedIn plan](LINKEDIN_POST.md) and [publication/release guide](PUBLICATION_AND_RELEASE.md)
-for distribution. The Executive Brief and White Paper now share **Bridging Public
-Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**.
-
-The international input contract is SDMx files only; synthetic bank micro-transactions
-are educational calculation artifacts, not an institutional intake requirement or
-system deliverable. Analyst reconciliation distinguishes expected latest filing,
-actual receiver state and current accepted publication. The core pattern is
-technology-agnostic, while alternative Terraform providers and runtime controls
-require implementation and acceptance.
-
-The later successful evaluation measured approximately 75 minutes up including
-prerequisites, 30 minutes down and US$10 or less in Azure charges for deploy/test/
-teardown; see [measurement provenance](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
-The historical audit does not independently verify those later measurements.
-
-Public-value and row-existence reconstruction remains an
-[open synthetic challenge](../SECURITY.md#statistical-reconstruction-challenge).
-Restrict or remove researcher discovery when existence makes inference trivial,
-and assess public-only releases independently.
+Repository inspection cannot certify provenance or employment compliance. Obtain written
+clearance for outside work, intellectual property and public communication before posting.
+Describe experience generically. Third-party standards files keep their publishers' terms. The
+slash in `NOTICE` ("Botlhale Mosweu / Augmenta Systems") still leaves the copyright holder
+ambiguous; confirm the rights holder before changing it. Disclose AI assistance where a venue
+requires it, using the [AI-assisted SDLC disclosure](../CONTRIBUTING.md#ai-assisted-software-development-life-cycle).

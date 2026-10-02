@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -41,6 +42,32 @@ def test_normal_policy_deployment_never_detaches_protection():
         assert "DROP MASK" not in statement.upper()
 
 
+def _reveal_branches(ddl, function, returned):
+    body = ddl.split(f"FUNCTION {function}(", 1)[1].split("END;", 1)[0]
+    return [re.sub(r"\s+", " ", branch) for branch in re.findall(rf"WHEN (.+?) THEN {returned}\b", body, re.S)]
+
+
+def test_coordinate_and_lineage_masks_share_the_value_reveal_rule():
+    """A key or hash must never be revealed to someone denied the value itself."""
+    ddl = Path(apply_security.resolve_sql_path()).read_text(encoding="utf-8")
+    expected = _reveal_branches(ddl, "fn_ddm_obs_conf_mask", "obs_val")
+
+    assert len(expected) == 4
+    assert _reveal_branches(ddl, "fn_ddm_series_key_mask", "time_series_code") == expected
+    assert _reveal_branches(ddl, "fn_ddm_lineage_mask", "lineage") == expected
+
+
+def test_withheld_rows_mask_coordinates_and_lineage_inline_and_on_rebind():
+    ddl = Path(apply_security.resolve_sql_path()).read_text(encoding="utf-8")
+
+    assert "TIME_SERIES_CODE STRING MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF)" in ddl
+    assert "ALTER COLUMN TIME_SERIES_CODE SET MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF)" in ddl
+    assert "concat(substring_index(time_series_code, '.', 9), '.xx.xx')" in ddl
+    for column in ("RECORD_ID", "version_hash", "VALIDATION_NOTES"):
+        assert f"{column} STRING MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)" in ddl
+        assert f"ALTER COLUMN {column} SET MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)" in ddl
+
+
 def test_policy_names_are_content_addressed_and_never_replaced():
     original = "CREATE OR REPLACE FUNCTION mask(value DOUBLE) RETURNS DOUBLE RETURN NULL"
     compiled, versions = apply_security.version_policy_functions([original])
@@ -73,15 +100,27 @@ def test_missing_binding_aborts():
 
 @pytest.mark.parametrize("wrong_field", [None, "function", "columns"])
 def test_current_runtime_metadata_preserves_strict_binding_checks(wrong_field):
-    versions = {name: name + "__verified" for name in ("fn_rls_multi_persona_lock", "fn_ddm_obs_conf_mask", "fn_rls_micro_country_lock")}
+    names = ("fn_rls_multi_persona_lock", "fn_ddm_obs_conf_mask", "fn_ddm_series_key_mask",
+             "fn_ddm_lineage_mask", "fn_rls_micro_country_lock")
+    versions = {name: name + "__verified" for name in names}
+    masks = {
+        "OBS_VALUE": ("fn_ddm_obs_conf_mask", "OBS_CONF,TIME_SERIES_CODE"),
+        "TIME_SERIES_CODE": ("fn_ddm_series_key_mask", "OBS_CONF"),
+        "RECORD_ID": ("fn_ddm_lineage_mask", "OBS_CONF, TIME_SERIES_CODE"),
+        "version_hash": ("fn_ddm_lineage_mask", "`OBS_CONF`,`TIME_SERIES_CODE`"),
+        "VALIDATION_NOTES": ("fn_ddm_lineage_mask", "OBS_CONF,TIME_SERIES_CODE"),
+    }
 
     def query(statement):
         micro = "lbs_micro_transactions" in statement
         mask = "column_masks" in statement
         schema = "sovereign_intake" if micro else "sovereign_shield"
         kind = "mask" if mask else "filter"
-        function = "fn_rls_micro_country_lock" if micro else "fn_ddm_obs_conf_mask" if mask else "fn_rls_multi_persona_lock"
-        arguments = "reporting_country" if micro else "OBS_CONF,TIME_SERIES_CODE" if mask else "TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF"
+        if mask:
+            function, arguments = masks[re.search(r"column_name = '(\w+)'", statement).group(1)]
+        else:
+            function = "fn_rls_micro_country_lock" if micro else "fn_rls_multi_persona_lock"
+            arguments = "reporting_country" if micro else "TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF"
         row = {"table_catalog": "dbw_sovereignshield", "table_schema": schema,
                f"{kind}_name": f"dbw_sovereignshield.{schema}.{versions[function]}",
                "using_columns" if mask else "target_columns": arguments}

@@ -145,6 +145,20 @@ def test_persona_matrix_is_evaluable_without_a_workspace(corpus, visible_rows, n
     assert (public["OBS_CONF"] == "F").all()
 
 
+@pytest.mark.parametrize("variable", ["DATABRICKS_HOST", "DATABRICKS_WAREHOUSE_ID"])
+def test_local_persona_fixture_never_fronts_a_workspace(no_credentials, monkeypatch, repo_root, variable):
+    """The demo persona switch labels a local mirror; it must refuse a real warehouse."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("local_demo", Path(repo_root) / "sh" / "local_demo.py")
+    local_demo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(local_demo)
+    monkeypatch.setenv(variable, "configured")
+
+    with pytest.raises(SystemExit, match="local mirror only"):
+        local_demo.serve("admin", 0)
+
+
 # ---------------------------------------------------------------------------
 # The mirror tracks the metastore
 # ---------------------------------------------------------------------------

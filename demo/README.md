@@ -1,11 +1,9 @@
 # Synthetic Portal Capture Inventory
 
-The current publication set uses screenshots supplied on **18 September 2026**.
-Selected images were copied byte-for-byte from the local import folder into the
-canonical filenames below; copy integrity was checked with SHA-256. Labels,
-values, filters and display states were not redrawn or anonymized.
-
-## Selected Captures
+Eight captures were supplied on **18 September 2026** and copied byte-for-byte into the
+canonical filenames below; copy integrity was checked with SHA-256. Labels, values,
+filters and display states were not redrawn or anonymized. They predate coordinate
+masking, so their researcher views still show exact keys for restricted rows.
 
 | Publication Asset | Supplied Source Filename | Displayed State |
 | --- | --- | --- |
@@ -18,39 +16,32 @@ values, filters and display states were not redrawn or anonymized.
 | [submitter_ca_quarantine_view.png](submitter_ca_quarantine_view.png) | `regional_submitter_quarantine_view.png` | CA, Quarantine only, 4 rejected observations and batch/observation feedback |
 | [admin_published_view.png](admin_published_view.png) | `admin_view.png` | Administrator, Published mode, 22 observations with restricted measures visible |
 
-The administrator capture is **not** the 44-row Published + quarantine mode.
-That fixture outcome is documented in dated live evidence but requires its own
-capture when presented visually. The older administrator/quarantine image is
-superseded in the publication set; repository history preserves prior artifacts.
+The administrator capture is **not** the 44-row Published + quarantine mode; that
+outcome is documented in dated live evidence and needs its own capture.
+
+## Discovery Gateway Capture
+
+[researcher_discovery_view.png](researcher_discovery_view.png) was rendered on
+**1 October 2026** from the local synthetic catalog: 22 published observations, nine
+restricted values shown as *restricted* and their keys ending in `.xx.xx` in the same
+muted style. The persona is a labelled browser fixture over the local policy mirror,
+not live SSO. Reproduce it at 1440x900 with:
+
+```bash
+python sh/local_demo.py --serve researcher --port 8765
+google-chrome --headless --hide-scrollbars --window-size=1440,900 \
+  --virtual-time-budget=10000 --screenshot=researcher_discovery_view.png http://127.0.0.1:8765/
+```
 
 ## Evidence Boundaries
 
-Screenshots demonstrate the visible product state and synthetic disclosure labels.
-They do not independently attest the authenticated identity, deployment commit,
-full table contents beyond the visible scroll area, or statistical non-disclosure.
-Submission timestamps are displayed record metadata, not capture timestamps.
-Use [Release Evidence](../docs/RELEASE_EVIDENCE.md) for executable checks and limits.
+Screenshots demonstrate visible product state. They do not attest the authenticated
+identity, deployment commit, rows beyond the visible scroll area or statistical
+non-disclosure. Submission timestamps are record metadata, not capture times. Use
+[Release Evidence](../docs/RELEASE_EVIDENCE.md) for executable checks and limits.
+Sign-in and sign-out imports are excluded because they show account details and a
+password screen. The [historical export samples](sdmx) keep their own provenance.
 
-The Analyst View reconciles expected latest filings with actual receiver IDs,
-timestamps, values and verdicts. Current accepted publication is distinct from a
-latest rejected filing. Researcher-visible row presence and published totals can
-reconstruct masked measures; see the [open challenge](../SECURITY.md#statistical-reconstruction-challenge).
-
-The modeled international input is SDMx files only. Synthetic bank micro-transactions
-are educational calculation fixtures, not an institutional intake requirement or
-system deliverable. All visible observations in this set belong to the synthetic
-reference demonstration.
-
-The sign-in/sign-out imports are excluded from the publication set because they
-display account details and a password-entry screen without adding data-control
-evidence. Original imports and newly supplied export files are not modified or
-automatically published by screenshot selection. Existing [historical export samples](sdmx)
-retain their own provenance.
-
-## Use in Publications
-
-[The persona demonstration](../docs/PERSONA_DEMO_SCRIPT.md#reference-captures) links
-all selected views. The White Paper uses the public, researcher, CA combined and
-administrator Published views, with captions matching their actual displayed state.
-The Executive Brief and White Paper share the title **Bridging Public Dissemination
-and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**.
+The [persona demonstration](../docs/PERSONA_DEMO_SCRIPT.md#reference-captures) links
+every capture. The White Paper uses the public, Discovery Gateway, CA combined and
+administrator views, with captions that match their displayed state.

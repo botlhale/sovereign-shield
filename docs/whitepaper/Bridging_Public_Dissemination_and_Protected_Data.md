@@ -20,13 +20,13 @@ International financial institutions, central banks, and sovereign statistical b
 1. **Public Statistical Transparency:** The imperative to disseminate macroeconomic and financial indicators openly to researchers, market participants, and member states.
 2. **Confidential Statistical Protection:** The obligation to safeguard restricted observations, jurisdictional entitlements and the confidentiality of contributing institutions.
 
-A synthetic-first delivery model enables external specialists to implement and test a statistical platform against approved structures and security boundaries without access to confidential production records. SovereignShield provides an Azure and Databricks reference implementation alongside established SDMx infrastructure and institutional controls.
+A synthetic-first delivery model enables external specialists to implement and test a statistical platform against approved structures and security boundaries without access to confidential production records. That matters because the engineering is increasingly delivered by systems integrators, contractors and AI coding agents, while statutory confidentiality forbids showing them the data the controls protect. SovereignShield provides an Azure and Databricks reference implementation alongside established SDMx infrastructure and institutional controls.
 
 <div style="page-break-inside: avoid;">
 
 ![Executive Architecture](../figures/executive_architecture.png)
 
-*Figure 1 — Executive Architecture: synthetic submissions, validation, governed storage, and differentiated consumer access.*
+*Figure 1 — Executive Architecture: intake perimeter, Unity Catalog governance plane, trusted serving plane and persona outputs, including the researcher Discovery Gateway.*
 
 </div>
 
@@ -34,7 +34,7 @@ A synthetic-first delivery model enables external specialists to implement and t
 
 ![Synthetic-First Consulting Engagement](../figures/engagement_boundary.png)
 
-*Figure 2 — Synthetic-First Consulting Engagement: approved metadata, provider development, client review, staging acceptance and client-controlled production. The boundary is production isolation, not an air gap.*
+*Figure 2 — The Contractor Dilemma: providers and AI agents build in a synthetic-only sandbox; confidential filings, identities and every approval stay inside the client boundary. The boundary is production isolation, not an air gap.*
 
 </div>
 
@@ -62,7 +62,7 @@ A **Unified Storage, Dual-Tier Consumption Model** provides public and entitled 
 
 ![The Dual Consumption Model](../figures/dual_consumption.png)
 
-*Figure 3 — The Dual Consumption Model: public and entitled consumers access one governed data platform.*
+*Figure 3 — The Dual Consumption Model: public dissemination, the researcher Discovery Gateway and audit oversight read one governed store. The Secure Data Enclave is a conceptual extension.*
 
 </div>
 
@@ -87,7 +87,7 @@ At the core of the data plane sits the **Triple-Lock Governance Architecture**, 
 
 ![Triple-Lock Policy Enforcement Point](../figures/triple_lock.png)
 
-*Figure 4 — Triple-Lock Policy Enforcement Point: jurisdictional row filtering, confidentiality masking, and publication-state controls.*
+*Figure 4 — Triple-Lock Policy Enforcement Point: jurisdictional row filtering; value, coordinate and lineage masking; and publication-state controls.*
 
 </div>
 
@@ -97,8 +97,8 @@ Four entitled roles are evaluated through Databricks account-group membership, w
 
 1. **Public Consumer (`sg-sovereignshield-public`):**
   The anonymous browser is not itself a Databricks identity; the Container Apps gateway maps it to the dedicated public service principal. Access is restricted strictly to published observations explicitly marked free for publication (`OBS_CONF = 'F'`). Confidential rows are excluded from the query result by Unity Catalog.
-2. **Authenticated Researcher (`sg-sovereignshield-researchers`):**  
-  Access extends across published macro observations. Unless another membership authorizes the value, anything not explicitly free (`F`) is masked, including unknown or missing classifications. Discovery supports a subsequent request and separate agreement with the originating country; it does not authorize the underlying value. Row existence and dimensional structure can themselves disclose information, so this role requires a separate production disclosure decision.
+2. **Discovery Gateway Researcher (`sg-sovereignshield-researchers`):**  
+  The researcher is not a reader of partially suppressed tables but the user of a *Sovereign Discovery Gateway*. Every published series is listed, so a researcher learns that restricted observations exist for a reporting jurisdiction, period and series family, and can open a bilateral conversation with the submitting central bank. For any observation not explicitly free (`F`), including unknown or missing classifications, Unity Catalog withholds the value, replaces the counterparty coordinates with `xx.xx` and nulls the lineage columns. Discovery confers no access to the value; restricted cells require the [Secure Data Enclave](#the-secure-data-enclave-conceptual-future-state).
 3. **Regional Reporting Submitter (`sg-sovereignshield-submitter-{cty}`):**  
    Row-Level Security grants full, unmasked access strictly to observations originating from the submitter's designated jurisdiction, read from segment 9 of the SDMx key. For foreign jurisdictions the submitter inherits the public tier: published, free-to-publish observations only.
   The **Analyst View** is this submitter workflow, not a separate entitlement. It allows analysts to reconcile the latest filing they expect the international organization to hold with the submission IDs, timestamps, values and validation outcomes actually held in the system. The latest submitted filing may be rejected; it must not be confused with the current accepted publication.
@@ -113,14 +113,25 @@ The SQL examples are in Appendix A. The [deployment executor](../../src/apply_se
 
 Memberships compose additively. A principal who is both a submitter and a researcher receives the union of the matching row entitlements, while the mask still reveals restricted values only for the principal's own jurisdiction. This is why the functions use independent `OR` branches rather than a first-match `CASE` expression.
 
+### The Sovereign Discovery Gateway
+
+A withheld value must not carry its exact coordinates. `fn_ddm_series_key_mask` applies the same reveal rule as the value mask: administrators, the owning submitter and explicitly free observations keep the stored key; for everyone else segments 10 and 11, `L_CP_SECTOR` and `L_CP_COUNTRY`, become `xx`. `Q.S.C.A.USD.D.5J.A.US.A.5J` is shown as `Q.S.C.A.USD.D.5J.A.US.xx.xx`, and the portal renders the suffix in the same muted italic style as the word *restricted*.
+
+Four properties make this more than presentation. Segments 1-9 are preserved, so every policy that reads the segment-9 sovereignty anchor behaves identically on the stored or masked key. Masks resolve before query predicates, so filtering on a counterparty cannot probe which restricted row it belongs to, and filter lists never offer codes held only by restricted rows. `RECORD_ID` hashes the full key with a visible submission ID, `version_hash` hashes the value with visible attributes and `VALIDATION_NOTES` names the rules a row takes part in; `fn_ddm_lineage_mask` nulls all three, closing a key-enumeration and value-confirmation side channel. Finally, coordinate-masked rows are discovery metadata, never data: every download contains releasable observations only, so the researcher's product equals the public one and the two cannot be differenced.
+
+Coordinate masking hides *which* counterparty a restricted cell describes. It does not hide the residual of a published margin across dimensions that remain visible. In the fixture, the CA claims total (1000), domestic currency (400) and foreign currency (500) are public, so the unallocated-currency cell is still $1000-400-500=100$ even though its counterparty coordinates are masked. Complementary suppression of a margin, or withholding the role, remains the disclosure authority's decision.
+
+The coordinate and lineage masks are verified offline, against the policy SQL contract and the local mirror. Their live Unity Catalog acceptance is a [pending release gate](../RELEASE_EVIDENCE.md#discovery-gateway-acceptance).
+
 ### Demonstrated Persona Outcomes
 
-The screenshots below are the synthetic portal captures supplied on 18 September
-2026. They retain the captured labels, values and filters unchanged. Public,
-researcher, submitter and administrator screens illustrate different information
-products over the same governed history. The [capture inventory](../../demo/README.md)
-records each displayed state; screenshots alone are not independent identity or
-disclosure-control acceptance evidence.
+Figures 5, 7 and 8 are synthetic portal captures supplied on 18 September
+2026, with their captured labels, values and filters unchanged. The researcher
+capture is a local synthetic-fixture capture from 1 October 2026 that shows the
+Discovery Gateway; its persona is a labelled browser fixture over the local policy
+mirror, not live SSO. The [capture inventory](../../demo/README.md) records each displayed
+state; screenshots alone are not independent identity or disclosure-control
+acceptance evidence.
 
 <div style="page-break-inside: avoid;">
 
@@ -132,9 +143,9 @@ disclosure-control acceptance evidence.
 
 <div style="page-break-inside: avoid;">
 
-![Authenticated Researcher View with Masking](../../demo/researcher_view.png)
+![Researcher Discovery Gateway with value and coordinate masking](../../demo/researcher_discovery_view.png)
 
-*Figure 6 — Authenticated Researcher View with Masking: 22 published observations are visible, with nine restricted values masked.*
+*Figure 6 — Researcher Discovery Gateway: 22 published observations; nine restricted values are withheld and their counterparty coordinates shown as `.xx.xx` in the same muted style. These rows are excluded from every download.*
 
 </div>
 
@@ -258,12 +269,12 @@ dataflow,BIS:WS_LBS_D_PUB(1.0),I,Q,...,2026-Q1,400.000,A,N
 | Persona | Observations exported | Restricted values |
 | --- | ---: | --- |
 | Public proxy | 13 | none present — confidential rows never enter the result |
-| Researcher | 22 | 9 serialised as **absent**, not zero |
+| Researcher | 13 | none present — the 9 coordinate-masked rows stay in the portal as discovery metadata |
 | Administrator | 22 | 9 present, because `OBS_CONF = 'N'` is readable at this tier |
 
 </div>
 
-The distinction between an absent observation and a zero one is not cosmetic. Writing `0` for a redacted value would convert a confidentiality control into a false data point that reconciles incorrectly downstream; the exporter therefore omits the measure entirely, and `tests/test_sdmx_validation_rules.py` asserts that a masked value never serialises as `0`.
+The distinction between an absent observation and a zero one is not cosmetic. Writing `0` for a redacted value would convert a confidentiality control into a false data point that reconciles incorrectly downstream. Coordinate-masked rows never reach a download, the serializer refuses a masked key outright, and a masked measure is omitted rather than written as zero; `tests/test_sdmx_validation_rules.py` asserts both.
 
 ---
 
@@ -314,6 +325,28 @@ Masked values can be reconstructed from released totals, components, overlapping
 
 Community review is explicitly invited using synthetic examples: identify the released inputs, calculation, inferred value and affected persona. If observation existence makes reconstruction trivial, the Researcher role must be restricted or removed from a production design until an approved disclosure control is demonstrated. Disabling that role alone does not resolve reconstruction possible from public values. Secondary suppression, approved perturbation or a redesigned release product must be evaluated across dimensions, time and cumulative exports. The [security challenge](../../SECURITY.md#statistical-reconstruction-challenge) defines reporting and acceptance criteria.
 
+### The Secure Data Enclave (Conceptual Future State)
+
+This section describes an architectural concept and policy mechanism. The repository contains no enclave infrastructure.
+
+Two releases of the same cells, one suppressed for the public and one less suppressed for researchers, can be differenced to recover what either withholds. Sovereign Shield therefore applies **unified public suppression**: every product that leaves the platform, whatever the persona, contains the same releasable cells. The Discovery Gateway adds only the existence of restricted series, never their values or exact coordinates.
+
+A researcher who needs restricted cells, for example to estimate a regression on confidential macro positions, applies to the originating authority for a **Secure Data Enclave**: a locked-down Unity Catalog workspace in which approved code runs against restricted data but raw cells cannot be exported. The enclave follows the widely used Five Safes model.
+
+<div style="page-break-inside: avoid;">
+
+| Safe | Enclave mechanism, conceptual |
+| --- | --- |
+| Projects | A named, time-bounded project approved by the submitting authority, with a stated statistical purpose |
+| People | Membership of a project enclave group under a signed agreement; expiry removes it |
+| Settings | A dedicated workspace bound to the restricted catalog, private networking with no outbound internet, result download and file export disabled, all activity in audit system tables |
+| Data | A project-scoped dynamic view or attribute-based policy exposing only approved series and periods |
+| Outputs | Coefficients and aggregates leave only through a reviewed output volume after disclosure checks; raw extracts are refused |
+
+</div>
+
+Technical settings reduce exfiltration; they cannot prevent manual transcription, which agreements and output checking govern. Databricks Clean Rooms are an alternative where several authorities must analyse data jointly without sharing it. Each mechanism needs platform-specific design, testing and the data authority's approval before use.
+
 ### Production Acceptance Boundaries
 
 The deployment uses synthetic data and is not a production accreditation. Logical country segregation in a shared Canadian workspace is not physical country residency. RLS/DDM enforces entitlements, not complete statistical disclosure control: published totals in the fixture can reconstruct a masked component. Secondary suppression or another approved disclosure method is required before treating that risk as controlled. The gateway, privileged operators, exported files, and source archives remain trust boundaries.
@@ -326,7 +359,7 @@ Institutional threat modelling, privacy review, retention, independent rule sema
 
 ## Conclusion
 
-SovereignShield separates public dissemination from restricted statistical access through explicit information contracts and platform controls. The gateway selects identity and lifecycle scope, Unity Catalog enforces entitlements, SDMx validation determines acceptance, and submission-aware history preserves the current accepted publication. The Analyst View reconciles expected filings with the receiver's actual state. Synthetic-first delivery and client-owned runtime identities support implementation and handover, while disclosure control and institutional production approval remain explicit acceptance gates.
+SovereignShield separates public dissemination from restricted statistical access through explicit information contracts and platform controls. The gateway selects identity and lifecycle scope, Unity Catalog enforces entitlements, SDMx validation determines acceptance, and submission-aware history preserves the current accepted publication. The Analyst View reconciles expected filings with the receiver's actual state. The Discovery Gateway lets researchers find restricted series without values or coordinates, unified public suppression keeps every download identical to the public product, and the Secure Data Enclave describes how approved analysis of restricted cells could proceed. Synthetic-first delivery and client-owned runtime identities support implementation and handover, while disclosure control and institutional production approval remain explicit acceptance gates.
 
 ## Appendix A: Policy Examples
 
@@ -346,6 +379,17 @@ RETURN CASE
   WHEN is_account_group_member('sg-sovereignshield-submitter-us')
     AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'US', FALSE) THEN obs_val
   WHEN upper(trim(coalesce(obs_conf, ''))) = 'F' THEN obs_val
+  ELSE NULL
+END;
+
+CREATE OR REPLACE FUNCTION fn_ddm_series_key_mask(
+  time_series_code STRING, obs_conf STRING
+)
+RETURNS STRING
+RETURN CASE
+  -- the same four reveal branches as fn_ddm_obs_conf_mask
+  WHEN coalesce(size(split(time_series_code, '\\.')) = 11, FALSE)
+    THEN concat(substring_index(time_series_code, '.', 9), '.xx.xx')
   ELSE NULL
 END;
 ```
@@ -382,7 +426,9 @@ RETURN
 
 ## Appendix B: Context and References
 
-The bounded contribution is an inspectable integration of synthetic-first specialist delivery, company-controlled runtime identity, table-level entitlement policy, arrival-aware revision handling and separate dissemination/audit contracts. It does not claim global novelty, replace SDMx registries, or implement a complete statistical disclosure-control system.
+The bounded contribution is an inspectable integration of synthetic-first specialist delivery, company-controlled runtime identity, table-level entitlement policy, coordinate-masked discovery, arrival-aware revision handling and separate dissemination/audit contracts. It does not claim global novelty, replace SDMx registries, or implement a complete statistical disclosure-control system.
+
+The design reflects practical experience with group-based row-level security for regulatory returns on a commercial cloud platform, the modernization of an international banking statistics pipeline to SDMx 3.0 output, and the SDMx community's open tooling. It responds to three recurring needs: masking that no developer can bypass, governed partnerships between data holders and researchers, and analysts' need to know which of several submissions an international organization holds.
 
 Existing approaches include [SDMx Reference Infrastructure](https://sdmx.org/tools/), [Fusion Metadata Registry](https://www.bis.org/innovation/bis_open_tech_sdmx.htm), and [pysdmx](https://py.sdmx.io/). A registry maintains structural and provisioning metadata; the reference platform consumes a pinned subset and adds an Azure/Delta execution and access-control example. An institution may retain its current platform, extend existing SDMx tooling, or pilot this Azure integration after comparing operating burden, interoperability and residency requirements.
 
@@ -393,3 +439,5 @@ Existing approaches include [SDMx Reference Infrastructure](https://sdmx.org/too
 5. [Row filters and masks](https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/filters-and-masks/). Runtime and access-mode limitations must be checked for the deployed engine.
 6. [Terraform sensitive data](https://developer.hashicorp.com/terraform/language/manage-sensitive-data). Sensitive marking does not remove values from state or plan files.
 7. [BIS terms of use](https://www.bis.org/terms_conditions.htm). Public availability is not a blanket redistribution licence; third-party artifacts are excluded from this project's Apache grant.
+8. [Attribute-based access control in Unity Catalog](https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/abac/). Tag-driven policies are the platform's recommended way to apply the same filters and masks across many tables.
+9. [ONS Secure Research Service](https://www.ons.gov.uk/aboutus/whatwedo/statistics/requestingstatistics/secureresearchservice). A national statistics office applying the Five Safes model to secure research access.

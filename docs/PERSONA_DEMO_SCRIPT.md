@@ -22,7 +22,8 @@ not an independent authentication trace or the outcome of every acceptance test.
 | Canadian Regional Submitter (CA), quarantine included | [All submissions view](../demo/submitter_ca_all_submissions.png) |
 | US Regional Submitter (US), published | [Published view](../demo/submitter_us_view.png) |
 | Anonymous public, 13 rows | [Public view](../demo/public_view.png) |
-| Researcher, 22 rows and 9 masked measures | [Researcher view](../demo/researcher_view.png) |
+| Researcher Discovery Gateway, 22 rows, 9 values and coordinates masked | [Discovery Gateway view](../demo/researcher_discovery_view.png) |
+| Researcher, 22 rows and 9 masked measures, before coordinate masking | [Researcher view](../demo/researcher_view.png) |
 | Researcher filtered to GB, 14 rows and 4 masked measures | [GB-filtered view](../demo/researcher_gb_view.png) |
 | CA submitter, 4 rejected rows | [Quarantine-only view](../demo/submitter_ca_quarantine_view.png) |
 | Administrator, 22 current published rows | [Published administrator view](../demo/admin_published_view.png) |
@@ -33,21 +34,12 @@ No recording may show tokens, credentials, personal accounts or confidential rec
 
 ## Information Scope
 
-The international exchange modeled here accepts **SDMx files only**. Synthetic
-bank micro-transactions exist solely as educational artifacts illustrating how
-realistic observations are calculated. The demo ledger is not an institutional
-intake requirement or system deliverable. Domestic granular collection is outside
-this workflow and should not appear as an international submission arrow.
-
-The **Analyst View** is the regional submitter workflow. Its primary purpose is to
-verify that the latest filing an analyst expects the international organization
-to hold matches actual submission IDs, timestamps, values and validation outcomes.
-Latest submitted, latest received and current accepted publication are distinct.
-
-The **Researcher View** is conditional discovery, not guaranteed non-disclosure.
-Public totals, dimensions and observation existence can reveal masked values.
-Invite synthetic community challenges and restrict/remove the role if row presence
-makes reconstruction trivial. An agreement request does not itself grant access.
+The exchange accepts **SDMx files only**; synthetic bank micro-transactions are
+educational fixtures and should not appear as an international submission arrow.
+The **Analyst View** verifies that the latest filing an analyst expects the receiver
+to hold matches actual IDs, timestamps, values and outcomes. The **Researcher View**
+is a Discovery Gateway: existence without values or exact coordinates, which is not
+guaranteed non-disclosure (see the [open challenge](../SECURITY.md#statistical-reconstruction-challenge)).
 
 ## Demonstration Sequence
 
@@ -78,20 +70,21 @@ SDMx export and identify the selected scope and units.
 
 > The gateway handles tokens and entitled results and remains a trusted component.
 
-### 1:05-1:45: Researcher Discovery and Open Risk
+### 1:05-1:45: Researcher Discovery Gateway and Open Risk
 
-**Screen:** researcher fixture with 22 published rows and nine masked measures.
+**Screen:** researcher fixture with 22 published rows; nine values read *restricted*
+and their keys end in `.xx.xx`.
 
 **Narration:**
 
-> Researcher discovery identifies a published series and its originating authority
-> while withholding restricted measures. Obtaining those values requires a separate
-> agreement and approved entitlement.
+> The researcher sees that restricted series exist, for which reporting country and
+> series family, so they know whom to ask. They see neither the value nor the
+> counterparty: the last two key segments are masked by Unity Catalog, and filters
+> cannot probe them. Downloads contain releasable rows only, the same as the public.
 
-> The existence of a row is itself information. Published totals and known calculation
-> relationships can reconstruct a hidden component. This is an open challenge:
-> restrict or remove researcher discovery if row presence makes inference trivial.
-> Public-only releases also require statistical disclosure review.
+> Coordinate masking is not disclosure control. Published margins in this fixture
+> still give one hidden cell as 1000 minus 400 minus 500. Access to restricted cells
+> belongs in an approved secure enclave, and margins need complementary suppression.
 
 **Evidence boundary:** show synthetic reconstruction examples only. No live attack
 or third-party probing is part of this demonstration.
@@ -169,9 +162,9 @@ do not relabel the 22-row screenshot as that view.
 | --- | --- |
 | Public and signed-in persona paths, row/value entitlements | Institution-specific SSO, network and operating acceptance |
 | Published/all/quarantine views, IDs, timestamps and failure feedback | Trusted transport receipts, full latest-arrival dashboard and bilateral case management |
-| Current SDMx exports and submission-aware audit CSV | Researcher accreditation, agreements, expiry and purpose-limited approval workflows |
+| Current SDMx exports and submission-aware audit CSV | Researcher accreditation and the Secure Data Enclave (concept only) |
 | Immutable replay and accepted/rejected history | Distributed conflict handling and production-volume recovery evidence |
-| Researcher masking and structural discovery | Secondary suppression or another approved statistical disclosure-control product |
+| Discovery Gateway: value, coordinate and lineage masking | Complementary suppression or another approved statistical disclosure-control product |
 
 Use the [release evidence](RELEASE_EVIDENCE.md) for dated results and measurement
 scope. The brief leads the LinkedIn launch; the full White Paper provides depth.

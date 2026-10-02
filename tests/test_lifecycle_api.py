@@ -66,6 +66,43 @@ def test_researcher_cannot_request_quarantine(client):
     assert any(row["OBS_VALUE"] is None for row in rows)
 
 
+def _as_researcher():
+    api.app.dependency_overrides[api.current_principal] = lambda: Principal(
+        display_name="researcher", groups=frozenset({"sg-sovereignshield-researchers"}), authenticated=True,
+    )
+
+
+def test_discovery_gateway_preview_reports_masked_coordinates(client):
+    _as_researcher()
+    payload = client.get("/api/v1/search").json()
+    masked = [row for row in payload["observations"] if row["OBS_VALUE"] is None]
+
+    assert payload["masked_coordinates"] == payload["masked_observations"] == len(masked) > 0
+    assert all(row["TIME_SERIES_CODE"].endswith(".xx.xx") for row in masked)
+    assert all(row["L_CP_SECTOR"] == row["L_CP_COUNTRY"] == "xx" for row in masked)
+
+
+@pytest.mark.parametrize("path", ["sdmx-ml", "sdmx-json", "csv?format=sdmx", "audit-csv"])
+def test_researcher_downloads_contain_releasable_observations_only(client, path):
+    """Discovery metadata stays in the portal; downloads equal the public product."""
+    _as_researcher()
+    preview = client.get("/api/v1/search").json()
+    response = client.get(f"/api/v1/export/{path}")
+
+    assert response.status_code == 200
+    assert response.headers["x-sovereignshield-withheld"] == str(preview["masked_coordinates"])
+    assert int(response.headers["x-sovereignshield-rows"]) == preview["row_count"] - preview["masked_coordinates"]
+    assert ".xx" not in response.text and "\"xx\"" not in response.text
+
+
+def test_fully_restricted_download_is_no_content_with_withheld_count(client):
+    _as_researcher()
+    response = client.get("/api/v1/export/sdmx-json?reporting_country=US&position=L")
+
+    assert response.status_code == 204
+    assert response.headers["x-sovereignshield-withheld"] == "1"
+
+
 def test_empty_standard_export_is_no_content(client):
     assert client.get("/api/v1/export/sdmx-json?reporting_country=ZZ").status_code == 204
 

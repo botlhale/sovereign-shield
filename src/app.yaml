@@ -20,7 +20,7 @@ command:
 # identity - iam.current-user:read and iam.access-control:read - which is not
 # enough for uc_query.py's on-behalf-of SQL connect. The fix is not here: this
 # manifest has no field for it. It is `user_api_scopes` on the app resource in
-# ../databricks.yml, which the bundle applies - see steps_terraform.md Stage 5.
+# ../databricks.yml, which the bundle applies - see docs/AUTOMATION_RUNBOOK.md Stage 6.
 
 env:
   # DATABRICKS_HOST, DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET are

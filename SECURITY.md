@@ -36,7 +36,7 @@ The project steward will assess the report, communicate through the private advi
 Examples include:
 
 - cross-persona or cross-jurisdiction data exposure;
-- bypass of Unity Catalog row filters or column masks;
+- bypass of Unity Catalog row filters or column masks, including a withheld value whose exact coordinates or lineage hashes remain readable;
 - secret leakage or unsafe credential handling;
 - unauthorized deployment or privilege escalation;
 - failure of the public tier to remain fail-closed;
@@ -58,9 +58,14 @@ measure. The synthetic fixture includes the exact residual $1000-400-500=100$.
 Knowledge of the calculation method or the existence of a particular row can
 make a masked value identifiable without bypassing any access-control function.
 
-The Researcher persona exposes published keys, row existence and confidentiality
-metadata while withholding restricted measures. That metadata is an information
-product requiring its own disclosure decision, not a harmless substitute for values.
+The Researcher persona is a Discovery Gateway. It exposes free observations in full
+and, for restricted observations, the series family and reporting country (key
+segments 1-9), the period and the confidentiality flag. Values, counterparty
+coordinates (`xx.xx`) and lineage hashes are withheld, and downloads exclude those
+rows. The remaining metadata, including how many restricted rows share a prefix, is
+an information product requiring its own disclosure decision. Coordinate masking
+does not stop a margin residual across visible dimensions: in the fixture the CA
+claims total, domestic and foreign currency rows still give $1000-400-500=100$.
 Community review of this **identified open challenge** is invited using synthetic
 data. Document the released inputs, filters, units, time periods, equations or
 linkage, inference confidence and affected personas. Do not probe third-party
@@ -75,8 +80,8 @@ Before production, the originating data authority and disclosure reviewer must:
 1. Assess values, row presence, keys, counts, flags and revision differences across
 	all released products and cumulative downloads, including public-only access.
 2. Restrict or remove the Researcher role if identifying a row makes reconstruction
-	trivial. Consider a pre-approved metadata catalog that does not disclose
-	restricted observation existence. These are design options, not implemented controls.
+	trivial. A prefix-level discovery catalog that hides restricted-row counts, and a
+	Secure Data Enclave for approved analysis, are design options, not implemented controls.
 3. Validate secondary suppression, approved perturbation or a redesigned release
 	product against the statistical utility and consistency requirements.
 4. Re-run disclosure tests after every change to dimensions, release history,

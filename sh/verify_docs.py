@@ -3,7 +3,9 @@
 import argparse
 import hashlib
 import json
+import os
 import re
+import shutil
 import struct
 import subprocess
 from pathlib import Path
@@ -14,6 +16,19 @@ from markdown_it import MarkdownIt
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN = MarkdownIt("commonmark", {"html": True}).enable("table")
+CHROME_CANDIDATES = (
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
+)
+
+
+def chrome_executable():
+    for candidate in (os.getenv("CHROME_BIN"),) + CHROME_CANDIDATES:
+        path = candidate and (shutil.which(candidate) or candidate)
+        if path and Path(path).is_file():
+            return Path(path)
+    raise RuntimeError("Chrome or Chromium is required; set CHROME_BIN to its executable.")
 
 
 def slug(text):
@@ -57,9 +72,7 @@ def check_links():
 
 
 def render_diagrams(directory=ROOT / "docs/figures"):
-    chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-    if not chrome.is_file():
-        raise RuntimeError("Chrome is required to render the publication diagram PNGs.")
+    chrome = chrome_executable()
     output = ROOT / ".pytest_cache" / "publication-diagrams" / directory.name
     output.mkdir(parents=True, exist_ok=True)
     manifest = []
@@ -87,9 +100,7 @@ def render_diagrams(directory=ROOT / "docs/figures"):
 
 
 def render_proofs():
-    chrome = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-    if not chrome.is_file():
-        raise RuntimeError("Chrome was not found; use your installed browser to proof the generated Markdown.")
+    chrome = chrome_executable()
     output = ROOT / ".pytest_cache" / "publication-proof"
     output.mkdir(parents=True, exist_ok=True)
     style = """@page { size:A4; margin:16mm; } body {font:10pt 'Segoe UI',sans-serif;line-height:1.45;color:#17242c;}

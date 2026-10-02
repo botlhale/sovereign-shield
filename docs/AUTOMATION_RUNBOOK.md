@@ -1,19 +1,20 @@
 # SovereignShield One-Command Operations
 
-The orchestration scripts wrap the existing Terraform runbook. They do not
-replace Terraform, Databricks Asset Bundles or the stage-specific scripts; they
-execute those tools in the required order and stop on the first failed gate.
+The orchestration scripts wrap Terraform, Databricks Asset Bundles and the
+stage-specific helpers. They execute those tools in the required order and stop on
+the first failed gate. The greenfield orchestrator targets Windows PowerShell; on
+Linux or macOS, attach to an existing estate with the
+[bring-your-own scripts](#bring-your-own-azure-estate).
 
 For a resource-by-resource explanation of both Azure resource groups, the
 Databricks account layer, creation ownership, reuse behavior, cost relevance,
 and teardown ownership, see the
 [Systems Architect Resource Provenance Guide](RESOURCE_PROVENANCE.md).
 
-**Scope:** the international exchange contract is SDMx files only. Synthetic bank
-micro-transactions are educational calculation fixtures; their demo ledger is not
-an institutional intake requirement or system deliverable. Production adaptation
-must replace demo generation, accept disclosure controls and establish client
-ownership under [Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md).
+**Scope:** the exchange contract is SDMx files only; the synthetic micro-transaction
+ledger is an educational fixture. Production adaptation must replace demo generation,
+accept disclosure controls and establish client ownership under
+[Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md).
 
 ## Assumptions
 
@@ -96,7 +97,7 @@ media are never sent as image-build context.
 
 The runtime allowlist now includes the extracted structure/code contract and
 compiled local CSS, but not the BIS PDFs or workbook. Rebuild CSS with
-`.venv\Scripts\python.exe sh/build_portal_css.py` after template style changes.
+`python sh/build_portal_css.py` after template style changes.
 
 ### Resume or bound a run
 
@@ -263,3 +264,75 @@ that every identity artifact was removed.
 
 Resource ownership and retention boundaries are detailed in the
 [Resource Provenance Guide](RESOURCE_PROVENANCE.md).
+
+## Recovery Decisions
+
+| Failure | Recovery |
+| --- | --- |
+| Stage 3 run-as grant not yet visible | Bounded same-ETag verification; resume at Stage 3 after checking account authorization |
+| Stage 6 new App has no default source path | Source resolves from the selected bundle; resume at Stage 6, not Stage 3 |
+| Stage 6 deployment wait timed out | Reconcile the exact pending/latest deployment; never submit another copy |
+| Generation completed, ingestion failed | Repair the failed job tasks against archived arrivals; do not regenerate filings |
+| ACR build or push failed | Reuse the registry with a verified tag: `container_apps_deploy.ps1 -RegistryName <registry> -ImageTag <tag> -SkipImageBuild` |
+| Legacy DOUBLE history or another bundle path | Follow the [migration gate](RELEASE_EVIDENCE.md#mandatory-migration-gate); never force a routine apply |
+
+Use current Terraform outputs, not identifiers copied from dated deployment records.
+
+## Focused Helpers
+
+| Helper | Responsibility | Boundary |
+| --- | --- | --- |
+| [pre_auth.ps1](../sh/pre_auth.ps1) | Process-scoped authentication for manual operations | Dot-source it; no credential literals |
+| [databricks_account_setup.ps1](../sh/databricks_account_setup.ps1) | Account groups, identities, assignments and SQL entitlements | Exact application IDs; not continuous Entra synchronization |
+| [configure_bundle.py](../sh/configure_bundle.py) | Terraform outputs to target override JSON | Keeps the cluster object structured |
+| [configure_run_as.py](../sh/configure_run_as.py) | Deployer use permission on the runtime identity | Preserves existing grants; bounded read-back |
+| [activate_databricks_app.py](../sh/activate_databricks_app.py) | Bundle-resolved source and exact-deployment activation | Resume reconciles the pending/latest deployment |
+| [container_apps_deploy.ps1](../sh/container_apps_deploy.ps1) | Gateway image, Container App, vault references, optional Easy Auth | Alternative to the Terraform gateway owner |
+| [wait_databricks_run.py](../sh/wait_databricks_run.py) | Bounded wait for an existing run | Never regenerates submissions |
+| [live_persona_checks.py](../sh/live_persona_checks.py) | Temporary identities and real persona, coordinate and lineage assertions | Needs authorization and cleanup |
+| [kv_spn_remediation.sh](../sh/kv_spn_remediation.sh) | Legacy destructive credential remediation | Not routine offboarding |
+
+The legacy `databricks_create.sh`, `kv_spn_create.sh` and `grp_users_create.sh`
+helpers are isolated demonstrations, not a supported deployment route.
+
+## Bring Your Own Azure Estate
+
+Organizations that already run Azure and Databricks can attach Sovereign Shield to
+that estate from bash on Linux, macOS or WSL. The scripts look up every resource
+first, reuse what exists without modifying or re-tagging it, and create only the
+missing delta.
+
+```bash
+scripts/sovereign_up_custom.sh --dry-run      # prompts for the estate and prints the plan
+scripts/sovereign_up_custom.sh \
+  --subscription <subscription-id> --resource-group <resource-group> \
+  --workspace-url adb-<id>.<n>.azuredatabricks.net \
+  --key-vault <key-vault> --storage-account <adls-gen2-account>
+scripts/sovereign_down_custom.sh --dry-run    # what teardown would remove and keep
+scripts/sovereign_down_custom.sh              # type DELETE to confirm
+```
+
+| Resource | When present | When missing | Teardown |
+| --- | --- | --- | --- |
+| Resource group, Key Vault, ADLS Gen2 account and container | Attached | Created and tagged | Created ones only; groups only when empty |
+| Premium Databricks workspace | Attached; Standard is refused | Created and tagged | Created one only |
+| Access connector and its storage role assignment | Attached | Created and tagged | Created ones only |
+| Unity Catalog metastore | Attached; must already be assigned | Never created | Never touched |
+| Storage credential, external location, `dbw_sovereignshield` catalog, three schemas, submission volume | Attached | Created with a `ManagedBy` comment | Created ones, without force |
+| SQL warehouse | Attached by ID or name | 2X-Small serverless, auto-stop 10 minutes, tagged | Created one only |
+| Policy functions, protected tables and published view | Attached | Created through the warehouse by [apply_policies.py](../scripts/apply_policies.py) | Created ones, before their schemas |
+
+Created Azure resources carry `ManagedBy=SovereignShield` and `ProvisionedScope=Delta`.
+Everything attached or created is recorded in `.sovereign_provisioned_manifest.json`,
+which git ignores. Keep it with the change record: it is the only teardown authority,
+and provenance stays sticky across reruns. Teardown runs in reverse dependency order,
+skips any Azure resource whose `ManagedBy` tag has changed, never forces a non-empty
+schema or catalog, and leaves Key Vaults soft-deleted rather than purged.
+
+The operator needs rights to create the missing resources, assign Storage Blob Data
+Contributor on the storage account and create Unity Catalog objects in the metastore.
+Persona grants apply by default only when the run created the catalog and all five
+account groups exist (`--grants auto|always|never`); shared catalogs keep their grants.
+The policy plane runs as the operator, so transfer function and table ownership to a
+stable service principal before production. The ingestion job and portals then follow
+through the bundle and gateway helpers above.

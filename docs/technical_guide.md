@@ -7,11 +7,8 @@ an authorized synthetic workspace.
 
 ## Before You Start
 
-```powershell
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m pytest tests/
-```
+Follow the [README quickstart](../README.md#quickstart-a-5-minute-developer-run) for
+Linux, macOS or Windows, then run `pytest` from the activated environment.
 
 Record the commit and environment with test results. Opt-in `live` and `stress`
 skips are not passes. The local policy mirror is a development tool, not a security
@@ -19,20 +16,13 @@ boundary against someone who can read local files.
 
 ## Pass 1: Architecture and Evidence
 
-Read [README](../README.md), [technical vision](technical_vision.md) and
-[architecture diagrams](ARCHITECTURE_DIAGRAMS.md). The companion Executive Brief
-and White Paper have the shared title **Bridging Public Dissemination and Protected
-Data: A Zero-Trust SDMx Architecture on Azure Databricks**.
-
+Read the [README](../README.md), [architecture diagrams](ARCHITECTURE_DIAGRAMS.md)
+and the [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md).
 Identify four separate concerns: information contracts, infrastructure ownership,
 query-time entitlements and statistical disclosure. A table policy does not
-eliminate application, gateway, storage or operator trust.
-
-Live provisioning and teardown succeeded. The synthetic evaluation measured
-approximately **75 minutes up including prerequisites**, **30 minutes down**, and
-**US$10 or less in Azure charges for deploy/test/teardown**. Read the
+eliminate application, gateway, storage or operator trust. Read the
 [measurement boundaries](RELEASE_EVIDENCE.md#reference-evaluation-metrics) before
-using those values in an institutional business case.
+using the evaluation timing or cost in an institutional business case.
 
 ## Pass 2: Information Contract
 
@@ -40,11 +30,9 @@ Read [the MVSD contract](../.github/skills/mvsd_specification.md),
 [lbs_contract.py](../src/lbs_contract.py), and
 [generate_sovereign_submissions.py](../src/generate_sovereign_submissions.py).
 
-The international exchange accepts **SDMx files only**. Synthetic bank
-micro-transactions exist solely as educational artifacts showing how realistic
-observations are calculated. Their demo ledger is not an institutional intake
-requirement or system deliverable. The receiver validates the submitted file
-independently; it does not recompute it from the educational ledger.
+The international exchange accepts **SDMx files only**; the synthetic bank
+micro-transactions are educational fixtures, and the receiver validates the
+submitted file independently rather than recomputing it from the ledger.
 
 The eleven-part key uses segment 9 for reporting country and segment 1 for frequency.
 The LBS fixture is quarterly; generic multi-cadence stress labels are not evidence
@@ -67,11 +55,13 @@ Read in order:
 
 The mask repeats own-country validation even when the row filter permits access
 through another membership. Unknown/missing classification is withheld except
-for explicitly entitled administrator/own-country access. Non-throwing segment
-lookup prevents indexing failures; strict ingestion still owns key validation.
+for explicitly entitled administrator/own-country access. The coordinate and
+lineage masks reuse those exact reveal branches, so a withheld value never keeps
+its counterparty segments or the hashes that would re-identify them. Non-throwing
+segment lookup prevents indexing failures; strict ingestion still owns key validation.
 
-The Researcher role reveals observation presence. Public totals and related
-breakdowns can reconstruct a masked value without a policy bypass. Follow the
+The Researcher role reveals that restricted observations exist. Public totals and
+related breakdowns can reconstruct a masked value without a policy bypass. Follow the
 [open synthetic challenge](../SECURITY.md#statistical-reconstruction-challenge)
 and restrict/remove that role if existence disclosure makes inference trivial.
 Public products require independent disclosure review as well.
@@ -114,7 +104,8 @@ workflows; processing time is not transport attestation.
 
 The trusted gateway selects identity, lifecycle and user filters; UC applies row/value
 entitlement. Standard SDMx exports are current/published-only; audit CSV is separate.
-The serializer uses pinned offline components and exact decimal formatting.
+Every download drops coordinate-masked rows, so a researcher's file equals the public
+one. The serializer uses pinned offline components and exact decimal formatting.
 Masked values are absent, never zero. Exported files cannot enforce future revocation.
 
 ## Pass 6: Infrastructure and Ownership
@@ -148,9 +139,9 @@ Warehouse size and concurrency are different levers, and neither is a universal 
 
 ### Pass 6b: Scale and Stress Tests
 
-```powershell
-.venv\Scripts\python.exe src/generate_stress_test_data.py --rows 100000 --frequencies "A,S,Q,M" --periods 4
-.venv\Scripts\python.exe -m pytest tests/test_scale_and_stress.py --stress
+```bash
+python src/generate_stress_test_data.py --rows 100000 --frequencies "A,S,Q,M" --periods 4
+pytest tests/test_scale_and_stress.py --stress
 ```
 
 The [stress generator](../src/generate_stress_test_data.py) and
@@ -186,8 +177,11 @@ not unrelated work in the primary checkout.
 
 Repeat with single-country versus multi-country fixtures to assess coverage gaps.
 A test that only observes rows already removed by RLS does not verify the mask.
-Then construct a synthetic inference case from public totals and row presence:
-correct authorization can coexist with unacceptable information disclosure.
+Then remove one lineage column from `LINEAGE_COLUMNS` or one reveal branch from
+`fn_ddm_series_key_mask`: the coordinate, lineage or shared-branch tests must fail.
+Finally construct a synthetic inference case from public totals and row presence,
+for example with `python sh/local_demo.py --persona researcher`: correct
+authorization can coexist with unacceptable information disclosure.
 
 ## Review Outputs
 

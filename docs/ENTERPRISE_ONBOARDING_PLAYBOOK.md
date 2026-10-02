@@ -85,9 +85,10 @@ same-message replay, new identical filings and late arrivals. The **Analyst View
 must reconcile expected latest submissions with actual receiver state and
 distinguish a rejected latest filing from the current accepted publication.
 
-The Researcher persona is conditional on disclosure approval. Published totals,
-row presence, dimensions and revision differences can reconstruct restricted
-values. Apply the [reconstruction challenge and release criteria](../SECURITY.md#statistical-reconstruction-challenge);
+The Researcher persona is a Discovery Gateway and remains conditional on disclosure
+approval: restricted rows show existence without value or counterparty, yet published
+totals, row presence and revision differences can still reconstruct restricted values.
+Apply the [reconstruction challenge and release criteria](../SECURITY.md#statistical-reconstruction-challenge);
 restrict or remove the role if observation existence makes inference trivial.
 
 ### Repository Options
@@ -105,15 +106,9 @@ notices and attribution whichever transfer mechanism is used.
 
 ### Local Setup
 
-From a client-approved workstation and repository location:
-
-```powershell
-git clone https://github.com/botlhale/sovereign-shield.git
-cd sovereign-shield
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m pytest tests/
-```
+From a client-approved workstation and repository location, follow the
+[README quickstart](../README.md#quickstart-a-5-minute-developer-run) for Linux,
+macOS or Windows and run `pytest`.
 
 Use an approved commit or release, record dependency versions, and configure the
 existing repository's development environment rather than generating a new
@@ -135,12 +130,9 @@ runbook. Terraform owns infrastructure and grants; the bundle/policy executor
 owns jobs, table DDL and protected policy bindings. Assign one writer to each
 managed object or principal/securable grant pair.
 
-The reference architecture has completed live Azure provisioning and teardown.
-The evaluation measured approximately **75 minutes for bring-up including
-prerequisites**, **30 minutes for teardown**, and **US$10 or less in Azure charges
-for deploy/test/teardown**. These establish the cost of a bounded synthetic
-evaluation, not engagement fees, production capacity or a universal price limit.
-See [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
+The reference architecture has completed live Azure provisioning and teardown; the
+[measured evaluation](RELEASE_EVIDENCE.md#reference-evaluation-metrics) bounds the cost
+of a synthetic pilot, not engagement fees or production capacity.
 
 ## 5. Handover and Client-Controlled Deployment
 
@@ -215,24 +207,33 @@ data residency, operating capability, interoperability and total cost.
 ## Engagement Workflow
 
 ```mermaid
-flowchart LR
-    SCOPE["Client: scope, owners and acceptance"] --> CONTRACT["Approved metadata and synthetic contract"]
-    CONTRACT --> BUILD["Provider: approved repository, fixtures and tests"]
-    BUILD --> REVIEW["Client: independent review and risk decisions"]
-    REVIEW --> TRANSFER["Versioned handover to client repository"]
-    TRANSFER --> STAGING["Client identities: synthetic staging and acceptance"]
-    STAGING --> GATE{"Production approval"}
-    GATE -->|Approved| PROD["Client production: SDMx files and governed products"]
-    GATE -->|Changes required| BUILD
-    PROD --> OPERATE["Client operations and analyst reconciliation"]
-    OPERATE --> EXIT["Provider offboarding and continuity evidence"]
-    DATA["Client confidential records"] --> PROD
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "14px", "lineColor": "#64748B", "primaryTextColor": "#0F172A", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"nodeSpacing": 30, "rankSpacing": 28, "padding": 8, "curve": "basis"}}}%%
+flowchart TB
+    SCOPE["Client · scope, owners and<br/>approved synthetic contract"] --> BUILD["Provider and AI agents<br/>synthetic fixtures, code, tests"]
+    BUILD --> REVIEW{"Independent<br/>review"}
+    REVIEW -.->|rework| BUILD
+    REVIEW -->|approved release| STAGE["Client · import, own identities,<br/>synthetic staging"]
+    STAGE -->|acceptance evidence| GATE{"Production<br/>approval"}
+    GATE -.->|changes required| BUILD
+    GATE -->|approved| PROD["Client · production intake<br/>and governed products"]
+    DATA[("Client confidential records")] --> PROD
+    PROD --> EXIT["Client · operate, reconcile,<br/>offboard provider"]
+
+    classDef slate fill:#1E293B,stroke:#0F172A,color:#F8FAFC
+    classDef indigo fill:#4338CA,stroke:#3730A3,color:#FFFFFF
+    classDef teal fill:#0F766E,stroke:#115E59,color:#FFFFFF
+    classDef gate fill:#FEF3C7,stroke:#D97706,color:#78350F
+    class SCOPE,DATA slate
+    class BUILD indigo
+    class STAGE,PROD,EXIT teal
+    class REVIEW,GATE gate
 ```
 
-The provider boundary receives approved metadata, synthetic fixtures and reviewed
-feedback only. Production data does not flow back into the independent repository.
-The [image-generation prompt](ENGAGEMENT_WORKFLOW_IMAGE_PROMPT.md) specifies the
-equivalent stakeholder diagram.
+Indigo marks the synthetic-only provider boundary; slate, teal and amber are client-owned
+decisions and operations. The provider receives approved metadata, synthetic fixtures and
+reviewed feedback only; production data never flows back. The
+[image prompts guide](figures/gemini_image_prompts.md#engagement-figures) specifies the
+equivalent stakeholder diagrams.
 
 ## Related Material
 

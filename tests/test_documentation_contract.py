@@ -19,7 +19,7 @@ FIGURES = [
     "../figures/dual_consumption.png",
     "../figures/triple_lock.png",
     "../../demo/public_view.png",
-    "../../demo/researcher_view.png",
+    "../../demo/researcher_discovery_view.png",
     "../../demo/submitter_ca_all_submissions.png",
     "../../demo/admin_published_view.png",
     "../figures/submission_history.png",
@@ -80,6 +80,7 @@ def test_all_submitter_reference_captures_are_linked():
     for name in (
         "public_view.png",
         "researcher_view.png",
+        "researcher_discovery_view.png",
         "researcher_gb_view.png",
         "submitter_ca_view.png",
         "submitter_ca_all_submissions.png",
@@ -145,7 +146,7 @@ def test_engagement_and_publication_guides_keep_approval_boundaries():
     assert all(section in engagement for section in (
         "Repository Options", "Client Prerequisites", "Handover Package", "Offboarding and Continuity",
     ))
-    assert "ENGAGEMENT_WORKFLOW_IMAGE_PROMPT.md" in engagement
+    assert "figures/gemini_image_prompts.md" in engagement
     assert all(topic in publication for topic in ("Zenodo", "Figshare", "SSRN", "AI disclosure", "--verify-tag", "--draft", "--prerelease"))
     assert "typically not accepted" in publication
     assert "not executed external actions" in publication
