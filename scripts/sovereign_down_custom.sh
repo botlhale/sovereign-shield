@@ -73,9 +73,14 @@ unset DATABRICKS_TOKEN DATABRICKS_CLIENT_ID DATABRICKS_CLIENT_SECRET DATABRICKS_
 [[ -z "$WORKSPACE_HOST" ]] || export DATABRICKS_HOST="https://$WORKSPACE_HOST" DATABRICKS_AUTH_TYPE=azure-cli
 
 order_json="$(printf '%s\n' "${ORDER[@]}" | jq -R . | jq -sc .)"
+unknown="$(jq -r --argjson order "$order_json" '
+  [.resources[] | select(.deleted_at == null and .pre_existing == false and ((.kind as $kind | $order | index($kind)) == null))
+   | "\(.kind) \(.name)"] | unique | .[]' "$MANIFEST")"
+[[ -z "$unknown" ]] || die "Manifest records created resources of a kind this teardown cannot order; nothing is deleted:
+$unknown"
 plan="$(jq -c --argjson order "$order_json" '
   [.resources[] | select(.deleted_at == null and .pre_existing == false)
-   | . as $resource | . + {rank: (($order | index($resource.kind)) // 99)}] | sort_by(.rank) | .[]' "$MANIFEST")"
+   | . as $resource | . + {rank: ($order | index($resource.kind))}] | sort_by(.rank) | .[]' "$MANIFEST")"
 keep="$(jq -r '.resources[] | select(.deleted_at == null and .pre_existing == true) | "KEEP    \(.kind) \(.name) (pre-existing)"' "$MANIFEST")"
 
 printf '\nSovereign Shield teardown for subscription %s\n' "$SUBSCRIPTION" >&2

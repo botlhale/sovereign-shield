@@ -519,7 +519,7 @@ class LocalDeltaBackend:
 
         for dimension, codes in series_filter.dimensions.items():
             position = DIMENSION_SEGMENTS[dimension] - 1
-            segment = frame["TIME_SERIES_CODE"].astype(str).str.split(".").str[position]
+            segment = frame["TIME_SERIES_CODE"].astype("string").str.split(".").str[position]
             frame = frame[segment.isin(codes)]
 
         if series_filter.date_from:
@@ -534,7 +534,7 @@ class LocalDeltaBackend:
         frame = self._apply_persona(self._load(), principal)
         frame = frame[frame["IS_CURRENT"] == True]  # noqa: E712
         position = DIMENSION_SEGMENTS[dimension] - 1
-        segment = frame["TIME_SERIES_CODE"].astype(str).str.split(".").str[position]
+        segment = frame["TIME_SERIES_CODE"].astype("string").str.split(".").str[position]
         return sorted({value for value in segment.dropna().tolist() if value and value != COORDINATE_MASK_TOKEN})
 
     def periods(self, principal: Principal) -> List[str]:
@@ -585,7 +585,7 @@ def _with_dimension_columns(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty:
         return pd.DataFrame(columns=RESULT_COLUMNS + list(DIMENSION_SEGMENTS))
     frame = frame.copy()
-    segments = frame["TIME_SERIES_CODE"].astype(str).str.split(".", expand=True)
+    segments = frame["TIME_SERIES_CODE"].astype("string").str.split(".", expand=True)
     for dimension, position in DIMENSION_SEGMENTS.items():
         frame[dimension] = segments[position - 1] if position - 1 in segments.columns else pd.NA
     return frame[[c for c in RESULT_COLUMNS if c in frame.columns] + list(DIMENSION_SEGMENTS)]

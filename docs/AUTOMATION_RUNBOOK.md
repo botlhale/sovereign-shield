@@ -349,7 +349,9 @@ has lost its `ManagedBy` marker, because it cannot tell what the new owner relie
 restore the marker, or keep the estate and archive the manifest. A team that starts
 using the container should claim it by changing that metadata. Do not edit
 `pre_existing` to hand over a single resource; teardown would still remove what was
-built on it. Teardown then runs in reverse dependency order, never forces a non-empty
+built on it. A created entry of a kind the teardown script does not know, such as one
+recorded by a newer version, has no known dependency order, so nothing is deleted.
+Teardown then runs in reverse dependency order, never forces a non-empty
 schema or catalog, closes a manifest entry only once the object is reported missing,
 stops at the first object it keeps or cannot confirm removed, and leaves Key Vaults
 soft-deleted rather than purged.

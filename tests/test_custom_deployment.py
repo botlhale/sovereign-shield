@@ -440,6 +440,22 @@ def test_down_deletes_nothing_while_a_created_resource_is_adopted(estate, label,
     assert all(estate.provenance().values())
 
 
+def test_down_deletes_nothing_while_a_created_resource_kind_is_unknown(estate):
+    """An unknown kind has no known dependency order, so teardown aborts before planning any deletion."""
+    assert estate.up("--yes").returncode == 0
+    manifest = estate.manifest()
+    manifest["resources"].append({"kind": "future_kind", "name": "thing-1", "pre_existing": False, "deleted_at": None})
+    estate.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    estate.reset_log()
+
+    result = estate.run(DOWN, "--yes")
+
+    assert result.returncode != 0
+    assert "future_kind thing-1" in result.stderr and "DELETE" not in result.stderr
+    assert not [call for call in estate.calls() if "delete" in call]
+    assert estate.manifest() == manifest
+
+
 def test_down_never_records_a_deletion_it_could_not_confirm(estate):
     """A Databricks auth failure stops teardown before the storage beneath Unity Catalog."""
     assert estate.up("--yes").returncode == 0

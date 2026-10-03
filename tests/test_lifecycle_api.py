@@ -151,6 +151,23 @@ def test_local_download_drops_a_key_the_mask_withheld_entirely(corpus, monkeypat
     assert len(download) == len(preview) - int(coordinate_masked(preview).sum())
 
 
+def test_local_mirror_keeps_a_withheld_key_null_in_facets_and_results(corpus, monkeypatch):
+    """A key masked to NULL yields NULL dimensions, as in warehouse SQL, never the string 'None'."""
+    frame = corpus.copy()
+    frame.loc[frame["TIME_SERIES_CODE"].str.contains(".CAD.", regex=False), "TIME_SERIES_CODE"] = "Q.S.C.A"
+    backend = LocalDeltaBackend()
+    monkeypatch.setattr(backend, "_load", lambda: frame.copy())
+    researcher = Principal(display_name="researcher", groups=frozenset({"sg-sovereignshield-researchers"}),
+                           authenticated=True)
+
+    rows = backend.search(SeriesFilter.build(), researcher)
+    withheld = rows[rows["TIME_SERIES_CODE"].isna()]
+
+    assert len(withheld) == 1 and withheld["FREQ"].isna().all()
+    assert "None" not in backend.facets("FREQ", researcher)
+    assert backend.search(SeriesFilter.build(frequency=["None"]), researcher).empty
+
+
 def test_quarantine_query_does_not_require_current_rows():
     sql, _ = build_search_sql(SeriesFilter.build(lifecycle="quarantine"))
     assert "WHERE BATCH_STATUS = 'QUARANTINE'" in sql
