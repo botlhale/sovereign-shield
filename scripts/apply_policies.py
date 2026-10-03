@@ -2,8 +2,9 @@
 
 Runs the same content-addressed DDL, definition checks and binding verification as
 the Asset Bundle task, using the operator's Azure CLI identity instead of Spark.
-Writes the functions, tables and views it found or created to a JSON result file,
-also when a later statement fails, so partial creations keep teardown ownership.
+Writes the functions, tables and views the policy DDL defines that it found or
+created to a JSON result file, also when a later statement fails, so partial
+creations keep teardown ownership; unrelated objects in the shared schemas are ignored.
 Refuses to rebind or replace an existing table or view it did not create unless
 adoption is explicit, because those changes are not reversed at teardown.
 """
@@ -56,17 +57,37 @@ def inventory(session):
     return objects
 
 
+def policy_statements():
+    with open(apply_security.resolve_sql_path(), encoding="utf-8") as source:
+        return [statement for statement, _ in apply_security.parse_statements(source.read())]
+
+
+def qualify(name):
+    parts = name.split(".")
+    return ".".join({1: [CATALOG, SCHEMAS[0]], 2: [CATALOG], 3: []}[len(parts)] + parts)
+
+
 def modified_objects():
     """Tables and views whose bindings or definitions the policy SQL replaces."""
-    with open(apply_security.resolve_sql_path(), encoding="utf-8") as source:
-        statements = [statement for statement, _ in apply_security.parse_statements(source.read())]
     objects = set()
-    for statement in statements:
+    for statement in policy_statements():
         match = re.match(r"(ALTER TABLE|CREATE OR REPLACE VIEW)\s+([\w.]+)", statement, re.I)
         if match:
-            parts = match.group(2).split(".")
-            prefix = {1: [CATALOG, SCHEMAS[0]], 2: [CATALOG], 3: []}[len(parts)]
-            objects.add(".".join(prefix + parts))
+            objects.add(qualify(match.group(2)))
+    return objects
+
+
+def policy_objects():
+    """Functions, tables and views the policy SQL can create, with content-addressed function names."""
+    statements, _ = apply_security.version_policy_functions(policy_statements())
+    kinds = {"CREATE FUNCTION IF NOT EXISTS": "function", "CREATE TABLE IF NOT EXISTS": "table",
+             "CREATE OR REPLACE VIEW": "view"}
+    objects = set()
+    for statement in statements:
+        match = re.match(r"(CREATE FUNCTION IF NOT EXISTS|CREATE TABLE IF NOT EXISTS|CREATE OR REPLACE VIEW)"
+                         r"\s+([\w.]+)", statement, re.I)
+        if match:
+            objects.add((kinds[re.sub(r"\s+", " ", match.group(1)).upper()], qualify(match.group(2))))
     return objects
 
 
@@ -94,6 +115,7 @@ def main():
         os.environ["SOVEREIGNSHIELD_SKIP_GRANTS"] = "1"
     with connect(args.host.removeprefix("https://").rstrip("/"), args.warehouse_id) as connection:
         session = WarehouseSession(connection)
+        candidates = policy_objects()
         before = inventory(session)
         existing = {name for _, name in before}
         foreign = sorted(modified_objects() & existing - set(args.owned))
@@ -106,7 +128,7 @@ def main():
             apply_security.apply_security_layer(spark=session)
         finally:
             result = [{"kind": kind, "name": name, "pre_existing": (kind, name) in before}
-                      for kind, name in sorted(inventory(session))]
+                      for kind, name in sorted(inventory(session) & candidates)]
             args.result.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(f"Recorded {len(result)} policy-plane objects ({sum(not item['pre_existing'] for item in result)} created).")
 

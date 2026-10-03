@@ -501,6 +501,14 @@ def test_down_dry_run_lists_plan_without_deleting(estate):
     assert not [call for call in estate.calls() if "delete" in call]
 
 
+def policy_function(name):
+    import apply_security
+
+    statements = [statement for statement, _ in apply_security.parse_statements(
+        (ROOT / "src" / "unity_catalog_triple_lock.sql").read_text(encoding="utf-8"))]
+    return apply_security.version_policy_functions(statements)[1][name]
+
+
 def warehouse_policy_executor(catalog, monkeypatch, applied=None, fails=False):
     """apply_policies.py over a fake warehouse whose information_schema lists ``catalog``."""
     import importlib.util
@@ -539,7 +547,9 @@ def warehouse_policy_executor(catalog, monkeypatch, applied=None, fails=False):
         assert spark.sql("SELECT 1 FROM dbw_sovereignshield.information_schema.routines").collect() is not None
         if applied is not None:
             applied.append(True)
-        catalog.update({("function", "sovereign_shield", "fn_new"), ("view", "sovereign_shield", "v_agg_sdmx_published")})
+        catalog.update({("function", "sovereign_shield", policy_function("fn_rls_multi_persona_lock")),
+                        ("view", "sovereign_shield", "v_agg_sdmx_published"),
+                        ("function", "sovereign_shield", "fn_other_team"), ("table", "sovereign_intake", "other_team")})
         if fails:
             raise RuntimeError("a later DDL statement failed")
 
@@ -557,8 +567,14 @@ def run_policy_executor(module, result, monkeypatch, *extra):
 
 @pytest.mark.parametrize("fails", [False, True])
 def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch, fails):
-    """The policy plane labels only new objects as created, also when a later statement fails."""
-    catalog = {("function", "sovereign_shield", "fn_old"), ("table", "sovereign_shield", "agg_sdmx_history")}
+    """The policy plane labels only new policy objects as created, also when a later statement fails.
+
+    Objects another operator creates in the shared schemas meanwhile are not policy objects, so they are
+    left out of the result instead of being claimed for teardown.
+    """
+    old = policy_function("fn_ddm_obs_conf_mask")
+    catalog = {("function", "sovereign_shield", old), ("table", "sovereign_shield", "agg_sdmx_history"),
+               ("function", "sovereign_shield", "fn_unrelated")}
     module = warehouse_policy_executor(catalog, monkeypatch, fails=fails)
     result = tmp_path / "result.json"
     with pytest.raises(RuntimeError) if fails else contextlib.nullcontext():
@@ -566,9 +582,9 @@ def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch
 
     recorded = {item["name"]: item["pre_existing"] for item in json.loads(result.read_text(encoding="utf-8"))}
     assert recorded == {
-        "dbw_sovereignshield.sovereign_shield.fn_old": True,
+        f"dbw_sovereignshield.sovereign_shield.{old}": True,
         "dbw_sovereignshield.sovereign_shield.agg_sdmx_history": True,
-        "dbw_sovereignshield.sovereign_shield.fn_new": False,
+        f"dbw_sovereignshield.sovereign_shield.{policy_function('fn_rls_multi_persona_lock')}": False,
         "dbw_sovereignshield.sovereign_shield.v_agg_sdmx_published": False,
     }
     assert os.environ["SOVEREIGNSHIELD_SKIP_GRANTS"] == "1"
