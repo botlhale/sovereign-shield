@@ -334,8 +334,8 @@ state. A run therefore stops before policy DDL when one of those objects exists 
 the manifest did not record creating it. Pass `--adopt-policy-objects` to accept
 these persistent changes: adopted objects and the added constraint remain after
 teardown.
-policy functions they are bound to, drop or rebind their masks and row filters and
-restore the view's earlier definition.
+Before teardown, drop or rebind masks and row filters on adopted tables that reference created
+policy functions, and restore the view's earlier definition.
 
 Created Azure resources carry `ManagedBy=SovereignShield` and `ProvisionedScope=Delta`
 as tags; the container, which cannot be tagged, carries them as metadata. Everything
