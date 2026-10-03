@@ -501,15 +501,13 @@ def test_down_dry_run_lists_plan_without_deleting(estate):
     assert not [call for call in estate.calls() if "delete" in call]
 
 
-@pytest.mark.parametrize("fails", [False, True])
-def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch, fails):
-    """The policy plane labels only new objects as created, also when a later statement fails."""
+def warehouse_policy_executor(catalog, monkeypatch, applied=None, fails=False):
+    """apply_policies.py over a fake warehouse whose information_schema lists ``catalog``."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("apply_policies", ROOT / "scripts" / "apply_policies.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    catalog = {("function", "sovereign_shield", "fn_old"), ("table", "sovereign_shield", "agg_sdmx_history")}
 
     class Cursor:
         description = None
@@ -539,6 +537,8 @@ def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch
 
     def apply_layer(spark):
         assert spark.sql("SELECT 1 FROM dbw_sovereignshield.information_schema.routines").collect() is not None
+        if applied is not None:
+            applied.append(True)
         catalog.update({("function", "sovereign_shield", "fn_new"), ("view", "sovereign_shield", "v_agg_sdmx_published")})
         if fails:
             raise RuntimeError("a later DDL statement failed")
@@ -546,11 +546,23 @@ def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch
     monkeypatch.setattr(module, "connect", lambda host, warehouse: Connection())
     monkeypatch.setattr(module.apply_security, "apply_security_layer", apply_layer)
     monkeypatch.delenv("SOVEREIGNSHIELD_SKIP_GRANTS", raising=False)
-    result = tmp_path / "result.json"
+    return module
+
+
+def run_policy_executor(module, result, monkeypatch, *extra):
     monkeypatch.setattr(sys, "argv", ["apply_policies.py", "--host", "https://adb-1.azuredatabricks.net/",
-                                      "--warehouse-id", "wh", "--result", str(result), "--skip-grants"])
+                                      "--warehouse-id", "wh", "--result", str(result), "--skip-grants", *extra])
+    module.main()
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch, fails):
+    """The policy plane labels only new objects as created, also when a later statement fails."""
+    catalog = {("function", "sovereign_shield", "fn_old"), ("table", "sovereign_shield", "agg_sdmx_history")}
+    module = warehouse_policy_executor(catalog, monkeypatch, fails=fails)
+    result = tmp_path / "result.json"
     with pytest.raises(RuntimeError) if fails else contextlib.nullcontext():
-        module.main()
+        run_policy_executor(module, result, monkeypatch, "--adopt-existing")
 
     recorded = {item["name"]: item["pre_existing"] for item in json.loads(result.read_text(encoding="utf-8"))}
     assert recorded == {
@@ -560,3 +572,29 @@ def test_warehouse_policy_executor_records_what_it_created(tmp_path, monkeypatch
         "dbw_sovereignshield.sovereign_shield.v_agg_sdmx_published": False,
     }
     assert os.environ["SOVEREIGNSHIELD_SKIP_GRANTS"] == "1"
+
+
+@pytest.mark.parametrize("schema,name", [("sovereign_shield", "agg_sdmx_history"),
+                                         ("sovereign_intake", "lbs_micro_transactions"),
+                                         ("sovereign_shield", "v_agg_sdmx_published")])
+def test_warehouse_policy_executor_refuses_to_modify_objects_it_did_not_create(tmp_path, monkeypatch, schema, name):
+    """Rebinding or replacing an attached table or view is not reversible, so it needs explicit adoption."""
+    applied = []
+    module = warehouse_policy_executor({("table", schema, name)}, monkeypatch, applied)
+    result = tmp_path / "result.json"
+
+    with pytest.raises(SystemExit, match=f"dbw_sovereignshield.{schema}.{name}"):
+        run_policy_executor(module, result, monkeypatch)
+
+    assert not applied
+    assert json.loads(result.read_text(encoding="utf-8")) == []
+
+
+def test_warehouse_policy_executor_reapplies_objects_a_previous_run_created(tmp_path, monkeypatch):
+    applied = []
+    module = warehouse_policy_executor({("table", "sovereign_shield", "agg_sdmx_history")}, monkeypatch, applied)
+
+    run_policy_executor(module, tmp_path / "result.json", monkeypatch,
+                        "--owned", "dbw_sovereignshield.sovereign_shield.agg_sdmx_history")
+
+    assert applied

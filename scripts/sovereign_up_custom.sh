@@ -28,7 +28,7 @@ SUBSCRIPTION="" RESOURCE_GROUP="" LOCATION="" WORKSPACE_NAME="" WORKSPACE_URL=""
 STORAGE_ACCOUNT="" METASTORE_ID="" REQUESTED_WAREHOUSE_ID="" CONTAINER="sovereignshield"
 ACCESS_CONNECTOR="dbac-sovereignshield" STORAGE_CREDENTIAL="sc_sovereignshield"
 EXTERNAL_LOCATION="el_sovereignshield" WAREHOUSE_NAME="sovereignshield-warehouse"
-GRANTS="auto" SKIP_POLICIES=0 INTERACTIVE=1 ASSUME_YES=0 PLAN_ONLY=0 DRY_RUN=0
+GRANTS="auto" SKIP_POLICIES=0 ADOPT_POLICY_OBJECTS=0 INTERACTIVE=1 ASSUME_YES=0 PLAN_ONLY=0 DRY_RUN=0
 
 usage() {
   cat <<'EOF'
@@ -51,6 +51,9 @@ Behaviour:
   --grants auto|always|never  Apply persona grants. auto: only when this run created the
                               catalog and every persona group exists (default auto)
   --skip-policies             Provision infrastructure only; do not apply the policy plane
+  --adopt-policy-objects      Rebind masks and filters on, and replace, existing protected
+                              tables and the published view this script did not create.
+                              Teardown keeps them and does not restore their prior state
   --manifest PATH             Default: .sovereign_provisioned_manifest.json in the repo root
   --dry-run                   Show what would be attached or created; change nothing
   --non-interactive           Never prompt; fail on missing required values
@@ -81,6 +84,7 @@ while (($#)); do
     --warehouse-name) WAREHOUSE_NAME="$2"; shift 2 ;;
     --grants) GRANTS="$2"; shift 2 ;;
     --skip-policies) SKIP_POLICIES=1; shift ;;
+    --adopt-policy-objects) ADOPT_POLICY_OBJECTS=1; shift ;;
     --manifest) MANIFEST="$2"; shift 2 ;;
     --dry-run) PLAN_ONLY=1; shift ;;
     --non-interactive) INTERACTIVE=0; shift ;;
@@ -402,7 +406,7 @@ provision_databricks() {
 # Policy plane: content-addressed functions, protected tables, verified bindings
 # ---------------------------------------------------------------------
 provision_policies() {
-  local python="$REPO_ROOT/.venv/bin/python" result status=0 grant_flag=()
+  local python="$REPO_ROOT/.venv/bin/python" result status=0 grant_flag=() policy_flags=() name
   ((SKIP_POLICIES)) && { note "policy plane skipped (--skip-policies)"; return 0; }
   [[ -n "$WORKSPACE_HOST" ]] || { note "policy plane is planned once the workspace exists."; return 0; }
   case "$GRANTS" in
@@ -416,9 +420,14 @@ provision_policies() {
     return 0
   fi
   [[ -x "$python" ]] || python="$(command -v python3)"
+  ((ADOPT_POLICY_OBJECTS)) && policy_flags+=(--adopt-existing)
+  while read -r name; do
+    policy_flags+=(--owned "$name")
+  done < <(jq -r '.resources[] | select(.deleted_at == null and .pre_existing == false
+                                         and (.kind == "table" or .kind == "view")) | .name' "$MANIFEST")
   result="$(mktemp)"
   "$python" "$REPO_ROOT/scripts/apply_policies.py" --host "$WORKSPACE_HOST" --warehouse-id "$WAREHOUSE_ID" \
-    --result "$result" "${grant_flag[@]}" || status=$?
+    --result "$result" "${grant_flag[@]}" "${policy_flags[@]}" || status=$?
   while read -r item; do
     record "$(jq -r .kind <<<"$item")" "$(jq -r .name <<<"$item")" "$(jq -r .name <<<"$item")" \
       "$(jq -r .pre_existing <<<"$item")"

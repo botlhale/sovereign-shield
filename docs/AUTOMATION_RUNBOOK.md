@@ -325,7 +325,15 @@ scripts/sovereign_down_custom.sh              # type DELETE to confirm
 | Unity Catalog metastore | Attached; must already be assigned | Never created | Never touched |
 | Storage credential, external location, `dbw_sovereignshield` catalog, three schemas, submission volume | Attached | Created with a `ManagedBy` comment | Created ones, without force |
 | SQL warehouse | Attached by ID or name | 2X-Small serverless, auto-stop 10 minutes, tagged | Created one only |
-| Policy functions, protected tables and published view | Attached | Created through the warehouse by [apply_policies.py](../scripts/apply_policies.py) | Created ones, before their schemas |
+| Policy functions, protected tables and published view | Functions attached; tables and the view refused unless `--adopt-policy-objects` | Created through the warehouse by [apply_policies.py](../scripts/apply_policies.py) | Created ones, before their schemas |
+
+Applying the policy plane rebinds the masks and row filters on the protected tables and
+replaces the published view, and teardown cannot restore their earlier state. A run
+therefore stops before any policy DDL when one of them exists and the manifest did not
+record creating it. Pass `--adopt-policy-objects` to accept that change: the objects are
+recorded as attached and teardown keeps them as they are. Before teardown removes the
+policy functions they are bound to, drop or rebind their masks and row filters and
+restore the view's earlier definition.
 
 Created Azure resources carry `ManagedBy=SovereignShield` and `ProvisionedScope=Delta`
 as tags; the container, which cannot be tagged, carries them as metadata. Everything

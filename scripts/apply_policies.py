@@ -4,11 +4,14 @@ Runs the same content-addressed DDL, definition checks and binding verification 
 the Asset Bundle task, using the operator's Azure CLI identity instead of Spark.
 Writes the functions, tables and views it found or created to a JSON result file,
 also when a later statement fails, so partial creations keep teardown ownership.
+Refuses to rebind or replace an existing table or view it did not create unless
+adoption is explicit, because those changes are not reversed at teardown.
 """
 
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,6 +56,20 @@ def inventory(session):
     return objects
 
 
+def modified_objects():
+    """Tables and views whose bindings or definitions the policy SQL replaces."""
+    with open(apply_security.resolve_sql_path(), encoding="utf-8") as source:
+        statements = [statement for statement, _ in apply_security.parse_statements(source.read())]
+    objects = set()
+    for statement in statements:
+        match = re.match(r"(ALTER TABLE|CREATE OR REPLACE VIEW)\s+([\w.]+)", statement, re.I)
+        if match:
+            parts = match.group(2).split(".")
+            prefix = {1: [CATALOG, SCHEMAS[0]], 2: [CATALOG], 3: []}[len(parts)]
+            objects.add(".".join(prefix + parts))
+    return objects
+
+
 def connect(host, warehouse_id):
     from databricks import sql
     from databricks.sdk.core import Config
@@ -68,12 +85,23 @@ def main():
     parser.add_argument("--warehouse-id", required=True)
     parser.add_argument("--result", required=True, type=Path)
     parser.add_argument("--skip-grants", action="store_true")
+    parser.add_argument("--owned", action="append", default=[], metavar="NAME",
+                        help="object a previous run created; repeat for each")
+    parser.add_argument("--adopt-existing", action="store_true",
+                        help="rebind and replace existing tables and views this tool did not create")
     args = parser.parse_args()
     if args.skip_grants:
         os.environ["SOVEREIGNSHIELD_SKIP_GRANTS"] = "1"
     with connect(args.host.removeprefix("https://").rstrip("/"), args.warehouse_id) as connection:
         session = WarehouseSession(connection)
         before = inventory(session)
+        existing = {name for _, name in before}
+        foreign = sorted(modified_objects() & existing - set(args.owned))
+        if foreign and not args.adopt_existing:
+            args.result.write_text("[]\n", encoding="utf-8")
+            sys.exit("Refusing to rebind or replace existing objects this tool did not create: "
+                     f"{', '.join(foreign)}. Teardown would not restore them; rerun with --adopt-existing "
+                     "to accept the change.")
         try:
             apply_security.apply_security_layer(spark=session)
         finally:
