@@ -392,6 +392,24 @@ def test_down_requires_typed_confirmation(estate):
     assert not [call for call in estate.calls() if "delete" in call]
 
 
+@pytest.mark.parametrize("script", [UP, DOWN])
+def test_lifecycle_scripts_refuse_to_run_while_the_checkout_lock_is_held(estate, script):
+    assert estate.up("--yes").returncode == 0
+    before = estate.manifest()
+    estate.reset_log()
+    lock_path = ROOT / ".pytest_cache" / "sovereignshield.lifecycle.lock"
+    lock_path.parent.mkdir(exist_ok=True)
+    fcntl = pytest.importorskip("fcntl")
+    with open(lock_path, "a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        result = estate.up("--yes") if script == UP else estate.run(DOWN, "--yes")
+
+    assert result.returncode != 0
+    assert "holds this checkout's lock" in result.stderr
+    assert estate.manifest() == before
+    assert not creates(estate.calls()) and not [call for call in estate.calls() if "delete" in call]
+
+
 @pytest.mark.parametrize("label, name, marker", [
     ("storage_account stss", "stss", lambda resource: resource["tags"]),
     ("storage_container stss/sovereignshield", "sovereignshield",

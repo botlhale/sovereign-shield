@@ -37,6 +37,19 @@ note() { printf '    %s\n' "$*" >&2; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
+# One checkout-level lock, shared with sh/sovereignshield_up.ps1 and _down.ps1, keeps
+# provisioning and teardown from interleaving manifest updates. It is released on exit.
+acquire_lifecycle_lock() {
+  local directory="${REPO_ROOT}/.pytest_cache"
+  mkdir -p "$directory"
+  exec 9>>"${directory}/sovereignshield.lifecycle.lock"
+  if command -v flock >/dev/null; then
+    flock -n 9
+  else
+    perl -MFcntl=:flock -e 'open(my $lock, ">&=", 9) or exit 1; flock($lock, LOCK_EX | LOCK_NB) or exit 1'
+  fi || die "Another lifecycle operation holds this checkout's lock."
+}
+
 while (($#)); do
   case "$1" in
     --manifest) MANIFEST="$2"; shift 2 ;;
@@ -50,6 +63,7 @@ done
 for tool in az jq databricks; do
   command -v "$tool" >/dev/null || die "$tool is required on PATH."
 done
+acquire_lifecycle_lock
 [[ -f "$MANIFEST" ]] || die "No manifest at $MANIFEST: nothing is recorded as created by Sovereign Shield."
 
 SUBSCRIPTION="$(jq -r .subscription_id "$MANIFEST")"

@@ -148,7 +148,7 @@ def test_portal_styles_masked_coordinates_like_restricted_values(repo_root):
     portal = open(repo_root + "/src/templates/portal.html", encoding="utf-8").read()
 
     assert 'const COORDINATE_MASK_SUFFIX = ".xx.xx";' in portal
-    assert 'const RESTRICTED_STYLE = "italic text-slate-400";' in portal
+    assert 'const RESTRICTED_STYLE = "italic text-slate-500";' in portal
     assert "masked.className = RESTRICTED_STYLE;" in portal
     assert 'cell(row, "restricted", "text-right " + RESTRICTED_STYLE);' in portal
     assert "seriesKeyCell(row, observation.TIME_SERIES_CODE" in portal

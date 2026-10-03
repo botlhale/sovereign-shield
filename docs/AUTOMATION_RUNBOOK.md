@@ -306,6 +306,8 @@ Teardown is stricter: it accepts only the object's own not-found error, an Azure
 such as `ResourceNotFound` or `RoleAssignmentNotFound`, or Databricks naming that
 object as not existing. Subscription, authentication, throttling, endpoint or
 missing-parent errors stop it with the manifest entry still open.
+Both scripts take the same checkout-level lifecycle lock as `up`/`down`, so
+provisioning and teardown never overlap on one checkout.
 
 ```bash
 scripts/sovereign_up_custom.sh --dry-run      # prompts for the estate and prints the plan
