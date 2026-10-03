@@ -168,7 +168,7 @@ Both predicates are required. `BATCH_STATUS` alone would expose superseded histo
 ### Supporting guarantees
 
 * **Target catalog:** uses the pre-provisioned workspace catalog (`dbw_sovereignshield`), avoiding the need to grant Metastore Admin rights to the Service Principal.
-* **Protected policy deployment:** the executor creates immutable content-addressed functions, verifies their definitions, changes bindings without dropping protection, and verifies binding metadata. Unexpected errors abort. Existing incompatible tables require explicit migration; success is not inferred from skipped errors.
+* **Protected policy deployment:** the executor creates immutable content-addressed functions, verifies their definitions, changes bindings without dropping protection, and verifies binding metadata. Unexpected errors abort. Existing incompatible tables require explicit migration, including any stored row whose `L_REP_CTY` is not segment 9 of its key, which the `l_rep_cty_is_key_segment_9` CHECK constraint rejects before bindings change; success is not inferred from skipped errors.
 * **Stable execution, explicit ownership:** the job's `run_as` is a configured service principal. This does not transfer existing objects automatically; table/function ownership, Azure rights and GitHub administration remain explicit handover decisions.
 
 > **Deployment prerequisite:** the pipeline Service Principal **must** be a member of `sg-sovereignshield-admin`. Ownership does not exempt a principal from a row filter. The SCD2 engine reads the target table to locate records to expire; if RLS hid those rows, the merge would treat every row as new — silently duplicating history and never closing prior versions. This fails without raising an error.

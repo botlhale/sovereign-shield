@@ -17,6 +17,14 @@ SQL_FILENAME = "unity_catalog_triple_lock.sql"
 #: Access-control plane - skippable when Terraform owns it.
 GRANTS_FILENAME = "unity_catalog_grants.sql"
 
+#: Every macro policy trusts L_REP_CTY, so a stored row whose anchor differs from
+#: segment 9 of its key would reveal that key to the wrong sovereign. Delta validates
+#: a CHECK constraint against every stored row when it is added, beneath row filters
+#: and masks, and enforces it on every later write, whichever writer is used.
+HISTORY_TABLE = "dbw_sovereignshield.sovereign_shield.agg_sdmx_history"
+ANCHOR_CONSTRAINT = "l_rep_cty_is_key_segment_9"
+ANCHOR_CHECK = "L_REP_CTY <=> get(split(TIME_SERIES_CODE, '[.]'), 8)"
+
 
 def _candidate_directories() -> list[str]:
     """Directories that may contain the DDL script, in priority order.
@@ -155,6 +163,33 @@ def verify_existing_table_contracts(spark) -> None:
             raise RuntimeError(f"{qualified} requires the explicit submission-history migration; existing policies were not changed.")
 
 
+def enforce_reporting_country_anchor(spark, add: bool = True) -> None:
+    """Require the segment-9 anchor constraint, adding it when ``add`` is set."""
+    if not spark.catalog.tableExists(HISTORY_TABLE):
+        return
+
+    def current():
+        rows = spark.sql(f"SHOW TBLPROPERTIES {HISTORY_TABLE}").collect()
+        return {row["key"].lower(): row["value"] for row in rows}.get(f"delta.constraints.{ANCHOR_CONSTRAINT}")
+
+    def normalize(expression):
+        return re.sub(r"\s+", "", expression or "").lower()
+
+    existing = current()
+    if existing is None and add:
+        try:
+            spark.sql(f"ALTER TABLE {HISTORY_TABLE} ADD CONSTRAINT {ANCHOR_CONSTRAINT} CHECK ({ANCHOR_CHECK})")
+        except Exception as error:
+            raise RuntimeError(
+                f"{HISTORY_TABLE} has rows whose L_REP_CTY is not segment 9 of TIME_SERIES_CODE, or the "
+                "anchor constraint could not be added; correct them through the explicit migration. "
+                "Existing policies were not changed."
+            ) from error
+        existing = current()
+    if normalize(existing) != normalize(ANCHOR_CHECK):
+        raise RuntimeError(f"{HISTORY_TABLE} lacks the expected {ANCHOR_CONSTRAINT} constraint; existing policies were not changed.")
+
+
 def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
     mask_inputs = "OBS_CONF,L_REP_CTY"
     expected = (
@@ -209,6 +244,7 @@ def apply_security_layer(sql_path: str | None = None, spark=None) -> None:
                      if statement.startswith("CREATE TABLE")), len(statements))
     if versions:
         verify_existing_table_contracts(spark)
+        enforce_reporting_country_anchor(spark)
     for statement in statements[:boundary]:
         execute(statement)
     if versions:
@@ -216,6 +252,7 @@ def apply_security_layer(sql_path: str | None = None, spark=None) -> None:
     for statement in statements[boundary:]:
         execute(statement)
     if versions:
+        enforce_reporting_country_anchor(spark)
         verify_policy_bindings(spark, versions)
     if os.getenv("SOVEREIGNSHIELD_SKIP_GRANTS", "").lower() not in ("1", "true"):
         for grant in grants:

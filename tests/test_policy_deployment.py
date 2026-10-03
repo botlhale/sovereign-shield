@@ -165,3 +165,77 @@ def test_unrecognized_classification_is_masked_for_researchers(classification):
     result = LocalDeltaBackend._apply_persona(frame, principal)
     assert len(result) == 1
     assert result["OBS_VALUE"].isna().all()
+
+class _AnchorSession:
+    """Records DDL and reports the anchor constraint once it has been added."""
+
+    def __init__(self, existing=None, reject_add=False, exists=True):
+        self.statements = []
+        self.constraint = existing
+        self.reject_add = reject_add
+        self.catalog = SimpleNamespace(tableExists=lambda name: exists)
+
+    def sql(self, statement):
+        self.statements.append(statement)
+        if statement.startswith("SHOW TBLPROPERTIES"):
+            rows = [{"key": "delta.minReaderVersion", "value": "3"}]
+            if self.constraint is not None:
+                rows.append({"key": f"delta.constraints.{apply_security.ANCHOR_CONSTRAINT}", "value": self.constraint})
+            return SimpleNamespace(collect=lambda: rows)
+        if "ADD CONSTRAINT" in statement:
+            if self.reject_add:
+                raise RuntimeError("DELTA_NEW_CHECK_CONSTRAINT_VIOLATION: 1 row violates the new constraint")
+            self.constraint = re.search(r"CHECK \((.*)\)$", statement).group(1)
+        return SimpleNamespace(collect=lambda: [])
+
+
+def test_anchor_constraint_validates_existing_rows_before_any_rebinding(monkeypatch):
+    """A stored row whose L_REP_CTY is not key segment 9 would reveal its key to the wrong submitter."""
+    session = _AnchorSession()
+    for name in ("verify_existing_table_contracts", "verify_policy_functions", "verify_policy_bindings"):
+        monkeypatch.setattr(apply_security, name, lambda *args: None)
+    monkeypatch.setenv("SOVEREIGNSHIELD_SKIP_GRANTS", "1")
+
+    apply_security.apply_security_layer(spark=session)
+
+    add = next(i for i, s in enumerate(session.statements) if "ADD CONSTRAINT" in s)
+    first_ddl = next(i for i, s in enumerate(session.statements) if not s.startswith("SHOW"))
+    assert add == first_ddl
+    assert session.statements[add] == (
+        "ALTER TABLE dbw_sovereignshield.sovereign_shield.agg_sdmx_history ADD CONSTRAINT "
+        "l_rep_cty_is_key_segment_9 CHECK (L_REP_CTY <=> get(split(TIME_SERIES_CODE, '[.]'), 8))"
+    )
+    assert sum("ADD CONSTRAINT" in s for s in session.statements) == 1
+
+
+def test_mismatched_existing_anchor_aborts_before_policies_change(monkeypatch):
+    session = _AnchorSession(reject_add=True)
+    monkeypatch.setattr(apply_security, "verify_existing_table_contracts", lambda *args: None)
+
+    with pytest.raises(RuntimeError, match="not segment 9 of TIME_SERIES_CODE"):
+        apply_security.apply_security_layer(spark=session)
+
+    assert not [s for s in session.statements if not s.startswith("SHOW") and "ADD CONSTRAINT" not in s]
+
+
+@pytest.mark.parametrize("existing", ["L_REP_CTY IS NOT NULL", "TRUE"])
+def test_different_anchor_constraint_is_refused(existing):
+    session = _AnchorSession(existing=existing)
+    with pytest.raises(RuntimeError, match="lacks the expected"):
+        apply_security.enforce_reporting_country_anchor(session)
+    assert not any("ADD CONSTRAINT" in s for s in session.statements)
+
+
+def test_existing_anchor_constraint_is_kept_and_verify_only_never_adds():
+    present = _AnchorSession(existing="L_REP_CTY <=> get(split(TIME_SERIES_CODE, '[.]'), 8)")
+    apply_security.enforce_reporting_country_anchor(present)
+    assert not any("ADD CONSTRAINT" in s for s in present.statements)
+
+    absent = _AnchorSession()
+    with pytest.raises(RuntimeError, match="lacks the expected"):
+        apply_security.enforce_reporting_country_anchor(absent, add=False)
+    assert not any("ADD CONSTRAINT" in s for s in absent.statements)
+
+    missing = _AnchorSession(exists=False)
+    apply_security.enforce_reporting_country_anchor(missing)
+    assert missing.statements == []
