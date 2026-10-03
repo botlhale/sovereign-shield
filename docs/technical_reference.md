@@ -234,6 +234,7 @@ The [shared submission contract](../src/submission_history.py) and
 | Field | Information meaning |
 | --- | --- |
 | `TIME_SERIES_CODE`, `DATE`, `AGG_CODE` | Observation key and country/period/aggregation replacement scope |
+| `L_REP_CTY` | Unmasked copy of key segment 9 used as the reporting-country policy anchor |
 | `OBS_VALUE` | `DECIMAL(38,3)`; signed values and genuine zero retained |
 | `OBS_STATUS`, `OBS_CONF` | Observation status and sender-owned confidentiality classification |
 | `QUALITY_STATUS`, `BATCH_STATUS` | Validation result and publication/quarantine state |
