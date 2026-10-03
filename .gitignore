@@ -249,6 +249,8 @@ crash.*.log
 # =====================================================================
 # Environment-specific provisioning output
 # =====================================================================
+# Written by scripts/sovereign_up_custom.sh; the teardown script needs it locally.
+.sovereign_provisioned_manifest.json*
 # Written by sh/*.sh; carries workspace URLs and application ids.
 sh/spn_details
 sh/databricks_details
@@ -266,3 +268,6 @@ docs/whitepaper/*.pdf
 /arch.png
 /slt.png
 docs/Gemini_Generated_Image_*
+
+# Operator task recipes carry environment identifiers; keep them local.
+.vscode/tasks.json

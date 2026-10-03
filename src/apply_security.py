@@ -17,6 +17,14 @@ SQL_FILENAME = "unity_catalog_triple_lock.sql"
 #: Access-control plane - skippable when Terraform owns it.
 GRANTS_FILENAME = "unity_catalog_grants.sql"
 
+#: Every macro policy trusts L_REP_CTY, so a stored row whose anchor differs from
+#: segment 9 of its key would reveal that key to the wrong sovereign. Delta validates
+#: a CHECK constraint against every stored row when it is added, beneath row filters
+#: and masks, and enforces it on every later write, whichever writer is used.
+HISTORY_TABLE = "dbw_sovereignshield.sovereign_shield.agg_sdmx_history"
+ANCHOR_CONSTRAINT = "l_rep_cty_is_key_segment_9"
+ANCHOR_CHECK = "L_REP_CTY <=> get(split(TIME_SERIES_CODE, '[.]'), 8)"
+
 
 def _candidate_directories() -> list[str]:
     """Directories that may contain the DDL script, in priority order.
@@ -134,7 +142,7 @@ def verify_policy_functions(spark, statements: list[str]) -> None:
 
 
 def verify_existing_table_contracts(spark) -> None:
-    required = {"SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "SUBMITTED_AT", "RECEIVED_AT", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"}
+    required = {"L_REP_CTY", "SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "SUBMITTED_AT", "RECEIVED_AT", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"}
     for schema, table, measure in (
         ("sovereign_shield", "agg_sdmx_history", "OBS_VALUE"),
         ("sovereign_intake", "lbs_micro_transactions", "transaction_amount"),
@@ -155,10 +163,42 @@ def verify_existing_table_contracts(spark) -> None:
             raise RuntimeError(f"{qualified} requires the explicit submission-history migration; existing policies were not changed.")
 
 
+def enforce_reporting_country_anchor(spark, add: bool = True) -> None:
+    """Require the segment-9 anchor constraint, adding it when ``add`` is set."""
+    if not spark.catalog.tableExists(HISTORY_TABLE):
+        return
+
+    def current():
+        rows = spark.sql(f"SHOW TBLPROPERTIES {HISTORY_TABLE}").collect()
+        return {row["key"].lower(): row["value"] for row in rows}.get(f"delta.constraints.{ANCHOR_CONSTRAINT}")
+
+    def normalize(expression):
+        return re.sub(r"\s+", "", expression or "").lower()
+
+    existing = current()
+    if existing is None and add:
+        try:
+            spark.sql(f"ALTER TABLE {HISTORY_TABLE} ADD CONSTRAINT {ANCHOR_CONSTRAINT} CHECK ({ANCHOR_CHECK})")
+        except Exception as error:
+            raise RuntimeError(
+                f"{HISTORY_TABLE} has rows whose L_REP_CTY is not segment 9 of TIME_SERIES_CODE, or the "
+                "anchor constraint could not be added; correct them through the explicit migration. "
+                "Existing policies were not changed."
+            ) from error
+        existing = current()
+    if normalize(existing) != normalize(ANCHOR_CHECK):
+        raise RuntimeError(f"{HISTORY_TABLE} lacks the expected {ANCHOR_CONSTRAINT} constraint; existing policies were not changed.")
+
+
 def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
+    mask_inputs = "OBS_CONF,L_REP_CTY"
     expected = (
-        ("row_filters", "sovereign_shield", "agg_sdmx_history", "filter", "fn_rls_multi_persona_lock", "TIME_SERIES_CODE,BATCH_STATUS,OBS_CONF", ""),
-        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_obs_conf_mask", "OBS_CONF,TIME_SERIES_CODE", "AND column_name = 'OBS_VALUE'"),
+        ("row_filters", "sovereign_shield", "agg_sdmx_history", "filter", "fn_rls_multi_persona_lock", "L_REP_CTY,BATCH_STATUS,OBS_CONF", ""),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_obs_conf_mask", mask_inputs, "AND column_name = 'OBS_VALUE'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_series_key_mask", mask_inputs, "AND column_name = 'TIME_SERIES_CODE'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'RECORD_ID'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'version_hash'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'VALIDATION_NOTES'"),
         ("row_filters", "sovereign_intake", "lbs_micro_transactions", "filter", "fn_rls_micro_country_lock", "reporting_country", ""),
     )
     for relation, schema, table, kind, function, columns, extra in expected:
@@ -170,7 +210,7 @@ def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
         rows = [row for row in rows if row.get("table_catalog", row.get("catalog_name")) == "dbw_sovereignshield"
                 and row.get("table_schema", row.get("schema_name")) == schema]
         if len(rows) != 1:
-            raise RuntimeError(f"Expected exactly one {kind} binding on {schema}.{table}.")
+            raise RuntimeError(f"Expected exactly one {kind} binding on {schema}.{table} for {function}.")
         binding = rows[0]
         if "table_catalog" in binding:
             qualified_function = binding[f"{kind}_name"]
@@ -181,11 +221,12 @@ def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
         actual_columns = re.sub(r"[\s`]", "", arguments or "").upper()
         expected_function = f"dbw_sovereignshield.{schema}.{versions[function]}"
         if qualified_function != expected_function or actual_columns != columns.upper():
-            raise RuntimeError(f"Unexpected {kind} binding on {schema}.{table}.")
+            raise RuntimeError(f"Unexpected {kind} binding on {schema}.{table} for {function}.")
 
 
-def apply_security_layer(sql_path: str | None = None) -> None:
-    spark = SparkSession.builder.getOrCreate()
+def apply_security_layer(sql_path: str | None = None, spark=None) -> None:
+    """Apply the policy plane through Spark, or through any session exposing ``sql`` and ``catalog``."""
+    spark = spark or SparkSession.builder.getOrCreate()
     with open(sql_path or resolve_sql_path(), encoding="utf-8") as source:
         statements, versions = version_policy_functions([
             statement for statement, _ in parse_statements(source.read())
@@ -203,6 +244,7 @@ def apply_security_layer(sql_path: str | None = None) -> None:
                      if statement.startswith("CREATE TABLE")), len(statements))
     if versions:
         verify_existing_table_contracts(spark)
+        enforce_reporting_country_anchor(spark)
     for statement in statements[:boundary]:
         execute(statement)
     if versions:
@@ -210,6 +252,7 @@ def apply_security_layer(sql_path: str | None = None) -> None:
     for statement in statements[boundary:]:
         execute(statement)
     if versions:
+        enforce_reporting_country_anchor(spark)
         verify_policy_bindings(spark, versions)
     if os.getenv("SOVEREIGNSHIELD_SKIP_GRANTS", "").lower() not in ("1", "true"):
         for grant in grants:

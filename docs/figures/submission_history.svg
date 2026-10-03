@@ -1,31 +1,68 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
-  <title id="title">One Atomic Transition per Submission</title>
-  <desc id="description">A newer accepted full snapshot closes its previous current scope and inserts the replacement in one Delta MERGE. Same-message replay is a no-op; rejected and older accepted arrivals are audit-only. Current VALID_TO is NULL.</desc>
-  <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10" fill="#52636b"/></marker></defs>
-  <style>text{font-family:'Segoe UI',sans-serif;fill:#183137;font-size:28px;letter-spacing:0}.title{font-size:48px;font-weight:700}.heading{font-size:30px;font-weight:700}.small{font-size:24px}.line{stroke:#52636b;stroke-width:3;fill:none;marker-end:url(#arrow)}</style>
-  <rect width="1600" height="900" fill="white"/>
-  <text x="60" y="82" class="title">One Atomic Transition per Submission</text>
-  <text x="60" y="130">Scope: reporting country, period and aggregation; identity: immutable submission ID</text>
-  <rect x="60" y="220" width="450" height="230" rx="6" fill="#f6f9fa" stroke="#90a5aa" stroke-width="2"/>
-  <text x="85" y="272" class="heading">Current Accepted Filing</text>
-  <text x="85" y="325">CA / 2026-Q1 / LBSR</text>
-  <text x="85" y="375">Key A: 1.111; key B: 2.222</text>
-  <text x="85" y="425">Current row; VALID_TO=NULL</text>
-  <rect x="575" y="220" width="450" height="230" rx="6" fill="#edf7f3" stroke="#167d69" stroke-width="2"/>
-  <text x="600" y="272" class="heading">New Accepted Full Snapshot</text>
-  <text x="600" y="325">Same scope; new submission ID</text>
-  <text x="600" y="375">Key A: 3.333; key B omitted</text>
-  <text x="600" y="425">Newer submitted timestamp</text>
-  <path d="M510 335 H565" class="line"/><path d="M1025 335 H1080" class="line"/>
-  <rect x="1090" y="220" width="450" height="230" rx="6" fill="#edf3fb" stroke="#5077a6" stroke-width="2"/>
-  <text x="1115" y="272" class="heading">Single Delta MERGE</text>
-  <text x="1115" y="325">Close prior A and B in scope</text>
-  <text x="1115" y="375">Insert new current A: 3.333</text>
-  <text x="1115" y="425">Other countries / periods intact</text>
-  <rect x="60" y="540" width="1480" height="225" rx="6" fill="#fff6df"/>
-  <text x="85" y="592" class="heading">Distinct Arrival Outcomes</text>
-  <text x="85" y="644">Same message replay: no new rows or history commit. New identical filing: retained as a new event.</text>
-  <text x="85" y="696">Rejected or older accepted arrival: closed audit rows only; current accepted publication stays unchanged.</text>
-  <text x="85" y="740" class="small">SUBMITTED_AT is sender-reported; RECEIVED_AT is processing time, not an attested transport receipt.</text>
-  <text x="60" y="834" class="small">One table transaction, not a multi-table transaction. Single-writer reference; distributed conflicts require acceptance.</text>
+  <title id="title">One Atomic Transition per Filing</title>
+  <desc id="description">System-time intervals for one scope, Canada 2026-Q1 LBSR. Filing A is accepted with keys A and B. Filing B, a smaller accepted replacement, closes both and inserts key A in one Delta MERGE, retiring key B. Filing C is rejected and kept as closed audit rows while filing B remains current. Replay adds nothing; a new identical filing keeps its own identity; an older accepted arrival is audit-only.</desc>
+  <defs>
+    <marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 z" fill="#0369A1"/></marker>
+    <marker id="axis" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 z" fill="#475569"/></marker>
+    <filter id="lift" x="-8%" y="-8%" width="116%" height="130%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#0F172A" flood-opacity="0.18"/></filter>
+  </defs>
+  <style>
+    text{font-family:Inter,'Segoe UI',Lato,'Liberation Sans',Arial,sans-serif;font-size:19px;fill:#1E293B}
+    .title{font-size:44px;font-weight:700;fill:#FFFFFF}
+    .subtitle{font-size:22px;fill:#7DD3FC}
+    .lab{font-size:18px;font-weight:700}
+    .small{font-size:16px;fill:#475569}
+    .bar{font-size:17px;fill:#FFFFFF;font-weight:700}
+    .h{font-size:22px;font-weight:700;fill:#F8FAFC}
+    .b{font-size:18px;fill:#E2E8F0}
+    .foot{fill:#475569;font-size:16px}
+    .tick{stroke:#94A3B8;stroke-width:2;stroke-dasharray:6 6}
+  </style>
+  <rect width="1600" height="900" fill="#F8FAFC"/>
+  <rect width="1600" height="124" fill="#1E293B"/>
+  <rect y="124" width="800" height="6" fill="#14B8A6"/><rect x="800" y="124" width="800" height="6" fill="#0EA5E9"/>
+  <text x="64" y="70" class="title">One Atomic Transition per Filing</text>
+  <text x="64" y="106" class="subtitle">Reference period: what the statistic describes. System time: when the receiver held it as current.</text>
+
+  <text x="64" y="176" class="lab">Scope: CA · 2026-Q1 · LBSR</text>
+  <text x="430" y="176" class="small">Each filing is a full snapshot with an immutable submission ID</text>
+  <path d="M400 214 V560" class="tick"/><path d="M820 214 V560" class="tick"/><path d="M1180 214 V560" class="tick"/>
+  <text x="408" y="206" class="small">t1 · filing A accepted</text>
+  <text x="828" y="206" class="small">t2 · filing B accepted, one MERGE</text>
+  <text x="1188" y="206" class="small">t3 · filing C rejected</text>
+
+  <text x="64" y="262" class="lab">Key A · filing A</text>
+  <rect x="400" y="236" width="420" height="40" rx="10" fill="#0F766E"/>
+  <text x="420" y="262" class="bar">1.111 · closed at t2</text>
+  <text x="64" y="334" class="lab">Key B · filing A</text>
+  <rect x="400" y="308" width="420" height="40" rx="10" fill="#0F766E"/>
+  <text x="420" y="334" class="bar">2.222 · retired: omitted by B</text>
+  <text x="64" y="406" class="lab">Key A · filing B</text>
+  <rect x="820" y="380" width="640" height="40" rx="10" fill="#0369A1"/>
+  <path d="M1460 400 H1530" stroke="#0369A1" stroke-width="4" marker-end="url(#arrow)"/>
+  <text x="840" y="406" class="bar">3.333 · current, VALID_TO = NULL</text>
+  <text x="64" y="478" class="lab">Key A · filing C</text>
+  <circle cx="1180" cy="472" r="14" fill="#F59E0B"/>
+  <text x="1206" y="478" class="small">Rejected · VALID_TO = VALID_FROM</text>
+  <path d="M400 540 H1540" stroke="#475569" stroke-width="2.5" marker-end="url(#axis)"/>
+  <text x="1440" y="572" class="small">system time</text>
+
+  <g filter="url(#lift)">
+    <rect x="64" y="608" width="472" height="132" rx="16" fill="#1E293B"/>
+    <rect x="564" y="608" width="472" height="132" rx="16" fill="#1E293B"/>
+    <rect x="1064" y="608" width="472" height="132" rx="16" fill="#1E293B"/>
+  </g>
+  <text x="88" y="648" class="h">Same message replayed</text>
+  <text x="88" y="682" class="b">No new rows, no history commit</text>
+  <text x="88" y="710" class="b">Identity reuse with new bytes refused</text>
+  <text x="588" y="648" class="h">New identical filing</text>
+  <text x="588" y="682" class="b">Retained as a new submission</text>
+  <text x="588" y="710" class="b">Closes the prior current scope</text>
+  <text x="1088" y="648" class="h">Older accepted arrival</text>
+  <text x="1088" y="682" class="b">Audit-only; never displaces newer</text>
+  <text x="1088" y="710" class="b">Rejected rows never close current</text>
+
+  <text x="64" y="800" class="foot">SUBMITTED_AT is sender-reported; RECEIVED_AT is processing time, not an attested transport receipt. Measures are DECIMAL(38,3); zero is retained.</text>
+  <text x="64" y="826" class="foot">One table transaction per filing; ledger and history are separate transactions. Single-writer reference; distributed conflicts need acceptance.</text>
+  <text x="64" y="866" class="foot">Independent synthetic reference architecture; no institutional or vendor endorsement.</text>
 </svg>

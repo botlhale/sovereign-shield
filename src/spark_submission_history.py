@@ -29,6 +29,9 @@ def merge_submission(spark, incoming, target_name):
     target = delta_target.toDF()
     if set(HISTORY_COLUMNS) - set(target.columns) or target.schema["OBS_VALUE"].dataType != DecimalType(38, 3):
         raise RuntimeError("Legacy macro history requires the explicit decimal/submission migration.")
+    anchor = functions.split("TIME_SERIES_CODE", r"\.").getItem(8)
+    if incoming.filter(~functions.col("L_REP_CTY").eqNullSafe(anchor)).limit(1).count():
+        raise ValueError("L_REP_CTY must equal segment 9 of TIME_SERIES_CODE on every row.")
     scope_columns = ["SUBMISSION_ID", "SOURCE_SHA256", "SUBMITTED_AT", "RECEIVED_AT", "DATE", "AGG_CODE", "BATCH_STATUS"]
     scopes = incoming.select(*scope_columns, functions.split("TIME_SERIES_CODE", r"\.").getItem(8).alias("country")).distinct().collect()
     if len(scopes) != 1:

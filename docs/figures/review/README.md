@@ -1,7 +1,7 @@
 # Engagement Diagrams for Review
 
-These two diagrams implement the revised
-[engagement image specification](../../ENGAGEMENT_WORKFLOW_IMAGE_PROMPT.md).
+These two diagrams implement the engagement figure specification in the
+[image-generation prompts](../gemini_image_prompts.md#engagement-figures).
 They are manually laid out, editable SVG diagrams with **3840x2160 PNG renders**,
 not additional Gemini outputs. Both carry a review-draft label and remain separate
 from the six figures currently used in the publications.
@@ -36,8 +36,7 @@ The reporting authority and its sender evidence remain distinct from the receivi
 client-controlled service. No production data enters a provider development lane.
 
 Synthetic bank micro-transactions are educational calculation fixtures, not an
-international intake requirement. Disclosure review remains separate from correct
-entitlements: public totals and row existence can reveal restricted values.
+international intake requirement.
 
 ## Review and Reproduce
 
@@ -46,15 +45,14 @@ The SVGs can be zoomed or edited without raster quality loss. The authoritative
 ownership and acceptance sequence remains in
 [Nature of Engagement and Handover](../../ENTERPRISE_ONBOARDING_PLAYBOOK.md).
 
-```powershell
-.venv\Scripts\python.exe sh/verify_docs.py --render-diagrams --diagram-set review
-.venv\Scripts\python.exe -m pytest tests/test_documentation_contract.py
+```bash
+python sh/verify_docs.py --render-diagrams --diagram-set review
+pytest tests/test_documentation_contract.py
 ```
 
 The [review manifest](manifest.json) records LF-normalized SVG and binary PNG
 SHA-256 digests. Rendering this set does not modify the publication images or their
-manifest. Browser/font versions may affect rasterization; the digests identify the
-rendered artifact, not a cross-machine pixel-identity guarantee.
+manifest.
 
 Verification covers image dimensions, source/render consistency, exact node/edge
 contracts, ownership lanes, text bounds and arrows intersecting unrelated nodes.

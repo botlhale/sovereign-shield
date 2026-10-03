@@ -26,37 +26,96 @@ USE SCHEMA sovereign_shield;
 -- =====================================================================
 -- 2. DYNAMIC DATA MASKING (DDM) FUNCTION
 --
--- Confidential observations (OBS_CONF 'C' = confidential, 'N' = not for
--- publication) are nulled for everyone except the platform administrators and
--- the sovereign that reported them.
+-- Any observation not explicitly free (OBS_CONF 'F') is nulled for everyone
+-- except the platform administrators and the sovereign that reported it:
+-- C, N and the secondary-confidentiality codes D/S, plus unknown or missing.
 --
--- TIME_SERIES_CODE is a mask input, not decoration: without it the function
--- cannot tell whose confidential value it is holding, so any submitter would
--- unmask every other jurisdiction's restricted cells. Segment 9 is L_REP_CTY.
+-- L_REP_CTY is a mask input, not decoration: without it the function cannot
+-- tell whose confidential value it is holding, so any submitter would unmask
+-- every other jurisdiction's restricted cells. It stores segment 9 of
+-- TIME_SERIES_CODE as a separate, unmasked column because Unity Catalog rejects
+-- a masked column as the input of another policy, and the key itself is masked.
 -- =====================================================================
 CREATE OR REPLACE FUNCTION fn_ddm_obs_conf_mask(
   obs_val DECIMAL(38,3),
   obs_conf STRING,
-  time_series_code STRING
+  l_rep_cty STRING
 )
 RETURNS DECIMAL(38,3)
 RETURN CASE
   WHEN is_account_group_member('sg-sovereignshield-admin') THEN obs_val
   WHEN is_account_group_member('sg-sovereignshield-submitter-ca')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'CA', FALSE) THEN obs_val
+    AND coalesce(l_rep_cty = 'CA', FALSE) THEN obs_val
   WHEN is_account_group_member('sg-sovereignshield-submitter-us')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'US', FALSE) THEN obs_val
+    AND coalesce(l_rep_cty = 'US', FALSE) THEN obs_val
   WHEN upper(trim(coalesce(obs_conf, ''))) = 'F' THEN obs_val
+  ELSE NULL
+END;
+
+-- =====================================================================
+-- 2a. DISCOVERY GATEWAY COORDINATE MASK
+--
+-- A withheld value must not carry its exact coordinates. For callers who are
+-- not entitled to the measure, segments 10-11 (L_CP_SECTOR, L_CP_COUNTRY)
+-- become 'xx': Q.S.C.A.USD.D.5J.A.US.A.5J -> Q.S.C.A.USD.D.5J.A.US.xx.xx.
+-- The reveal rule is identical to fn_ddm_obs_conf_mask.
+--
+-- Segments 1-9 are preserved, so segment 9 still matches L_REP_CTY, the
+-- unmasked sovereignty anchor every policy reads.
+-- Masks resolve before query predicates, so filtering on segments 10-11
+-- cannot probe a masked row. Keys without exactly 11 segments fail closed.
+-- =====================================================================
+CREATE OR REPLACE FUNCTION fn_ddm_series_key_mask(
+  time_series_code STRING,
+  obs_conf STRING,
+  l_rep_cty STRING
+)
+RETURNS STRING
+RETURN CASE
+  WHEN is_account_group_member('sg-sovereignshield-admin') THEN time_series_code
+  WHEN is_account_group_member('sg-sovereignshield-submitter-ca')
+    AND coalesce(l_rep_cty = 'CA', FALSE) THEN time_series_code
+  WHEN is_account_group_member('sg-sovereignshield-submitter-us')
+    AND coalesce(l_rep_cty = 'US', FALSE) THEN time_series_code
+  WHEN upper(trim(coalesce(obs_conf, ''))) = 'F' THEN time_series_code
+  WHEN coalesce(size(split(time_series_code, '\\.')) = 11, FALSE)
+    THEN concat(substring_index(time_series_code, '.', 9), '.xx.xx')
+  ELSE NULL
+END;
+
+-- =====================================================================
+-- 2b. LINEAGE MASK
+--
+-- RECORD_ID hashes the full observation key with a visible SUBMISSION_ID, so
+-- the masked coordinates could be recovered by enumerating segments 10-11.
+-- version_hash hashes the measure with otherwise visible attributes, which
+-- would confirm a guessed value. VALIDATION_NOTES lists the rules a row takes
+-- part in, which depends on its coordinates. All three follow the same reveal
+-- rule as the measure and are otherwise NULL.
+-- =====================================================================
+CREATE OR REPLACE FUNCTION fn_ddm_lineage_mask(
+  lineage STRING,
+  obs_conf STRING,
+  l_rep_cty STRING
+)
+RETURNS STRING
+RETURN CASE
+  WHEN is_account_group_member('sg-sovereignshield-admin') THEN lineage
+  WHEN is_account_group_member('sg-sovereignshield-submitter-ca')
+    AND coalesce(l_rep_cty = 'CA', FALSE) THEN lineage
+  WHEN is_account_group_member('sg-sovereignshield-submitter-us')
+    AND coalesce(l_rep_cty = 'US', FALSE) THEN lineage
+  WHEN upper(trim(coalesce(obs_conf, ''))) = 'F' THEN lineage
   ELSE NULL
 END;
 
 -- =====================================================================
 -- 3. MULTI-COLUMN ROW-LEVEL SECURITY (RLS) - MACRO HISTORY
 --
--- Entitlement is evaluated from three columns at once - the SDMx key, the
--- batch lifecycle state and the confidentiality flag - so a quarantined or
--- restricted record can never leak through a persona entitled only to clean
--- published data.
+-- Entitlement is evaluated from three columns at once - the reporting country
+-- (L_REP_CTY, segment 9 of the SDMx key), the batch lifecycle state and the
+-- confidentiality flag - so a quarantined or restricted record can never leak
+-- through a persona entitled only to clean published data.
 --
 -- The tiers are composed with OR rather than CASE/WHEN so that privileges are
 -- ADDITIVE. A principal holding two memberships (e.g. a Canadian regional submitter
@@ -65,17 +124,16 @@ END;
 --
 -- Persona matrix:
 --   sg-sovereignshield-admin        1 = 1 (every jurisdiction and state)
---   sg-sovereignshield-researchers  BATCH_STATUS = 'PUBLISHED' (values masked by DDM)
+--   sg-sovereignshield-researchers  BATCH_STATUS = 'PUBLISHED' (values, coordinates
+--                                   and lineage of restricted rows masked)
 --   sg-sovereignshield-submitter-xx own segment-9 rows in full, plus every other
 --                                   sovereign's PUBLISHED + free-to-publish rows
 --   sg-sovereignshield-public       BATCH_STATUS = 'PUBLISHED' AND OBS_CONF = 'F'
 --   (no recognised membership)      FALSE - fails closed, zero rows
 --
--- try_element_at is used instead of element_at: under ANSI mode an
--- out-of-range index raises INVALID_ARRAY_INDEX, which would abort every query
--- against the table if a malformed key were ever persisted. It returns NULL
--- instead, and the coalesce turns that NULL into FALSE so a malformed row is
--- invisible rather than universally visible.
+-- A NULL anchor compares to NULL, and the coalesce turns that NULL into FALSE,
+-- so a row without a reporting country is invisible rather than universally
+-- visible.
 --
 -- The pipeline service principal (spn-sovereignshield-cicd) MUST be a member of
 -- sg-sovereignshield-admin. The SCD2 engine reads this table to find records to
@@ -83,7 +141,7 @@ END;
 -- silently duplicating history and never closing prior versions.
 -- =====================================================================
 CREATE OR REPLACE FUNCTION fn_rls_multi_persona_lock(
-  time_series_code STRING,
+  l_rep_cty STRING,
   batch_status STRING,
   obs_conf STRING
 )
@@ -105,11 +163,11 @@ RETURN
   )
   OR (
     is_account_group_member('sg-sovereignshield-submitter-ca')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'CA', FALSE)
+    AND coalesce(l_rep_cty = 'CA', FALSE)
   )
   OR (
     is_account_group_member('sg-sovereignshield-submitter-us')
-    AND coalesce(try_element_at(split(time_series_code, '\\.'), 9) = 'US', FALSE)
+    AND coalesce(l_rep_cty = 'US', FALSE)
   );
 
 -- =====================================================================
@@ -170,37 +228,46 @@ TBLPROPERTIES ('delta.isolationLevel' = 'Serializable');
 -- OBS_VALUE may legitimately be negative: LBS positions record both asset and
 -- liability directions. Zero-valued observations are not reported at all under
 -- SDMx convention and are filtered upstream.
+--
+-- L_REP_CTY is written from segment 9 of TIME_SERIES_CODE with every row and
+-- stays unmasked: it is the only key-derived policy input, because a masked
+-- column cannot be referenced by another policy.
 -- =====================================================================
 CREATE TABLE IF NOT EXISTS agg_sdmx_history (
-  TIME_SERIES_CODE STRING,
+  TIME_SERIES_CODE STRING MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF, L_REP_CTY),
+  L_REP_CTY STRING,
   DATE STRING,
   AGG_CODE STRING,
-  OBS_VALUE DECIMAL(38,3) MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE),
+  OBS_VALUE DECIMAL(38,3) MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, L_REP_CTY),
   OBS_STATUS STRING,
   OBS_CONF STRING,
   QUALITY_STATUS STRING,
   FAILED_RULE_ID STRING,
   BATCH_STATUS STRING,
   BATCH_FAILED_RULE_ID STRING,
-  VALIDATION_NOTES STRING,
+  VALIDATION_NOTES STRING MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY),
   SUBMISSION_ID STRING,
   SOURCE_SHA256 STRING,
-  RECORD_ID STRING,
+  RECORD_ID STRING MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY),
   SUBMITTED_AT TIMESTAMP,
   RECEIVED_AT TIMESTAMP,
-  version_hash STRING,
+  version_hash STRING MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY),
   VALID_FROM TIMESTAMP,
   VALID_TO TIMESTAMP,
   IS_CURRENT BOOLEAN
 )
-WITH ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)
+WITH ROW FILTER fn_rls_multi_persona_lock ON (L_REP_CTY, BATCH_STATUS, OBS_CONF)
 TBLPROPERTIES ('delta.isolationLevel' = 'Serializable');
 
 -- =====================================================================
 -- 7. REPLACE BINDINGS WITHOUT DETACHING THE PREVIOUS POLICY
 -- =====================================================================
-ALTER TABLE agg_sdmx_history ALTER COLUMN OBS_VALUE SET MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, TIME_SERIES_CODE);
-ALTER TABLE agg_sdmx_history SET ROW FILTER fn_rls_multi_persona_lock ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);
+ALTER TABLE agg_sdmx_history ALTER COLUMN OBS_VALUE SET MASK fn_ddm_obs_conf_mask USING COLUMNS (OBS_CONF, L_REP_CTY);
+ALTER TABLE agg_sdmx_history ALTER COLUMN TIME_SERIES_CODE SET MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF, L_REP_CTY);
+ALTER TABLE agg_sdmx_history ALTER COLUMN RECORD_ID SET MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY);
+ALTER TABLE agg_sdmx_history ALTER COLUMN version_hash SET MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY);
+ALTER TABLE agg_sdmx_history ALTER COLUMN VALIDATION_NOTES SET MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY);
+ALTER TABLE agg_sdmx_history SET ROW FILTER fn_rls_multi_persona_lock ON (L_REP_CTY, BATCH_STATUS, OBS_CONF);
 ALTER TABLE sovereign_intake.lbs_micro_transactions SET ROW FILTER sovereign_intake.fn_rls_micro_country_lock ON (reporting_country);
 
 -- =====================================================================

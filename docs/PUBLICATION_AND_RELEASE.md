@@ -160,9 +160,12 @@ a suitable Terraform registry when their reusable interface is ready.
    environment, limits and [measurement provenance](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
    A diagram or screenshot is not independent control certification.
 
-```powershell
-.venv\Scripts\python.exe -m pytest tests/
-.venv\Scripts\python.exe sh/verify_docs.py --render-diagrams --print-proof
+Run these from an activated environment. In PowerShell, use backticks for line
+continuation and `Get-FileHash -Algorithm SHA256` instead of `sha256sum`.
+
+```bash
+pytest
+python sh/verify_docs.py --render-diagrams --print-proof
 git diff --check
 git status --short
 git rev-parse HEAD
@@ -172,26 +175,26 @@ git rev-parse HEAD
    reference release, not an existing or automatically approved tag. Confirm the
    selected commit is reviewed and pushed, then create/push the annotated tag:
 
-```powershell
-$releaseCommit = git rev-parse HEAD
-$tag = 'v0.1.0'
-git tag --list $tag
-git tag -a $tag $releaseCommit -m 'SovereignShield synthetic reference release'
-git push origin $tag
+```bash
+release_commit="$(git rev-parse HEAD)"
+tag=v0.1.0
+git tag --list "$tag"
+git tag -a "$tag" "$release_commit" -m 'SovereignShield synthetic reference release'
+git push origin "$tag"
 ```
 
 4. **Create a draft pre-release with both PDFs.** Authenticate GitHub CLI directly
    as the authorized maintainer; never paste a token into source or chat. Check
    current filenames and the release evidence before running:
 
-```powershell
-$briefPdf = '.pytest_cache/publication-proof/EXECUTIVE_BRIEF.pdf'
-$paperPdf = '.pytest_cache/publication-proof/Bridging_Public_Dissemination_and_Protected_Data.pdf'
-Get-FileHash -Algorithm SHA256 -Path $briefPdf, $paperPdf
-gh release create $tag $briefPdf $paperPdf `
-  --repo botlhale/sovereign-shield `
-  --verify-tag --draft --prerelease `
-  --title "SovereignShield $tag: Synthetic Reference Architecture" `
+```bash
+brief=.pytest_cache/publication-proof/EXECUTIVE_BRIEF.pdf
+paper=.pytest_cache/publication-proof/Bridging_Public_Dissemination_and_Protected_Data.pdf
+sha256sum "$brief" "$paper"
+gh release create "$tag" "$brief" "$paper" \
+  --repo botlhale/sovereign-shield \
+  --verify-tag --draft --prerelease \
+  --title "SovereignShield $tag: Synthetic Reference Architecture" \
   --notes-file docs/RELEASE_EVIDENCE.md
 ```
 
@@ -202,9 +205,9 @@ gh release create $tag $briefPdf $paperPdf `
    publishing if immutable releases are enabled.
 6. **Publish deliberately.** Click **Publish release**, or run:
 
-```powershell
-gh release edit $tag --repo botlhale/sovereign-shield --draft=false
-gh release view $tag --repo botlhale/sovereign-shield
+```bash
+gh release edit "$tag" --repo botlhale/sovereign-shield --draft=false
+gh release view "$tag" --repo botlhale/sovereign-shield
 ```
 
 Verify the public release and artifact links, then use them in the archival record
@@ -221,5 +224,6 @@ Sources: [GitHub release management](https://docs.github.com/en/repositories/rel
 These are publication instructions, not executed external actions. DOI registration,
 third-party licensing choices, repository/tag pushes, public release and social
 posting require author/rights-holder approval. The current source-license and
-copyright notices are unchanged. Prepare any required AI-assistance statement
-truthfully and have the responsible author approve it before submission.
+copyright notices are unchanged. Base any required AI-assistance statement on the
+[AI-assisted SDLC disclosure](../CONTRIBUTING.md#ai-assisted-software-development-life-cycle)
+and have the responsible author approve it before submission.

@@ -32,5 +32,6 @@
 - [ ] No credentials, state, private keys, personal data, client data, or real institutional records are included.
 - [ ] New fixtures and screenshots use synthetic data only.
 - [ ] Security controls remain fail-closed.
+- [ ] Substantial AI assistance is disclosed above, every line was reviewed, and no secret or non-public material was placed in a prompt ([AI-assisted SDLC](../CONTRIBUTING.md#ai-assisted-software-development-life-cycle)).
 - [ ] The Code of Conduct has been reviewed and accepted.
 - [ ] The contribution is intentionally submitted under Apache License 2.0.

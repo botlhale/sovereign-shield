@@ -64,6 +64,11 @@ formats reject rejected/noncurrent rows and duplicate observation keys.
 Normal exports use pinned offline structure components, not an unvalidated
 ElementTree fallback. Empty exports return HTTP 204 at the gateway.
 
+Coordinate-masked keys (`...xx.xx`) are discovery metadata: `xx` is not a codelist
+value, so the serializer refuses them and the gateway excludes them in the query,
+before the row limit. A download matching only such rows returns 204 with the count
+in `X-SovereignShield-Withheld`.
+
 The reference profile includes `DECIMALS=3`, `UNIT_MEASURE=USD`, `UNIT_MULT=6`,
 `COLLECTION=E`, `AVAILABILITY=A` and frequency-derived `TIME_FORMAT`. Currency
 denomination is a dimension; no currency conversion is implied. Dataset-level

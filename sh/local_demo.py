@@ -1,6 +1,7 @@
 """Build an isolated synthetic macro catalog without cloud credentials or a JVM."""
 
 import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,9 +9,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from decimal_measures import decimal_text
 from generate_sovereign_submissions import aggregate_micro_to_macro, generate_micro_transactions, generate_sdmx_ml
 from sdmx_rule_validator import SDMxRuleValidator
 from submission_history import SubmissionContext, merge_local_submission
+
+DATABRICKS_VARIABLES = ("DATABRICKS_HOST", "DATABRICKS_SERVER_HOSTNAME", "DATABRICKS_HTTP_PATH", "DATABRICKS_WAREHOUSE_ID")
+PERSONAS = {
+    "public": {"sg-sovereignshield-public"},
+    "researcher": {"sg-sovereignshield-researchers"},
+    "submitter-ca": {"sg-sovereignshield-submitter-ca"},
+    "submitter-us": {"sg-sovereignshield-submitter-us"},
+    "admin": {"sg-sovereignshield-admin"},
+}
 
 
 def build_demo(output):
@@ -37,7 +48,44 @@ def build_demo(output):
     print(f"Local synthetic catalog: {catalog.parent.resolve()}")
 
 
+def show_persona(output, persona):
+    """Print the current published view through the local policy mirror."""
+    from uc_query import LocalDeltaBackend, Principal, SeriesFilter
+
+    principal = Principal(persona, frozenset(PERSONAS[persona]), persona != "public")
+    rows = LocalDeltaBackend(str(output / "catalog")).search(SeriesFilter.build(limit=500), principal)
+    withheld = int(rows["OBS_VALUE"].isna().sum())
+    print(f"\n{principal.access_label}: {len(rows)} observation(s), {withheld} withheld")
+    for row in rows.to_dict("records"):
+        value = decimal_text(row["OBS_VALUE"]) or "restricted"
+        print(f"  {row['TIME_SERIES_CODE']:<34} {row['DATE']}  {value:>12}  {row['OBS_CONF']}")
+
+
+def serve(persona, port):
+    """Serve the portal on localhost with a labelled persona fixture over the local mirror."""
+    if any(os.getenv(name) for name in DATABRICKS_VARIABLES):
+        raise SystemExit("Unset Databricks connection variables: persona fixtures serve the local mirror only.")
+    import uvicorn
+
+    import api_gateway
+    from uc_query import Principal
+
+    fixture = Principal(f"Local {persona} fixture", frozenset(PERSONAS[persona]), persona != "public")
+    api_gateway.app.dependency_overrides[api_gateway.current_principal] = lambda: fixture
+    print(f"Serving the synthetic {persona} fixture at http://127.0.0.1:{port}/")
+    uvicorn.run(api_gateway.app, host="127.0.0.1", port=port)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / ".pytest_cache" / "demo")
-    build_demo(parser.parse_args().output)
+    parser.add_argument("--persona", choices=sorted(PERSONAS), action="append", default=[])
+    parser.add_argument("--serve", choices=sorted(PERSONAS), help="serve the local portal as this persona fixture")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+    os.environ["SOVEREIGNSHIELD_LOCAL_DELTA"] = str(args.output / "catalog")
+    build_demo(args.output)
+    for selected in args.persona:
+        show_persona(args.output, selected)
+    if args.serve:
+        serve(args.serve, args.port)

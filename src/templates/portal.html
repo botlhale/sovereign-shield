@@ -169,6 +169,8 @@
     public: ["bg-slate-700", "bg-slate-400"],
   };
   const STATISTIC_CATALOG = {{ statistic_catalog | tojson }};
+  const COORDINATE_MASK_SUFFIX = ".xx.xx";
+  const RESTRICTED_STYLE = "italic text-slate-400";
 
   const filterMenus = Array.from(document.querySelectorAll("details[data-filter-menu]"));
   const statisticType = document.getElementById("statistic-type");
@@ -348,6 +350,20 @@
     return td;
   }
 
+  function seriesKeyCell(row, key) {
+    const td = cell(row, "", "font-mono text-[11px] text-slate-600");
+    if (!key.endsWith(COORDINATE_MASK_SUFFIX)) {
+      td.textContent = key;
+      return td;
+    }
+    const masked = document.createElement("span");
+    masked.className = RESTRICTED_STYLE;
+    masked.textContent = COORDINATE_MASK_SUFFIX;
+    masked.title = "Counterparty sector and country withheld";
+    td.append(document.createTextNode(key.slice(0, -COORDINATE_MASK_SUFFIX.length)), masked);
+    return td;
+  }
+
   function renderRows(observations) {
     results.replaceChildren();
     if (!observations.length) {
@@ -365,12 +381,12 @@
     observations.forEach((observation) => {
       const row = document.createElement("tr");
       row.className = "hover:bg-slate-50";
-      cell(row, observation.TIME_SERIES_CODE || "", "font-mono text-[11px] text-slate-600");
+      seriesKeyCell(row, observation.TIME_SERIES_CODE || "");
       cell(row, observation.DATE || "", "text-slate-600");
 
       const value = observation.OBS_VALUE;
       if (value === null || value === undefined) {
-        cell(row, "restricted", "text-right italic text-slate-400");
+        cell(row, "restricted", "text-right " + RESTRICTED_STYLE);
       } else {
         cell(row, String(value),
              "text-right tabular-nums");
@@ -472,7 +488,10 @@
 
     if (payload.masked_observations > 0) {
       maskingNote.textContent =
-        payload.masked_observations + " value(s) withheld by dynamic data masking";
+        payload.masked_observations + " value(s) withheld by dynamic data masking" +
+        (payload.masked_coordinates > 0
+          ? " \u00b7 " + payload.masked_coordinates + " key(s) coordinate-masked (" + COORDINATE_MASK_SUFFIX + "), excluded from downloads"
+          : "");
       maskingNote.classList.remove("hidden");
     } else {
       maskingNote.classList.add("hidden");
@@ -530,7 +549,10 @@
       if (link.getAttribute("aria-disabled") === "true") return;
       const response = await authenticatedFetch(link.href);
       if (response.status === 204) {
-        showError("No observations matched the filter.");
+        const withheld = Number(response.headers.get("X-SovereignShield-Withheld") || 0);
+        showError(withheld > 0
+          ? "Every matching observation is restricted. Downloads contain releasable observations only."
+          : "No observations matched the filter.");
         return;
       }
       if (!response.ok) {

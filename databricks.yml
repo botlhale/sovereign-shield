@@ -75,7 +75,7 @@ targets:
           # bundle's app resource (this block) actually applies it; app.yaml has
           # no such key at all. Each visitor consents once; admins can pre-consent
           # on their behalf, and a workspace allowlist can restrict it further -
-          # see steps_terraform.md Stage 5.
+          # see docs/AUTOMATION_RUNBOOK.md Stage 6.
           user_api_scopes:
             - "sql"
           # App-level admission, not entitlement - the same split as the SQL

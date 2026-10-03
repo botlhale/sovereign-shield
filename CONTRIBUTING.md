@@ -16,23 +16,35 @@ SovereignShield is developed in a personal capacity as an independent reference 
 
 Python 3.12 is the CI reference version.
 
-```powershell
-python -m venv .venv
-.venv\Scripts\pip.exe install -r requirements.txt
-.venv\Scripts\python.exe -m pytest tests/
+```bash
+# Linux / macOS
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest
 ```
 
-On macOS or Linux, use `.venv/bin/python` and `.venv/bin/pip`.
+```powershell
+# Windows PowerShell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pytest
+```
 
 The default suite is offline and requires no Azure or Databricks credentials. Tests marked `live` and `stress` run only when explicitly selected.
 
 ## Required Checks
 
-Run the checks relevant to your change before opening a pull request.
+Run the checks relevant to your change before opening a pull request, from the activated environment.
 
-```powershell
+```bash
 # Complete offline suite
-.venv\Scripts\python.exe -m pytest tests/
+pytest
+
+# Documentation links; add --render-diagrams after editing docs/figures/*.svg (needs Chrome or Chromium)
+pip install -r sh/requirements-docs.txt
+python sh/verify_docs.py
 
 # Terraform formatting and static validation
 terraform -chdir=terraform fmt -recursive -check
@@ -48,7 +60,7 @@ SovereignShield is intentionally fail-closed. Contributions must preserve these 
 
 - a principal in no recognized persona group sees zero rows;
 - the public tier is an explicit service principal and group, not anonymous fall-through;
-- reporting-country sovereignty is derived from segment 9 (`L_REP_CTY`) of the SDMX key;
+- reporting-country sovereignty is derived from segment 9 (`L_REP_CTY`) of the SDMX key, stored as the unmasked `L_REP_CTY` column that every Unity Catalog policy reads, since a masked column cannot be another policy's input;
 - restricted values are absent or `NULL`, never replaced with zero;
 - quarantined revisions cannot replace the last valid published version;
 - no secret, token, private key, backend configuration, state file, or real institutional data is committed; and
@@ -62,6 +74,9 @@ system deliverable. Preserve the Analyst View's distinction between expected lat
 filings, actual receiver state and current accepted publication.
 
 Researcher-visible row existence and public totals may reconstruct masked values.
+The researcher persona is a Discovery Gateway: restricted rows keep segments 1-9 of
+the key and show `xx.xx` for the counterparty, with value and lineage columns NULL.
+Preserve that reveal rule in the mask functions, the local mirror and the portal.
 Synthetic community tests are welcome; restrict or remove the Researcher role in
 a production design if row presence makes inference trivial. Runtime policy changes
 require explicit review, not just a documentation change.
@@ -86,8 +101,33 @@ Use objective architectural statements, one shared title for the Executive Brief
 and White Paper, and the [evidence register](docs/RELEASE_EVIDENCE.md) for measured
 results and limitations. Preserve dated historical findings as historical; do not
 turn a bounded synthetic cost/timing observation into a production guarantee.
-Run the documentation contract tests and `sh/verify_docs.py`; proof both publications
+State each limitation once in its owning document and link to it. Run the
+documentation contract tests and `sh/verify_docs.py`; proof both publications
 after changes to content, figures or page layout.
+
+## AI-Assisted Software Development Life Cycle
+
+Generative AI coding assistants were used throughout this project as an engineering
+accelerator, in the same way a team uses code generators, linters and templates.
+
+| AI accelerated | Senior engineering owned |
+| --- | --- |
+| Boilerplate scaffolding for scripts, tests, Terraform modules and documentation | Architecture: planes, trust boundaries, persona model and ownership split |
+| SDMx 3.0 structure mapping from the pinned BIS LBS DSD and codelists | Mathematical disclosure rules: reveal conditions, coordinate masking, the reconstruction challenge |
+| Synthetic fixture generation and failure-injection cases | Security controls: policy SQL, deployment verification, side-channel review and teardown safety |
+| Diagram drafts and image-generation prompts | Final wording, figures and every published claim |
+
+Every AI-assisted change passes the same gates as hand-written code: review against
+the [reference contracts](.github/skills/SKILLS.md), credential-free tests that fail
+when a control is removed, documentation contract checks and, for controls, live
+acceptance on a synthetic workspace. AI output is never evidence on its own: a
+generated claim is accepted only when a test, a dated live record or a cited
+standard supports it. No confidential, client or production data is given to AI
+tools; prompts use synthetic fixtures and public standards only.
+
+Contributors may use AI tools under the same rules. Disclose substantial AI
+assistance in the pull request, review every line you submit, and never paste
+secrets, tokens or non-public institutional material into a prompt.
 
 ## Pull Requests
 

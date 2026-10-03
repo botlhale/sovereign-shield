@@ -8,7 +8,7 @@ from uuid import uuid4
 import pandas as pd
 from pyspark.sql import SparkSession
 
-from apply_security import parse_statements, resolve_sql_path, verify_existing_table_contracts, verify_policy_bindings, verify_policy_functions, version_policy_functions
+from apply_security import enforce_reporting_country_anchor, parse_statements, resolve_sql_path, verify_existing_table_contracts, verify_policy_bindings, verify_policy_functions, version_policy_functions
 from scd2_merge_engine import DATA_DIR, run_pipeline
 from spark_submission_history import HISTORY_SCHEMA, merge_submission
 from submission_history import TIME_COLUMNS, SubmissionContext, prepare_submission, stable_hash
@@ -44,6 +44,7 @@ def main():
         statement for statement, _ in parse_statements(Path(resolve_sql_path()).read_text(encoding="utf-8"))
     ])
     verify_existing_table_contracts(spark)
+    enforce_reporting_country_anchor(spark, add=False)
     verify_policy_functions(spark, statements)
     verify_policy_bindings(spark, versions)
     before_macro = spark.table(HISTORY).count()

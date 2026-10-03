@@ -19,11 +19,11 @@ The decision is whether this delivery pattern reduces engagement and handover fr
 | Persona | Visible Observations | Measure Access |
 | --- | --- | --- |
 | Public | Current published, explicitly free | Free values only |
-| Researcher | Current published structure across countries | Restricted values withheld unless separately entitled |
+| Researcher (Discovery Gateway) | Current published series across countries | Restricted values and counterparty coordinates withheld |
 | Regional submitter | Own published/rejected filings plus public foreign observations | Own values in full; public foreign values |
 | Administrator | All countries and lifecycle history | Full access under privileged governance |
 
-Researcher discovery creates a basis for requesting an agreement with the originating country. It does not confer permission to access a restricted measure. Multiple memberships combine explicitly; offboarding must remove every relevant entitlement and control-plane right.
+The Discovery Gateway tells a researcher that a restricted series exists, so they can approach the originating country, without revealing the value or its exact coordinates (`...US.xx.xx`). Downloads contain releasable rows only. Restricted cells would require an approved secure enclave, a documented concept. Multiple memberships combine explicitly; offboarding must remove every relevant entitlement and control-plane right.
 
 The **Analyst View** is the regional submitter workflow. Analysts reconcile the latest filing they expect the international organization to hold against actual submission IDs, timestamps, values and validation outcomes. The latest submission and the latest accepted publication are distinct states.
 
@@ -62,7 +62,7 @@ Three decimal places are this demonstration's explicit profile, not a universal 
 | Local and live Delta replay and smaller-replacement checks | Distributed conflicts, recovery and production-volume measurements |
 | Live persona SQL/API checks, public exports, provisioning and teardown | Institution-specific identity, disclosure and operational acceptance |
 
-**Open challenge:** published totals and the existence of a researcher-visible observation can reveal a masked value. Community reconstruction tests using synthetic data are invited. Restrict or remove the Researcher role if row presence makes inference trivial; public-only totals also require disclosure review. RLS and masking do not replace approved statistical disclosure control.
+**Open challenge:** published totals can still reconstruct a masked value; coordinate masking hides the counterparty, not a margin residual. Community reconstruction tests using synthetic data are invited. Restrict or remove the Researcher role if row presence makes inference trivial; public-only totals also require disclosure review. RLS and masking do not replace approved statistical disclosure control.
 
 Detailed methods and unresolved gates are in [Release Evidence](RELEASE_EVIDENCE.md). Historical screenshots are labelled historical, not fresh release results.
 

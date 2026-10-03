@@ -100,6 +100,111 @@ def test_researcher_never_sees_quarantined_batches(corpus, visible_rows):
 
 
 # ---------------------------------------------------------------------------
+# Persona 2a - Discovery Gateway coordinate masking
+# ---------------------------------------------------------------------------
+
+MASK_SUFFIX = ".xx.xx"
+
+
+def _published_restricted(corpus):
+    return corpus[(corpus["BATCH_STATUS"] == "PUBLISHED") & ~corpus["OBS_CONF"].eq("F")]
+
+
+def test_coordinate_mask_matches_the_discovery_gateway_contract():
+    from uc_query import COORDINATE_MASK_SUFFIX, mask_coordinates
+
+    masked = mask_coordinates(pd.Series(["Q.S.C.A.USD.D.5J.A.US.A.5J", "Q.S.C.A.USD", None]))
+
+    assert COORDINATE_MASK_SUFFIX == MASK_SUFFIX
+    assert masked.tolist() == ["Q.S.C.A.USD.D.5J.A.US.xx.xx", None, None], (
+        "malformed or missing keys must fail closed rather than keep partial coordinates"
+    )
+
+
+def test_researcher_withheld_values_never_carry_exact_coordinates(corpus, visible_rows):
+    rows = visible_rows("researcher", corpus)
+    withheld = rows["OBS_VALUE"].isna()
+
+    assert withheld.any()
+    assert rows.loc[withheld, "TIME_SERIES_CODE"].str.endswith(MASK_SUFFIX).all()
+    assert not rows.loc[~withheld, "TIME_SERIES_CODE"].str.endswith(MASK_SUFFIX).any()
+
+
+def test_coordinate_mask_preserves_segments_one_to_nine(corpus, visible_rows):
+    """Discovery needs the series family and reporting sovereign, not the counterparty."""
+    rows = visible_rows("researcher", corpus)
+    masked = sorted(rows.loc[rows["TIME_SERIES_CODE"].str.endswith(MASK_SUFFIX), "TIME_SERIES_CODE"])
+    expected = sorted(key.rsplit(".", 2)[0] + MASK_SUFFIX for key in _published_restricted(corpus)["TIME_SERIES_CODE"])
+
+    assert masked == expected
+
+
+@pytest.mark.parametrize("persona", ["public", "submitter_ca", "submitter_us", "admin"])
+def test_entitled_observations_keep_exact_coordinates(corpus, visible_rows, persona):
+    rows = visible_rows(persona, corpus)
+
+    assert not rows["TIME_SERIES_CODE"].str.endswith(MASK_SUFFIX).any()
+
+
+def test_dual_membership_masks_only_foreign_coordinates(corpus):
+    from uc_query import LocalDeltaBackend, Principal
+
+    principal = Principal(
+        display_name="ca-analyst-and-researcher",
+        groups=PERSONA_GROUPS["submitter_ca"] | PERSONA_GROUPS["researcher"],
+        authenticated=True,
+    )
+    rows = LocalDeltaBackend._apply_persona(corpus, principal)
+    country = rows["TIME_SERIES_CODE"].map(reporting_country)
+    masked = rows["TIME_SERIES_CODE"].str.endswith(MASK_SUFFIX)
+
+    assert masked[country != "CA"].sum() == rows.loc[country != "CA", "OBS_VALUE"].isna().sum() > 0
+    assert not masked[country == "CA"].any()
+
+
+def test_withheld_rows_expose_no_lineage(corpus, visible_rows):
+    """RECORD_ID and version_hash would re-identify the key or confirm a guessed value."""
+    from uc_query import LINEAGE_COLUMNS
+
+    frame = corpus.assign(RECORD_ID="record", version_hash="digest", VALIDATION_NOTES="coverage")
+    rows = visible_rows("researcher", frame)
+    withheld = rows["OBS_VALUE"].isna()
+
+    assert rows.loc[withheld, list(LINEAGE_COLUMNS)].isna().all().all()
+    assert rows.loc[~withheld, list(LINEAGE_COLUMNS)].notna().all().all()
+
+
+def _researcher_backend(corpus, monkeypatch):
+    from uc_query import LocalDeltaBackend, Principal
+
+    backend = LocalDeltaBackend()
+    monkeypatch.setattr(backend, "_load", lambda: corpus.copy())
+    return backend, Principal("researcher", PERSONA_GROUPS["researcher"], True)
+
+
+def test_counterparty_filters_cannot_probe_masked_coordinates(corpus, monkeypatch):
+    """Masks resolve before predicates; a filter must not confirm a hidden coordinate."""
+    from uc_query import SeriesFilter
+
+    backend, researcher = _researcher_backend(corpus, monkeypatch)
+    probe = backend.search(SeriesFilter.build(counterpart_sector=["B"], limit=500), researcher)
+
+    assert probe.empty, "a counterparty filter matched a restricted US observation"
+
+
+def test_facets_never_list_codes_held_only_by_restricted_rows(corpus, monkeypatch):
+    backend, researcher = _researcher_backend(corpus, monkeypatch)
+
+    assert backend.facets("L_CP_SECTOR", researcher) == ["A"]
+
+
+def test_facet_sql_excludes_the_mask_token():
+    from uc_query import build_facet_sql
+
+    assert "<> 'xx'" in build_facet_sql("L_CP_COUNTRY")
+
+
+# ---------------------------------------------------------------------------
 # Persona 3 - regional reporting submitter
 # ---------------------------------------------------------------------------
 

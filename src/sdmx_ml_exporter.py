@@ -82,6 +82,9 @@ OBS_ATTRIBUTES: List[str] = ["OBS_STATUS", "OBS_CONF"]
 #: Position of L_REP_CTY, used by callers that need the reporting sovereign.
 REP_CTY_SEGMENT = SDMX_DIMENSIONS.index("L_REP_CTY") + 1
 
+#: Suffix of a Discovery Gateway key (see fn_ddm_series_key_mask); never a valid code.
+COORDINATE_MASK_SUFFIX = ".xx.xx"
+
 #: SDMX-CSV 2.0.0 / SDMX-ML 3.0 dataset action codes.
 ACTION_CODES = {
     "Information": "I",
@@ -150,6 +153,8 @@ def explode_series_keys(df: pd.DataFrame, *, audit: bool = False) -> pd.DataFram
             raise SdmxSerializationError("Standard SDMx feeds contain the current snapshot only; use audit CSV.")
 
     keys = df["TIME_SERIES_CODE"].astype(str)
+    if keys.str.endswith(COORDINATE_MASK_SUFFIX).any():
+        raise SdmxSerializationError("Coordinate-masked observations are discovery metadata and are never serialized.")
     segment_counts = keys.str.count(r"\.") + 1
     malformed = keys[segment_counts != len(SDMX_DIMENSIONS)]
     if not malformed.empty:
