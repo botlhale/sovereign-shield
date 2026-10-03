@@ -21,7 +21,7 @@ gateway can misuse the tokens and results it handles.
 
 | Control | Decision | Contract |
 | --- | --- | --- |
-| Macro RLS | `TIME_SERIES_CODE`, `BATCH_STATUS`, `OBS_CONF` plus account memberships | Admin all; own-country submitter all states; researcher published; public/foreign submitter published explicit `F` |
+| Macro RLS | `L_REP_CTY`, `BATCH_STATUS`, `OBS_CONF` plus account memberships | Admin all; own-country submitter all states; researcher published; public/foreign submitter published explicit `F` |
 | DDM | `DECIMAL(38,3)` measure, classification and reporting country | Admin or own country reveal; otherwise explicit `F` only; unknown/missing classification masks to `NULL` |
 | Coordinate and lineage masks | Same reveal rule on `TIME_SERIES_CODE`, `RECORD_ID`, `version_hash`, `VALIDATION_NOTES` | Withheld rows show key segments 10-11 as `xx` and NULL lineage; segment 9 is preserved |
 | Published product | `BATCH_STATUS='PUBLISHED' AND IS_CURRENT=true` | Current accepted publication; authorized audit products remain distinct |
