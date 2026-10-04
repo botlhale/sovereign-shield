@@ -263,6 +263,15 @@ def test_masked_observation_serializes_as_absent_not_zero():
     assert ",0," not in csv
 
 
+def test_coordinate_masked_keys_are_never_serialized():
+    """Discovery Gateway keys are not codelist values; serializing one would fabricate a code."""
+    frame = _macro_frame([("Q.S.C.A.USD.F.5J.A.CA.xx.xx", None)])
+
+    for serializer in (sdmx.to_sdmx_csv_2_0_0, sdmx.to_sdmx_json_2_0_0, sdmx.to_tidy_csv):
+        with pytest.raises(sdmx.SdmxSerializationError, match="discovery metadata"):
+            serializer(frame)
+
+
 def test_sdmx_csv_carries_the_structure_reference():
     """SDMX-CSV 2.0.0 rows are self-describing rather than order-dependent."""
     frame = _macro_frame([("Q.S.C.A.USD.F.5J.A.CA.A.5J", 100.0)])

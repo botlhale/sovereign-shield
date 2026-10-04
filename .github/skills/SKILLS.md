@@ -28,11 +28,14 @@ The **Analyst View** is the regional submitter workflow: reconcile expected late
 filings with actual receiver identities, timestamps, values and validation outcomes.
 Latest submission is not necessarily current accepted publication.
 
-Researcher-visible row presence and public values can enable reconstruction.
-Invite synthetic challenges under the [security policy](../../SECURITY.md#statistical-reconstruction-challenge).
-Restrict or remove the Researcher role if observation existence makes inference
-trivial; public-only data still needs disclosure review. Do not change runtime
-permissions solely because a documentation review identifies this open decision.
+Researcher-visible row presence and public values can enable reconstruction. The
+Researcher persona is a Discovery Gateway: restricted rows keep key segments 1-9
+and show `xx.xx` for the counterparty, with value and lineage withheld and no
+download. Margin residuals across visible dimensions remain possible. Invite
+synthetic challenges under the [security policy](../../SECURITY.md#statistical-reconstruction-challenge).
+Restrict or remove the Researcher role if existence makes inference trivial;
+public-only data still needs disclosure review. Do not change runtime permissions
+solely because a documentation review identifies this open decision.
 
 ## Implemented Capabilities
 
@@ -41,11 +44,11 @@ permissions solely because a documentation review identifies this open decision.
 | Pinned BIS LBS 1.0 structure and codelists | [lbs_contract.py](../../src/lbs_contract.py) | Deliberate refresh, not unreviewed live `latest` |
 | Three-place exact measures, genuine zero retained | [decimal_measures.py](../../src/decimal_measures.py) | Reference profile, not universal SDMx precision |
 | 21 within-dataset arithmetic rules | [sdmx_rule_validator.py](../../src/sdmx_rule_validator.py) | Six cross-collection checks unsupported; missing breakdowns reported |
-| Account-group RLS and explicit-F decimal masking | [policy SQL](../../src/unity_catalog_triple_lock.sql) | Supported UC paths; not physical residency or disclosure control |
+| Account-group RLS; explicit-F value, coordinate and lineage masks | [policy SQL](../../src/unity_catalog_triple_lock.sql) | Supported UC paths; not physical residency or disclosure control |
 | No-detach policy deployment | [apply_security.py](../../src/apply_security.py) | Definition/binding verification; no multi-object atomic migration |
 | One Delta MERGE per full submission | [Spark history adapter](../../src/spark_submission_history.py) | Single-writer job; separate ledger/history transactions |
 | Same-message replay and new-identical-filing retention | [submission_history.py](../../src/submission_history.py) | Submission identity and digest, not payload hash alone |
-| Current SDMx products and separate audit CSV | [api_gateway.py](../../src/api_gateway.py) | Trusted gateway; standard feeds exclude rejected/superseded rows |
+| Current SDMx products and separate audit CSV | [api_gateway.py](../../src/api_gateway.py) | Trusted gateway; downloads exclude rejected, superseded and coordinate-masked rows |
 | Protected manual cloud promotion | [promote.yml](../workflows/promote.yml) | PR verification has no cloud credentials; client configures reviewer gates |
 | Resumable lifecycle | [up orchestrator](../../sh/sovereignshield_up.ps1) | Current Terraform outputs; bounded exact-ID App recovery |
 

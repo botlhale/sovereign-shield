@@ -21,8 +21,9 @@ gateway can misuse the tokens and results it handles.
 
 | Control | Decision | Contract |
 | --- | --- | --- |
-| Macro RLS | `TIME_SERIES_CODE`, `BATCH_STATUS`, `OBS_CONF` plus account memberships | Admin all; own-country submitter all states; researcher published; public/foreign submitter published explicit `F` |
+| Macro RLS | `L_REP_CTY`, `BATCH_STATUS`, `OBS_CONF` plus account memberships | Admin all; own-country submitter all states; researcher published; public/foreign submitter published explicit `F` |
 | DDM | `DECIMAL(38,3)` measure, classification and reporting country | Admin or own country reveal; otherwise explicit `F` only; unknown/missing classification masks to `NULL` |
+| Coordinate and lineage masks | Same reveal rule on `TIME_SERIES_CODE`, `RECORD_ID`, `version_hash`, `VALIDATION_NOTES` | Withheld rows show key segments 10-11 as `xx` and NULL lineage; segment 9 is preserved |
 | Published product | `BATCH_STATUS='PUBLISHED' AND IS_CURRENT=true` | Current accepted publication; authorized audit products remain distinct |
 
 The row filter does not itself enforce current-state selection. Dynamic UC views
@@ -74,8 +75,10 @@ controls independently.
 
 ## Verification and Portability
 
-[Policy tests](../../tests/test_policy_deployment.py) exercise failure handling;
-[live checks](../../src/live_runtime_checks.py) verify actual binding metadata.
+[Policy tests](../../tests/test_policy_deployment.py) exercise failure handling and
+require the key and lineage masks to share the value mask's reveal branches;
+[live checks](../../src/live_runtime_checks.py) verify one row filter and five column
+masks from binding metadata.
 Use the [migration gate](../../docs/RELEASE_EVIDENCE.md#mandatory-migration-gate)
 and [full offboarding contract](../../docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md#6-offboarding-and-continuity).
 

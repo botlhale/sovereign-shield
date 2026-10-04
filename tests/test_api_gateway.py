@@ -144,6 +144,17 @@ def test_portal_keeps_results_and_exports_in_one_desktop_workspace(repo_root):
     assert 'id="export-sdmx-ml"' in portal
 
 
+def test_portal_styles_masked_coordinates_like_restricted_values(repo_root):
+    portal = open(repo_root + "/src/templates/portal.html", encoding="utf-8").read()
+
+    assert 'const COORDINATE_MASK_SUFFIX = ".xx.xx";' in portal
+    assert 'const RESTRICTED_STYLE = "italic text-slate-500";' in portal
+    assert "masked.className = RESTRICTED_STYLE;" in portal
+    assert 'cell(row, "restricted", "text-right " + RESTRICTED_STYLE);' in portal
+    assert "seriesKeyCell(row, observation.TIME_SERIES_CODE" in portal
+    assert "masked.textContent = COORDINATE_MASK_SUFFIX;" in portal
+
+
 def test_portal_exports_inherit_the_previewed_quarantine_scope(repo_root):
     """An administrator's download must match what the preview shows.
 

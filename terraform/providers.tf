@@ -45,7 +45,7 @@ provider "azuread" {
 # reads and destroys of databricks_* resources fail with "cannot configure default
 # credentials" - an auth error whose real cause is an unknown target. Setting
 # DATABRICKS_HOST for that one run configures the provider from the environment
-# instead. See the troubleshooting section of steps_terraform.md.
+# instead. See docs/AUTOMATION_RUNBOOK.md.
 provider "databricks" {
   azure_workspace_resource_id = module.databricks_workspace.workspace_id
 }

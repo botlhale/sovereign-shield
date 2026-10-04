@@ -249,4 +249,4 @@ alone do not establish equivalent identity, storage, policy or history behavior.
 | Terraform dependency graph | `terraform/main.tf` and `terraform/modules/` |
 | Job and Databricks App resources | `databricks.yml` |
 | Table, view, row-filter, and mask ownership | `src/unity_catalog_triple_lock.sql` |
-| Detailed commands and recovery | `docs/AUTOMATION_RUNBOOK.md` and `steps_terraform.md` |
+| Detailed commands and recovery | `docs/AUTOMATION_RUNBOOK.md` |

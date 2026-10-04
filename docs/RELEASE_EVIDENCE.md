@@ -48,6 +48,13 @@ acceptance. No unimplemented platform port is represented as tested.
 
 ## Reproducible Methods
 
+**Recorded local result, 1 October 2026:** Python 3.14.4 on Linux, pysdmx 1.18.0:
+**245 passed, 12 skipped** in the default suite; the skips are the opt-in live and
+stress tests. New tests cover coordinate and lineage masking, filter probes, facets,
+releasable-only downloads and the bring-your-own-estate scripts against stub CLIs.
+The six publication figures were re-rendered with headless Chrome on Linux and the
+Markdown checker resolved every local link and heading anchor.
+
 **Recorded local result, 15 September 2026:** Python 3.13.14, pandas 3.0.5, pysdmx
 1.18.0, delta-rs 1.6.2: **159 passed, 3 skipped** in the stress-enabled suite.
 The skips were two live Databricks tests and the Spark benchmark
@@ -58,17 +65,16 @@ The eight-page executive brief and sixteen-page whitepaper were proofed with
 isolated Chrome; all ten whitepaper figures shared pages with their captions.
 The local Markdown checker resolved 245 links and heading anchors.
 
-Use the selected virtual environment and the committed dependency manifests. No Azure credentials are required for these commands:
+Use the selected virtual environment and the committed dependency manifests. No Azure credentials are required for these commands, run from an activated environment on Linux, macOS or Windows:
 
-```powershell
-.venv\Scripts\python.exe -m pytest -v tests/ -rs
-.venv\Scripts\python.exe -m pytest -v tests/ --stress -rs
-.venv\Scripts\python.exe sh/local_demo.py
-$env:SOVEREIGNSHIELD_LOCAL_DELTA = "$PWD\.pytest_cache\demo\catalog"
-.venv\Scripts\python.exe -m uvicorn api_gateway:app --app-dir src --host 127.0.0.1 --port 8000
+```bash
+pytest -v -rs
+pytest -v -rs --stress
+python sh/local_demo.py --persona researcher --persona submitter-ca
+python sh/local_demo.py --serve researcher --port 8000
 ```
 
-Unset Databricks connection variables for the local server; a configured warehouse deliberately disables local fallback. Local files are synthetic and are not a security boundary against someone who can read the filesystem. The portal has no local production impersonation switch. Browser persona fixtures test presentation, while API/persona tests exercise the local policy mirror.
+Unset Databricks connection variables first; a configured warehouse deliberately disables local fallback. Local files are synthetic and are not a security boundary against someone who can read the filesystem. The deployable portal has no impersonation switch: `local_demo.py --serve` attaches a labelled persona fixture to the local mirror only, binds to 127.0.0.1 and refuses to start when Databricks connection variables are set. Browser fixtures test presentation, while API/persona tests exercise the local policy mirror.
 
 | Evidence | Check | What It Does Not Establish |
 | --- | --- | --- |
@@ -78,9 +84,32 @@ Unset Databricks connection variables for the local server; a configured warehou
 | Official SDMx-JSON 2.0.0 schema used independently | Pinned schema and `jsonschema.Draft7Validator` | Formal accreditation by a standards owner |
 | Real local Delta commits preserve replay identity, shorter replacements, rejection isolation and failure atomicity | [History tests](../tests/test_submission_history.py) | Distributed concurrency, multi-table transactions or cloud throughput |
 | Published/quarantine/all views, feedback and separate audit export | [API tests](../tests/test_lifecycle_api.py) | Live Easy Auth, Entra or Databricks persona session acceptance |
+| Coordinate and lineage masks share the value reveal rule; restricted keys keep segments 1-9; no policy takes the masked key as input; counterparty filters and facets cannot reveal masked coordinates | [Persona tests](../tests/test_persona_access_matrix.py), [policy tests](../tests/test_policy_deployment.py) | Live Unity Catalog evaluation; see [Discovery Gateway acceptance](#discovery-gateway-acceptance) |
+| Downloads carry releasable rows only; a masked key is refused by every serializer | [API tests](../tests/test_lifecycle_api.py), [wire tests](../tests/test_sdmx_validation_rules.py) | Disclosure control of published margins |
+| Bring-your-own scripts attach existing resources, create and tag only the delta, and delete only recorded creations | [Custom deployment tests](../tests/test_custom_deployment.py) with stub `az` and `databricks` | Real Azure and Databricks API behaviour; preview with `--dry-run` in a sandbox first |
 | No PR federation; state readiness and destructive-plan checks | [Deployment tests](../tests/test_deployment_boundaries.py) | Live GitHub protection or Terraform apply |
 
 The original binding and input-validation regressions were observed failing before correction. The test suite retains explicit live and stress markers. A skipped gate is not a pass, and a source-contract assertion is not an engine execution test. Record the tested commit with `git rev-parse HEAD` and retain the full command output with each published release; do not substitute an evergreen test-count claim for that evidence.
+
+## Discovery Gateway Acceptance
+
+**Status: implemented and verified offline; live Unity Catalog acceptance pending.** The
+masks on `TIME_SERIES_CODE`, `RECORD_ID`, `version_hash` and `VALIDATION_NOTES` have not yet
+run on a workspace. Before a publication presents them as live-verified, deploy to a
+synthetic workspace and confirm:
+
+1. The pipeline's `verify_synthetic_runtime` task passes. It checks five column-mask
+   bindings and one row filter on the history table, all reading the unmasked `L_REP_CTY`
+   rather than the masked key, and exercises MERGE while the merge
+   key `RECORD_ID` is masked for everyone except the administrator runtime identity.
+2. [live_persona_checks.py](../sh/live_persona_checks.py) passes: researcher keys for the
+   nine restricted rows end in `.xx.xx`, entitled keys never do, and direct SQL returns NULL
+   lineage columns for restricted rows.
+3. A researcher download equals the public one (13 observations), including when its
+   row limit is smaller than the number of matching rows.
+
+If an engine refuses a mask on a merge-key column, keep the value and coordinate masks and
+move lineage protection to a researcher view that omits those columns.
 
 ## Submission Contract
 
@@ -109,7 +138,7 @@ The structure snapshot is an extracted component/code contract, not a full regis
 
 ## Mandatory Migration Gate
 
-**Do not deploy this release over the old DOUBLE history as a routine update.** The policy executor refuses incompatible existing schemas before changing bindings; the Spark writer also refuses missing or legacy tables. The live evaluation used a fresh empty workload, not an in-place legacy-history migration.
+**Do not deploy this release over the old DOUBLE history, or over a history table without the `L_REP_CTY` policy anchor, as a routine update.** The policy executor refuses incompatible existing schemas before changing bindings; the Spark writer also refuses missing or legacy tables. Column-mask policies are unsupported on tables with CHECK constraints, so the submission writers enforce the anchor instead: they refuse any row whose `L_REP_CTY` is null, empty or not segment 9 of `TIME_SERIES_CODE`. Stored rows are not re-validated at deployment, so a migrated history must populate `L_REP_CTY` from segment 9. The live evaluation used a fresh empty workload, not an in-place legacy-history migration.
 
 For a retained environment, the platform owner must approve and rehearse a migration:
 
@@ -142,8 +171,11 @@ RLS/DDM is entitlement enforcement, not statistical disclosure control. Syntheti
 
 The [statistical reconstruction challenge](../SECURITY.md#statistical-reconstruction-challenge)
 invites synthetic community tests of both values and observation existence.
-Restrict or remove the Researcher role if its metadata makes reconstruction trivial;
-that decision does not replace disclosure review of public totals.
+Coordinate masking hides the counterparty of a restricted cell, not the residual of a
+published margin across visible dimensions, and the Discovery Gateway still shows how
+many restricted rows share a series prefix and period. Restrict or remove the Researcher
+role if that metadata makes reconstruction trivial; that decision does not replace
+disclosure review of public totals.
 
 Third-party redistribution, copyright assignment and client-specific publication
 clearance require documented provenance and approval. See [reference provenance](reference_standards/README.md),

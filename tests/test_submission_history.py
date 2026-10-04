@@ -39,6 +39,56 @@ def test_replay_is_noop_but_identical_new_filing_is_retained(tmp_path):
     assert not rows["RECORD_ID"].duplicated().any()
 
 
+def test_policy_anchor_is_written_from_key_segment_nine(tmp_path):
+    """L_REP_CTY is the unmasked input of every Unity Catalog policy; it must equal segment 9."""
+    path = tmp_path / "history"
+    merge_local_submission(path, batch(country="US"), context("us-q1"))
+    rows = DeltaTable(str(path)).to_pandas()
+    assert rows["L_REP_CTY"].eq(rows["TIME_SERIES_CODE"].str.split(".").str[8]).all()
+    assert rows["L_REP_CTY"].eq("US").all()
+
+
+@pytest.mark.parametrize("key", ["Q.S.C.A.USD.F.5J.A", "Q.S.C.A.USD.F.5J.A..B.DE"])
+def test_missing_policy_anchor_is_refused(tmp_path, key):
+    frame = batch(values=("1.111",)).assign(TIME_SERIES_CODE=key)
+    with pytest.raises(ValueError, match="reporting-country security anchor"):
+        merge_local_submission(tmp_path / "history", frame, context("no-anchor"))
+    assert not (tmp_path / "history").exists()
+
+
+def test_spark_writer_refuses_null_missing_or_mismatched_anchor(tmp_path):
+    pytest.importorskip("pyspark")
+    pytest.importorskip("delta")
+    from delta import configure_spark_with_delta_pip
+    from pyspark.sql import SparkSession
+    from spark_submission_history import HISTORY_SCHEMA, merge_submission
+    from submission_history import TIME_COLUMNS, prepare_submission
+
+    builder = (
+        SparkSession.builder.appName("SovereignShieldAnchor").master("local[1]")
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        .config("spark.sql.warehouse.dir", str(tmp_path / "warehouse"))
+    )
+    try:
+        spark = configure_spark_with_delta_pip(builder).getOrCreate()
+    except Exception as exc:  # noqa: BLE001 - any startup failure is environmental
+        pytest.skip(f"Spark session could not start: {type(exc).__name__}: {exc}")
+    try:
+        spark.createDataFrame([], schema=HISTORY_SCHEMA).write.format("delta").saveAsTable("anchor_history")
+        record = prepare_submission(batch(values=("1.111",)), context("anchor")).to_dict("records")[0]
+        for name in TIME_COLUMNS:
+            record[name] = None if pd.isna(record[name]) else pd.Timestamp(record[name]).to_pydatetime()
+        for changes in ({"L_REP_CTY": None}, {"L_REP_CTY": "US"}, {"L_REP_CTY": None, "TIME_SERIES_CODE": "Q.S.C.A"},
+                        {"L_REP_CTY": "", "TIME_SERIES_CODE": "Q.S.C.A.USD.F.5J.A..B.DE"}):
+            incoming = spark.createDataFrame([{**record, **changes}], schema=HISTORY_SCHEMA)
+            with pytest.raises(ValueError, match="L_REP_CTY must be present"):
+                merge_submission(spark, incoming, "anchor_history")
+        assert spark.table("anchor_history").count() == 0
+    finally:
+        spark.stop()
+
+
 def test_shorter_accepted_snapshot_retires_only_its_scope(tmp_path):
     path = tmp_path / "history"
     merge_local_submission(path, batch(), context("ca-q1"))

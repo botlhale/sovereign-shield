@@ -19,6 +19,10 @@ synthetic work, or require a client-controlled repository from inception. A clie
 repository is not an employer repository unless that employer is the contracted
 client. No employer code, credentials, equipment or data is implicitly authorized.
 
+AI coding agents are providers for this purpose. They work in the same synthetic-only
+boundary, receive no production records or secrets in prompts or context, and their
+output passes the same review and tests as any other contribution.
+
 Synthetic generation must not leak production-derived distributions, exact counts
 or identifiers through metadata. The international intake is SDMx files only;
 synthetic bank micro-transactions are educational calculation fixtures, not a

@@ -13,7 +13,12 @@ from databricks.sdk.service.iam import AccessControlRequest, ComplexValue, Patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from uc_query import DatabricksBackend, Principal, SeriesFilter, build_search_sql
+from uc_query import COORDINATE_MASK_SUFFIX, HISTORY_TABLE, LINEAGE_COLUMNS, DatabricksBackend, Principal, SeriesFilter, build_search_sql
+
+LINEAGE_SQL = (
+    f"SELECT OBS_CONF, {', '.join(LINEAGE_COLUMNS)} FROM {HISTORY_TABLE} "
+    "WHERE IS_CURRENT = true AND BATCH_STATUS = 'PUBLISHED'"
+)
 
 GROUPS = {
     "public": ("public",),
@@ -24,6 +29,19 @@ GROUPS = {
     "dual-ca-researcher": ("submitter-ca", "researchers"),
     "unaffiliated": (),
 }
+
+
+def assert_coordinates(frame, withheld):
+    keys = frame["TIME_SERIES_CODE"].astype(str)
+    assert keys[withheld].str.endswith(COORDINATE_MASK_SUFFIX).all(), "A withheld value kept its exact coordinates"
+    assert not keys[~withheld].str.endswith(COORDINATE_MASK_SUFFIX).any(), "An entitled observation lost its coordinates"
+
+
+def assert_lineage(frame):
+    restricted = ~frame["OBS_CONF"].eq("F")
+    assert restricted.any() and (~restricted).any(), "Lineage check needs restricted and free rows"
+    assert frame.loc[restricted, list(LINEAGE_COLUMNS)].isna().all().all(), "A withheld row exposed its lineage"
+    assert frame.loc[~restricted, "RECORD_ID"].notna().all()
 
 
 def assert_persona(name, frame):
@@ -38,16 +56,19 @@ def assert_persona(name, frame):
         assert frame["BATCH_STATUS"].eq("PUBLISHED").all()
         assert not restricted.any()
         assert frame["OBS_VALUE"].notna().all()
+        assert_coordinates(frame, restricted)
     elif name == "researcher":
         assert len(frame) == 22
         assert frame["BATCH_STATUS"].eq("PUBLISHED").all()
         assert frame.loc[restricted, "OBS_VALUE"].isna().all()
         assert restricted.sum() == 9
+        assert_coordinates(frame, restricted)
     elif name.startswith("submitter-"):
         own = country.eq(name[-2:].upper())
         assert frame.loc[own, "OBS_VALUE"].notna().all()
         assert frame.loc[~own, "BATCH_STATUS"].eq("PUBLISHED").all()
         assert frame.loc[~own, "OBS_CONF"].eq("F").all()
+        assert_coordinates(frame, restricted & ~own)
         rejected = frame[own & frame["BATCH_STATUS"].eq("QUARANTINE")]
         assert len(rejected) == 4
         assert rejected["BATCH_FAILED_RULE_ID"].notna().all()
@@ -55,10 +76,12 @@ def assert_persona(name, frame):
         assert len(frame) == 44
         assert frame["OBS_VALUE"].notna().all()
         assert frame["BATCH_STATUS"].eq("QUARANTINE").sum() == 22
+        assert_coordinates(frame, frame["OBS_VALUE"].isna())
     else:
         foreign_restricted = frame[~country.eq("CA") & restricted]
         assert not foreign_restricted.empty
         assert foreign_restricted["OBS_VALUE"].isna().all()
+        assert_coordinates(frame, ~country.eq("CA") & restricted)
         assert frame.loc[country.eq("CA"), "OBS_VALUE"].notna().all()
         assert frame[country.eq("CA") & frame["BATCH_STATUS"].eq("QUARANTINE")].shape[0] == 4
 
@@ -116,6 +139,8 @@ def main():
             identity = Principal(display_name=name, groups=frozenset(f"sg-sovereignshield-{suffix}" for suffix in memberships), authenticated=True, access_token=access_token)
             frame = backend.query(sql, parameters, identity)
             assert_persona(name, frame)
+            if name == "researcher":
+                assert_lineage(backend.query(LINEAGE_SQL, {}, identity))
             evidence.append({"persona": name, "rows": len(frame), "masked": int(frame["OBS_VALUE"].isna().sum())})
             print(json.dumps(evidence[-1]), flush=True)
             account.service_principal_secrets.delete(str(principal.id), cleanup["secret_id"])

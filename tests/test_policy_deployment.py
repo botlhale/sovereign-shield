@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,7 +13,7 @@ def test_policy_binding_failure_cannot_report_success(tmp_path, monkeypatch, cap
     script.write_text(
         "-- @tolerate-failure\n"
         "ALTER TABLE agg_sdmx_history SET ROW FILTER fn_rls_multi_persona_lock "
-        "ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF);\n",
+        "ON (L_REP_CTY, BATCH_STATUS, OBS_CONF);\n",
         encoding="utf-8",
     )
 
@@ -39,6 +40,44 @@ def test_normal_policy_deployment_never_detaches_protection():
     for statement, _ in statements:
         assert "DROP ROW FILTER" not in statement.upper()
         assert "DROP MASK" not in statement.upper()
+
+
+def _reveal_branches(ddl, function, returned):
+    body = ddl.split(f"FUNCTION {function}(", 1)[1].split("END;", 1)[0]
+    return [re.sub(r"\s+", " ", branch) for branch in re.findall(rf"WHEN (.+?) THEN {returned}\b", body, re.S)]
+
+
+def test_coordinate_and_lineage_masks_share_the_value_reveal_rule():
+    """A key or hash must never be revealed to someone denied the value itself."""
+    ddl = Path(apply_security.resolve_sql_path()).read_text(encoding="utf-8")
+    expected = _reveal_branches(ddl, "fn_ddm_obs_conf_mask", "obs_val")
+
+    assert len(expected) == 4
+    assert _reveal_branches(ddl, "fn_ddm_series_key_mask", "time_series_code") == expected
+    assert _reveal_branches(ddl, "fn_ddm_lineage_mask", "lineage") == expected
+
+
+def test_withheld_rows_mask_coordinates_and_lineage_inline_and_on_rebind():
+    ddl = Path(apply_security.resolve_sql_path()).read_text(encoding="utf-8")
+
+    assert "TIME_SERIES_CODE STRING MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF, L_REP_CTY)" in ddl
+    assert "ALTER COLUMN TIME_SERIES_CODE SET MASK fn_ddm_series_key_mask USING COLUMNS (OBS_CONF, L_REP_CTY)" in ddl
+    assert "concat(substring_index(time_series_code, '.', 9), '.xx.xx')" in ddl
+    for column in ("RECORD_ID", "version_hash", "VALIDATION_NOTES"):
+        assert f"{column} STRING MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY)" in ddl
+        assert f"ALTER COLUMN {column} SET MASK fn_ddm_lineage_mask USING COLUMNS (OBS_CONF, L_REP_CTY)" in ddl
+
+
+def test_masked_key_is_never_a_policy_input():
+    """Unity Catalog rejects a masked column in another policy's USING COLUMNS or ON clause."""
+    ddl = Path(apply_security.resolve_sql_path()).read_text(encoding="utf-8")
+    bindings = re.findall(r"(?:USING COLUMNS|ROW FILTER \w+ ON) \(([^)]*)\)", ddl)
+    masked = {name.upper() for name in re.findall(r"(\w+) (?:STRING|DECIMAL\(38,3\)) MASK", ddl)}
+
+    assert "TIME_SERIES_CODE" in masked and "L_REP_CTY" not in masked
+    assert len(bindings) >= 12
+    for columns in bindings:
+        assert not masked & {name.strip().upper() for name in columns.split(",")}, columns
 
 
 def test_policy_names_are_content_addressed_and_never_replaced():
@@ -73,15 +112,27 @@ def test_missing_binding_aborts():
 
 @pytest.mark.parametrize("wrong_field", [None, "function", "columns"])
 def test_current_runtime_metadata_preserves_strict_binding_checks(wrong_field):
-    versions = {name: name + "__verified" for name in ("fn_rls_multi_persona_lock", "fn_ddm_obs_conf_mask", "fn_rls_micro_country_lock")}
+    names = ("fn_rls_multi_persona_lock", "fn_ddm_obs_conf_mask", "fn_ddm_series_key_mask",
+             "fn_ddm_lineage_mask", "fn_rls_micro_country_lock")
+    versions = {name: name + "__verified" for name in names}
+    masks = {
+        "OBS_VALUE": ("fn_ddm_obs_conf_mask", "OBS_CONF,L_REP_CTY"),
+        "TIME_SERIES_CODE": ("fn_ddm_series_key_mask", "OBS_CONF, L_REP_CTY"),
+        "RECORD_ID": ("fn_ddm_lineage_mask", "OBS_CONF, L_REP_CTY"),
+        "version_hash": ("fn_ddm_lineage_mask", "`OBS_CONF`,`L_REP_CTY`"),
+        "VALIDATION_NOTES": ("fn_ddm_lineage_mask", "OBS_CONF,L_REP_CTY"),
+    }
 
     def query(statement):
         micro = "lbs_micro_transactions" in statement
         mask = "column_masks" in statement
         schema = "sovereign_intake" if micro else "sovereign_shield"
         kind = "mask" if mask else "filter"
-        function = "fn_rls_micro_country_lock" if micro else "fn_ddm_obs_conf_mask" if mask else "fn_rls_multi_persona_lock"
-        arguments = "reporting_country" if micro else "OBS_CONF,TIME_SERIES_CODE" if mask else "TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF"
+        if mask:
+            function, arguments = masks[re.search(r"column_name = '(\w+)'", statement).group(1)]
+        else:
+            function = "fn_rls_micro_country_lock" if micro else "fn_rls_multi_persona_lock"
+            arguments = "reporting_country" if micro else "L_REP_CTY, BATCH_STATUS, OBS_CONF"
         row = {"table_catalog": "dbw_sovereignshield", "table_schema": schema,
                f"{kind}_name": f"dbw_sovereignshield.{schema}.{versions[function]}",
                "using_columns" if mask else "target_columns": arguments}
@@ -114,3 +165,25 @@ def test_unrecognized_classification_is_masked_for_researchers(classification):
     result = LocalDeltaBackend._apply_persona(frame, principal)
     assert len(result) == 1
     assert result["OBS_VALUE"].isna().all()
+
+class _RecordingSession:
+    def __init__(self):
+        self.statements = []
+        self.catalog = SimpleNamespace(tableExists=lambda name: True)
+
+    def sql(self, statement):
+        self.statements.append(statement)
+        return SimpleNamespace(collect=lambda: [])
+
+
+def test_policy_deployment_never_adds_check_constraints(monkeypatch):
+    """Column-mask policies are unsupported on tables with CHECK constraints; the writer owns the anchor."""
+    session = _RecordingSession()
+    for name in ("verify_existing_table_contracts", "verify_policy_functions", "verify_policy_bindings"):
+        monkeypatch.setattr(apply_security, name, lambda *args: None)
+    monkeypatch.setenv("SOVEREIGNSHIELD_SKIP_GRANTS", "1")
+
+    apply_security.apply_security_layer(spark=session)
+
+    assert any("SET MASK" in statement for statement in session.statements)
+    assert not [s for s in session.statements if re.search(r"\bCONSTRAINT\b|\bCHECK\s*\(", s, re.I)]

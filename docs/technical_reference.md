@@ -7,16 +7,12 @@ dissemination gateway, and anonymous access.
 The [reading guide](technical_guide.md) provides an implementation reading order.
 This reference defines the current contracts and their enforcement boundaries.
 
-**Intake scope:** SDMx files are the international submission contract. Synthetic
-bank micro-transactions exist solely as educational fixtures illustrating the
-calculation of realistic observations; the demo ledger is not an institutional
-intake requirement or system deliverable. Domestic granular-data collection is
-outside this modeled exchange.
+**Intake scope:** SDMx files are the international submission contract; the
+synthetic micro-transaction ledger is an educational fixture, not intake.
 
 **Related:**
 [README](../README.md) ·
 [Reading guide](technical_guide.md) ·
-[Scaling & stress testing](technical_guide.md) ·
 [Onboarding playbook](ENTERPRISE_ONBOARDING_PLAYBOOK.md) ·
 [Architecture diagrams](ARCHITECTURE_DIAGRAMS.md)
 
@@ -44,11 +40,6 @@ new submission identities even when values match.
 specification in [compute.tf](../terraform/modules/databricks_workspace/compute.tf).
 Larger worker counts and Photon require approval. Driver-bound pandas XML parsing
 and arithmetic checks do not become distributed by increasing workers.
-
-The successful synthetic evaluation took about **75 minutes to provision including
-prerequisites**, **30 minutes to tear down**, and **US$10 or less in Azure charges
-for deploy/test/teardown**. These are reference-cycle observations, not production
-capacity or cost guarantees; see [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 
 * **Immutable execution:** scripts run via `spark_python_task` against the synchronised `src/` workspace directory, avoiding intermediate `.whl` compilation.
 
@@ -103,11 +94,11 @@ reconciliation during setup is not continuous deprovisioning.
 
 | | **Lock 1 — RLS** | **Lock 2 — DDM** | **Lock 3 — Quarantine View** |
 | --- | --- | --- | --- |
-| **Object** | `fn_rls_multi_persona_lock`<br/>`fn_rls_micro_country_lock` | `fn_ddm_obs_conf_mask` | `v_agg_sdmx_published` |
-| **Binding** | `WITH ROW FILTER ... ON (TIME_SERIES_CODE, BATCH_STATUS, OBS_CONF)`<br/>`ON (reporting_country)` | `OBS_VALUE DECIMAL(38,3) MASK ... USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)` | `CREATE OR REPLACE VIEW` |
+| **Object** | `fn_rls_multi_persona_lock`<br/>`fn_rls_micro_country_lock` | `fn_ddm_obs_conf_mask`<br/>`fn_ddm_series_key_mask`<br/>`fn_ddm_lineage_mask` | `v_agg_sdmx_published` |
+| **Binding** | `WITH ROW FILTER ... ON (L_REP_CTY, BATCH_STATUS, OBS_CONF)`<br/>`ON (reporting_country)` | `OBS_VALUE`, `TIME_SERIES_CODE`, `RECORD_ID`, `version_hash`, `VALIDATION_NOTES` ... `USING COLUMNS (OBS_CONF, L_REP_CTY)` | `CREATE OR REPLACE VIEW` |
 | **Granularity** | Row | Cell | Result set |
-| **Threat addressed** | Cross-border leakage, unpublished-state leakage | Confidential value disclosure | Unvalidated data reaching publication |
-| **Effect** | Non-matching rows disappear | `OBS_VALUE` → `NULL` | `QUARANTINE` / superseded rows invisible |
+| **Threat addressed** | Cross-border leakage, unpublished-state leakage | Value disclosure, counterparty identification, hash look-ups | Unvalidated data reaching publication |
+| **Effect** | Non-matching rows disappear | `OBS_VALUE` → `NULL`; key `...xx.xx`; lineage → `NULL` | `QUARANTINE` / superseded rows invisible |
 
 ### Lock 1 — Multi-column row-level security (sovereignty)
 
@@ -141,19 +132,23 @@ Four implementation details are load-bearing:
 
 ### Lock 2 — Dynamic data masking (confidentiality)
 
-`fn_ddm_obs_conf_mask(obs_val DECIMAL(38,3), obs_conf STRING, time_series_code STRING)`
-is bound via `USING COLUMNS (OBS_CONF, TIME_SERIES_CODE)`. After administrator and
+`fn_ddm_obs_conf_mask(obs_val DECIMAL(38,3), obs_conf STRING, l_rep_cty STRING)`
+is bound via `USING COLUMNS (OBS_CONF, L_REP_CTY)`. After administrator and
 own-country checks, only explicit `F` reveals a measure. Other flags, including
 unknown or missing classifications, return `NULL`.
 
-* **Why the key is an input.** Without `TIME_SERIES_CODE` the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells. The mask therefore repeats the segment-9 test, and the fixture includes restricted rows in multiple jurisdictions.
+* **Why the reporting country is an input.** Without it the function knows a value is confidential but not *whose* it is, so any submitter membership would unmask every jurisdiction's restricted cells. The mask therefore repeats the own-country test, and the fixture includes restricted rows in multiple jurisdictions.
+* **Why `L_REP_CTY` is a separate column.** Unity Catalog rejects a masked column as the input of another policy, and `TIME_SERIES_CODE` carries the coordinate mask. The writer stores segment 9 of the key in the unmasked `L_REP_CTY`, the Spark merge refuses any row where they differ, and every filter and mask reads it instead of the key.
 * **Typed absence:** the mask returns `DECIMAL(38,3)` or `NULL`, never a string sentinel or a fabricated zero.
 * **Privilege ordering:** administrators and the owning submitter are evaluated *before* the confidentiality branch, so an entitled reader always sees the true value.
-* **Structural density preserved:** the row still exists with all its dimensions intact, so researcher joins and dimensional counts remain correct — only the metric is withheld. The portal surfaces this explicitly, reporting how many values a query had withheld rather than silently returning blanks.
+* **Coordinates follow the value:** `fn_ddm_series_key_mask` uses the same four reveal branches and otherwise rewrites `Q.S.C.A.USD.D.5J.A.US.A.5J` as `Q.S.C.A.USD.D.5J.A.US.xx.xx`. Segment 9 survives, so a masked key still agrees with `L_REP_CTY`. Masks resolve before predicates, so a counterparty filter cannot match a masked row, and facets skip the `xx` token. Keys without eleven segments mask to `NULL`.
+* **Lineage follows the value:** `RECORD_ID` hashes the full key with a visible `SUBMISSION_ID`, so 20 sectors × 432 areas would recover the coordinates by enumeration; `version_hash` hashes the measure with visible attributes and would confirm a guessed value; `VALIDATION_NOTES` names coordinate-dependent rules. `fn_ddm_lineage_mask` nulls all three for the same callers.
+* **Discovery, not data:** the row remains, so researchers can count restricted series per family and approach the originating authority. The gateway excludes coordinate-masked rows from every download before its row limit; a download that matches only such rows returns 204 with the withheld count.
 
 That structural visibility is an information release. Published totals, related
-breakdowns and row presence can reconstruct masked values. Community synthetic
-tests are invited through the [reconstruction challenge](../SECURITY.md#statistical-reconstruction-challenge).
+breakdowns and row presence can reconstruct masked values; coordinate masking hides
+the counterparty but not a margin residual across visible dimensions. Community
+synthetic tests are invited through the [reconstruction challenge](../SECURITY.md#statistical-reconstruction-challenge).
 Restrict or remove the Researcher role if existence disclosure makes inference
 trivial; public totals also require an approved disclosure method.
 
@@ -173,7 +168,7 @@ Both predicates are required. `BATCH_STATUS` alone would expose superseded histo
 ### Supporting guarantees
 
 * **Target catalog:** uses the pre-provisioned workspace catalog (`dbw_sovereignshield`), avoiding the need to grant Metastore Admin rights to the Service Principal.
-* **Protected policy deployment:** the executor creates immutable content-addressed functions, verifies their definitions, changes bindings without dropping protection, and verifies binding metadata. Unexpected errors abort. Existing incompatible tables require explicit migration; success is not inferred from skipped errors.
+* **Protected policy deployment:** the executor creates immutable content-addressed functions, verifies their definitions, changes bindings without dropping protection, and verifies binding metadata. Unexpected errors abort. Existing incompatible tables require explicit migration; success is not inferred from skipped errors. Column-mask policies cannot share a table with a CHECK constraint, so the submission writers, not a table constraint, refuse any row whose `L_REP_CTY` is null, empty or not segment 9 of its key.
 * **Stable execution, explicit ownership:** the job's `run_as` is a configured service principal. This does not transfer existing objects automatically; table/function ownership, Azure rights and GitHub administration remain explicit handover decisions.
 
 > **Deployment prerequisite:** the pipeline Service Principal **must** be a member of `sg-sovereignshield-admin`. Ownership does not exempt a principal from a row filter. The SCD2 engine reads the target table to locate records to expire; if RLS hid those rows, the merge would treat every row as new — silently duplicating history and never closing prior versions. This fails without raising an error.
@@ -236,6 +231,18 @@ The [shared submission contract](../src/submission_history.py) and
 **one Delta MERGE per submission**. Natural observation identity is
 `(TIME_SERIES_CODE, DATE, AGG_CODE)`; `RECORD_ID` also includes `SUBMISSION_ID`.
 
+| Field | Information meaning |
+| --- | --- |
+| `TIME_SERIES_CODE`, `DATE`, `AGG_CODE` | Observation key and country/period/aggregation replacement scope |
+| `L_REP_CTY` | Unmasked copy of key segment 9 used as the reporting-country policy anchor |
+| `OBS_VALUE` | `DECIMAL(38,3)`; signed values and genuine zero retained |
+| `OBS_STATUS`, `OBS_CONF` | Observation status and sender-owned confidentiality classification |
+| `QUALITY_STATUS`, `BATCH_STATUS` | Validation result and publication/quarantine state |
+| `FAILED_RULE_ID`, `BATCH_FAILED_RULE_ID`, `VALIDATION_NOTES` | Observation feedback, batch reason and evaluated/unsupported coverage |
+| `SUBMISSION_ID`, `SOURCE_SHA256`, `RECORD_ID`, `version_hash` | Immutable filing identity, source evidence, row identity and payload digest |
+| `SUBMITTED_AT`, `RECEIVED_AT` | Sender-reported time and receiver processing time |
+| `VALID_FROM`, `VALID_TO`, `IS_CURRENT` | History interval; open current `VALID_TO` is `NULL` |
+
 1. Validate nonempty full-snapshot scope, duplicate keys, source digest and message identity.
 2. For a newer accepted filing, close every current row in the exact
     country/period/aggregation scope, including keys absent from a smaller replacement.
@@ -271,7 +278,7 @@ Token validation is delegated rather than reimplemented: the gateway resolves th
 | Route | Purpose |
 | --- | --- |
 | `GET /api/v1/search` | Filter by `frequency`, `parent_country`, `reporting_country`, `counterpart_sector`, `counterpart_country`, `currency`, `position`, `instrument`, `date_from`, `date_to` |
-| `GET /api/v1/facets` | Distinct code values for the filter cards — already persona-scoped, so a visitor cannot discover that a code exists if the filter hides every row carrying it |
+| `GET /api/v1/facets` | Distinct code values for the filter cards — already persona-scoped, so a visitor cannot discover a code that only hidden or coordinate-masked rows carry |
 | `GET /api/v1/export/sdmx-ml` | SDMX-ML 3.0 structure-specific message |
 | `GET /api/v1/export/sdmx-json` | SDMX-JSON 2.0.0 data message |
 | `GET /api/v1/export/csv` | SDMX-CSV 2.0.0, or `?format=tidy` for a plain analyst CSV |
@@ -297,7 +304,12 @@ authorized full-history query or a transport receipt service.
 * **Pinned structure.** Normal serialization uses the reviewed local BIS LBS 1.0 component/codelist snapshot and pysdmx 1.18.0. It does not silently fall back to an unvalidated writer or depend on a registry request for each export. `Test=true` identifies synthetic messages, not standards accreditation.
 * **SDMX-JSON 2.0.0** for browsers and **SDMX-CSV 2.0.0** for tabular consumers — the latter carrying the standard's `STRUCTURE,STRUCTURE_ID,ACTION` prefix so a file is self-describing rather than depending on an out-of-band agreement about column order.
 
-A masked observation is serialized as an **absent** value, never as zero. Under SDMx semantics those mean entirely different things, and conflating them would turn a confidentiality control into a data-quality defect.
+Coordinate-masked observations never reach a download: `xx` is not a codelist value,
+so the gateway excludes them in the query, before the row limit, and the serializer
+refuses them if they arrive. A download that matches only such rows returns 204 with
+the count in `X-SovereignShield-Withheld`. Any other missing measure is written as
+**absent**, never as zero; conflating the two would turn a confidentiality control
+into a data-quality defect.
 
 ### Deploying the portal
 

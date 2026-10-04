@@ -95,6 +95,14 @@ RESULT_COLUMNS: List[str] = [
 
 AUDIT_COLUMNS = RESULT_COLUMNS[9:]
 
+#: Discovery Gateway coordinate mask, mirroring fn_ddm_series_key_mask: a
+#: withheld observation keeps segments 1-9 and loses L_CP_SECTOR/L_CP_COUNTRY.
+COORDINATE_MASK_TOKEN = "xx"
+COORDINATE_MASK_SUFFIX = f".{COORDINATE_MASK_TOKEN}.{COORDINATE_MASK_TOKEN}"
+#: Columns derived from a withheld row's exact key or value (fn_ddm_lineage_mask).
+LINEAGE_COLUMNS = ("RECORD_ID", "version_hash", "VALIDATION_NOTES")
+_SERIES_PREFIX = r"^((?:[^.]*\.){8}[^.]*)\.[^.]*\.[^.]*$"
+
 MAX_ROWS = int(os.getenv("SOVEREIGNSHIELD_MAX_ROWS", "20000"))
 DEFAULT_ROWS = 500
 
@@ -107,6 +115,20 @@ _PERIOD_PATTERN = re.compile(r"^\d{4}(-(Q[1-4]|S[1-2]|(0[1-9]|1[0-2])))?$")
 
 class QueryError(ValueError):
     """Raised when a request cannot be turned into a safe query."""
+
+
+def mask_coordinates(keys: pd.Series) -> pd.Series:
+    """Replace segments 10-11 with the mask token; keys without 11 segments become NULL."""
+    prefix = keys.astype("string").str.extract(_SERIES_PREFIX, expand=False)
+    return (prefix + COORDINATE_MASK_SUFFIX).astype(object).where(prefix.notna(), None)
+
+
+def coordinate_masked(frame: pd.DataFrame) -> pd.Series:
+    """Rows whose series key arrived coordinate-masked, or NULL from a malformed key, for the caller."""
+    if "TIME_SERIES_CODE" not in frame.columns:
+        return pd.Series(False, index=frame.index)
+    keys = frame["TIME_SERIES_CODE"].astype("string")
+    return keys.str.endswith(COORDINATE_MASK_SUFFIX).fillna(True).astype(bool)
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +146,7 @@ class SeriesFilter:
     include_quarantined: bool = False
     limit: int = DEFAULT_ROWS
     lifecycle: Optional[str] = None
+    releasable_only: bool = False
 
     @property
     def view_mode(self) -> str:
@@ -244,6 +267,10 @@ def build_search_sql(series_filter: SeriesFilter) -> Tuple[str, Dict[str, Any]]:
     else:
         raise QueryError("Unknown lifecycle view.")
 
+    if series_filter.releasable_only:
+        # Masks resolve before predicates, so discovery-only rows never take a LIMIT slot.
+        predicates.append(f"TIME_SERIES_CODE NOT LIKE '%{COORDINATE_MASK_SUFFIX}'")
+
     for dimension, codes in series_filter.dimensions.items():
         markers = []
         for position, code in enumerate(codes):
@@ -277,7 +304,8 @@ def build_facet_sql(dimension: str) -> str:
     """Builds the distinct-value query backing one filter card.
 
     The result is already persona-scoped: a visitor cannot discover that a code
-    exists if the row filter hides every row carrying it.
+    exists if the row filter hides every row carrying it, and coordinate-masked
+    rows contribute no counterparty codes.
     """
     if dimension not in DIMENSION_SEGMENTS:
         raise QueryError(f"Unknown dimension '{dimension}'.")
@@ -286,6 +314,7 @@ def build_facet_sql(dimension: str) -> str:
         f"  FROM {HISTORY_TABLE}\n"
         f" WHERE IS_CURRENT = true\n"
         f"   AND {_segment(dimension)} IS NOT NULL\n"
+        f"   AND {_segment(dimension)} <> '{COORDINATE_MASK_TOKEN}'\n"
         f" ORDER BY CODE"
     )
 
@@ -332,7 +361,7 @@ class Principal:
             "admin": "Platform Administrator (All Jurisdictions)",
             "submitter-ca": "Canadian Regional Submitter (CA)",
             "submitter-us": "US Regional Submitter (US)",
-            "researcher": "Researcher (Published Series, Confidential Values Masked)",
+            "researcher": "Researcher Discovery Gateway (Restricted Values and Coordinates Masked)",
             "public": "Public (Free to Publish Only)",
         }[self.persona]
 
@@ -485,10 +514,12 @@ class LocalDeltaBackend:
         else:
             mask = published
         frame = frame[mask]
+        if series_filter.releasable_only:
+            frame = frame[~coordinate_masked(frame)]
 
         for dimension, codes in series_filter.dimensions.items():
             position = DIMENSION_SEGMENTS[dimension] - 1
-            segment = frame["TIME_SERIES_CODE"].astype(str).str.split(".").str[position]
+            segment = frame["TIME_SERIES_CODE"].astype("string").str.split(".").str[position]
             frame = frame[segment.isin(codes)]
 
         if series_filter.date_from:
@@ -503,8 +534,8 @@ class LocalDeltaBackend:
         frame = self._apply_persona(self._load(), principal)
         frame = frame[frame["IS_CURRENT"] == True]  # noqa: E712
         position = DIMENSION_SEGMENTS[dimension] - 1
-        segment = frame["TIME_SERIES_CODE"].astype(str).str.split(".").str[position]
-        return sorted({value for value in segment.dropna().tolist() if value})
+        segment = frame["TIME_SERIES_CODE"].astype("string").str.split(".").str[position]
+        return sorted({value for value in segment.dropna().tolist() if value and value != COORDINATE_MASK_TOKEN})
 
     def periods(self, principal: Principal) -> List[str]:
         frame = self._apply_persona(self._load(), principal)
@@ -513,7 +544,7 @@ class LocalDeltaBackend:
 
     @staticmethod
     def _apply_persona(frame: pd.DataFrame, principal: Principal) -> pd.DataFrame:
-        """Mirrors fn_rls_multi_persona_lock and fn_ddm_obs_conf_mask."""
+        """Mirrors fn_rls_multi_persona_lock and the fn_ddm_* column masks."""
         frame = frame.copy()
         reporting = frame["TIME_SERIES_CODE"].astype(str).str.split(".").str[8]
         published = frame["BATCH_STATUS"].astype(str).str.upper() == "PUBLISHED"
@@ -543,6 +574,10 @@ class LocalDeltaBackend:
         if "sg-sovereignshield-admin" not in groups:
             restricted = ~free[visible] & ~own
             frame.loc[restricted, "OBS_VALUE"] = float("nan")
+            frame.loc[restricted, "TIME_SERIES_CODE"] = mask_coordinates(frame.loc[restricted, "TIME_SERIES_CODE"])
+            for column in LINEAGE_COLUMNS:
+                if column in frame.columns:
+                    frame.loc[restricted, column] = None
         return frame
 
 
@@ -550,7 +585,7 @@ def _with_dimension_columns(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty:
         return pd.DataFrame(columns=RESULT_COLUMNS + list(DIMENSION_SEGMENTS))
     frame = frame.copy()
-    segments = frame["TIME_SERIES_CODE"].astype(str).str.split(".", expand=True)
+    segments = frame["TIME_SERIES_CODE"].astype("string").str.split(".", expand=True)
     for dimension, position in DIMENSION_SEGMENTS.items():
         frame[dimension] = segments[position - 1] if position - 1 in segments.columns else pd.NA
     return frame[[c for c in RESULT_COLUMNS if c in frame.columns] + list(DIMENSION_SEGMENTS)]

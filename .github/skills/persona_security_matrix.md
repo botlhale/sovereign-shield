@@ -21,7 +21,7 @@ control-plane rights and downloaded exports are separate boundaries.
 | Persona | Account Group | Row Entitlement | Measure Entitlement |
 | --- | --- | --- | --- |
 | Public proxy | `sg-sovereignshield-public` | Published rows explicitly `F` | Free measures only |
-| Researcher | `sg-sovereignshield-researchers` | Published rows across jurisdictions | Explicit `F`; restricted/unknown values masked unless separately entitled |
+| Researcher (Discovery Gateway) | `sg-sovereignshield-researchers` | Published rows across jurisdictions | Explicit `F`; otherwise value NULL, key segments 10-11 `xx`, lineage NULL |
 | Regional submitter | `sg-sovereignshield-submitter-ca` / `-us` | Own jurisdiction in every lifecycle state plus foreign published `F` | Own values and foreign public values |
 | Administrator | `sg-sovereignshield-admin` | All countries and lifecycle history | All values through the explicit admin branch |
 | No recognized membership | None | No entitled rows | No values |
@@ -44,20 +44,24 @@ values and validation feedback. A rejected latest filing does not replace curren
 accepted data. Portal modes are `published`, `all` (current plus quarantine) and
 `quarantine`; full accepted history requires an authorized history query.
 
-## Researcher Disclosure Decision
+## Researcher Discovery Gateway
 
-Researchers may identify published series and request a separate agreement with
-the originating authority. Registration does not grant restricted values.
-Row existence, keys, confidentiality flags and counts are themselves information.
-Public totals or overlapping releases can reconstruct masked values, including the
-synthetic residual $1000-400-500=100$.
+Researchers learn that restricted series exist (series family, reporting country,
+period and flag) so they can request an agreement with the originating authority.
+They receive neither the value nor the counterparty: `fn_ddm_series_key_mask`
+replaces segments 10-11 with `xx`, and `fn_ddm_lineage_mask` nulls `RECORD_ID`,
+`version_hash` and `VALIDATION_NOTES`, which would otherwise re-identify the key or
+confirm a guessed value. Masks resolve before predicates, facets drop the token,
+and downloads exclude coordinate-masked rows, so the researcher's product equals
+the public one. Restricted cells belong in a Secure Data Enclave, documented as a
+concept in the White Paper; registration grants nothing.
 
-Invite community tests using synthetic data under the
-[statistical reconstruction challenge](../../SECURITY.md#statistical-reconstruction-challenge).
-Restrict or remove the Researcher role if observation existence makes inference
-trivial; public-only releases also require disclosure review. Metadata catalogs
-and secondary suppression are design options requiring implementation/approval,
-not controls already supplied by the reference.
+Coordinate masking does not stop margin differencing across visible dimensions:
+the fixture still yields $1000-400-500=100$, and restricted-row counts per prefix
+are visible. Invite community tests under the
+[statistical reconstruction challenge](../../SECURITY.md#statistical-reconstruction-challenge);
+restrict or remove the role, or apply complementary suppression, where inference
+is trivial.
 
 ## Educational Ledger
 
@@ -73,8 +77,10 @@ because volumes do not carry table row filters or masks.
 - `OBS_VALUE` and mask input/output use `DECIMAL(38,3)`.
 - Check administrator and own-country entitlements; otherwise reveal explicit `F`
   only. Missing/unknown confidentiality values return `NULL`.
+- The key and lineage masks use exactly the value mask's reveal branches; a key or
+  hash is never shown to a caller denied the value. Keys without 11 segments mask to `NULL`.
 - Repeat segment 9 in the mask so an additive researcher membership cannot reveal
-  a foreign restricted value to a submitter.
+  a foreign restricted value to a submitter. Coordinate masking keeps segment 9.
 - Preserve genuine zero; never serialize a redacted value as zero.
 - Keep rejected submissions audit-only, with the prior accepted publication current.
 - Non-throwing segment lookup does not replace strict input validation or eliminate
@@ -82,7 +88,7 @@ because volumes do not carry table row filters or masks.
 
 ## Synthetic Baseline
 
-| Persona | Current Published Rows | Masked Values | Current Plus Quarantine Rows |
+| Persona | Current Published Rows | Masked Values and Keys | Current Plus Quarantine Rows |
 | --- | ---: | ---: | ---: |
 | Public | 13 | 0 | Quarantine request refused |
 | Researcher | 22 | 9 | Quarantine request refused |

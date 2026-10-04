@@ -134,7 +134,7 @@ def verify_policy_functions(spark, statements: list[str]) -> None:
 
 
 def verify_existing_table_contracts(spark) -> None:
-    required = {"SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "SUBMITTED_AT", "RECEIVED_AT", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"}
+    required = {"L_REP_CTY", "SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "VERSION_HASH", "SUBMITTED_AT", "RECEIVED_AT", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"}
     for schema, table, measure in (
         ("sovereign_shield", "agg_sdmx_history", "OBS_VALUE"),
         ("sovereign_intake", "lbs_micro_transactions", "transaction_amount"),
@@ -156,9 +156,14 @@ def verify_existing_table_contracts(spark) -> None:
 
 
 def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
+    mask_inputs = "OBS_CONF,L_REP_CTY"
     expected = (
-        ("row_filters", "sovereign_shield", "agg_sdmx_history", "filter", "fn_rls_multi_persona_lock", "TIME_SERIES_CODE,BATCH_STATUS,OBS_CONF", ""),
-        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_obs_conf_mask", "OBS_CONF,TIME_SERIES_CODE", "AND column_name = 'OBS_VALUE'"),
+        ("row_filters", "sovereign_shield", "agg_sdmx_history", "filter", "fn_rls_multi_persona_lock", "L_REP_CTY,BATCH_STATUS,OBS_CONF", ""),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_obs_conf_mask", mask_inputs, "AND column_name = 'OBS_VALUE'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_series_key_mask", mask_inputs, "AND column_name = 'TIME_SERIES_CODE'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'RECORD_ID'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'version_hash'"),
+        ("column_masks", "sovereign_shield", "agg_sdmx_history", "mask", "fn_ddm_lineage_mask", mask_inputs, "AND column_name = 'VALIDATION_NOTES'"),
         ("row_filters", "sovereign_intake", "lbs_micro_transactions", "filter", "fn_rls_micro_country_lock", "reporting_country", ""),
     )
     for relation, schema, table, kind, function, columns, extra in expected:
@@ -170,7 +175,7 @@ def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
         rows = [row for row in rows if row.get("table_catalog", row.get("catalog_name")) == "dbw_sovereignshield"
                 and row.get("table_schema", row.get("schema_name")) == schema]
         if len(rows) != 1:
-            raise RuntimeError(f"Expected exactly one {kind} binding on {schema}.{table}.")
+            raise RuntimeError(f"Expected exactly one {kind} binding on {schema}.{table} for {function}.")
         binding = rows[0]
         if "table_catalog" in binding:
             qualified_function = binding[f"{kind}_name"]
@@ -181,11 +186,12 @@ def verify_policy_bindings(spark, versions: dict[str, str]) -> None:
         actual_columns = re.sub(r"[\s`]", "", arguments or "").upper()
         expected_function = f"dbw_sovereignshield.{schema}.{versions[function]}"
         if qualified_function != expected_function or actual_columns != columns.upper():
-            raise RuntimeError(f"Unexpected {kind} binding on {schema}.{table}.")
+            raise RuntimeError(f"Unexpected {kind} binding on {schema}.{table} for {function}.")
 
 
-def apply_security_layer(sql_path: str | None = None) -> None:
-    spark = SparkSession.builder.getOrCreate()
+def apply_security_layer(sql_path: str | None = None, spark=None) -> None:
+    """Apply the policy plane through Spark, or through any session exposing ``sql`` and ``catalog``."""
+    spark = spark or SparkSession.builder.getOrCreate()
     with open(sql_path or resolve_sql_path(), encoding="utf-8") as source:
         statements, versions = version_policy_functions([
             statement for statement, _ in parse_statements(source.read())

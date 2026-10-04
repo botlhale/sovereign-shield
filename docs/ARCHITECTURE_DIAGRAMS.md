@@ -1,190 +1,218 @@
-# SovereignShield Architecture Diagrams
+# Architecture Diagrams
 
-These Mermaid diagrams specify the current reference data flow and its ownership
-boundaries. Technology and institution names are plain text, not endorsements.
-The deployment uses synthetic observations and logical jurisdictional segregation.
-For implementation details see [the technical reference](technical_reference.md).
+Mermaid views of the reference implementation. Every node and plane carries an
+explicit fill and text colour, so the diagrams read the same in GitHub light and
+dark mode. Colours encode planes: slate for intake, teal for Unity Catalog
+governance, indigo for the trusted serving plane, sky for persona outputs and
+amber for disclosure risk. Detail lives in the [technical reference](technical_reference.md).
 
-The [publication figure sources](figures/README.md) provide matching SVG/PNG
-schematics and a source/image integrity manifest for the Executive Brief and
-White Paper. Portal screenshots have a separate [capture inventory](../demo/README.md).
+## Publication Figures
 
-## Live-Renderable Diagrams
+The White Paper and Executive Brief use these schematics. Sources, rendering and
+digests are described in [the figure sources](figures/README.md); screenshots have a
+separate [capture inventory](../demo/README.md).
 
-### 1.1 System Component Architecture
+| | |
+| --- | --- |
+| ![Governed SDMx exchange in four planes](figures/executive_architecture.png) | ![Contractor dilemma: synthetic sandbox and client sovereign boundary](figures/engagement_boundary.png) |
+| ![Two hosts, one governed store, Discovery Gateway and enclave concept](figures/dual_consumption.png) | ![Triple-lock control contract with coordinate masking](figures/triple_lock.png) |
+| ![One atomic transition per filing](figures/submission_history.png) | ![Evaluation compute and scale decisions](figures/compute_strategy.png) |
 
-The international intake contract is **SDMx files only**. Synthetic bank
-micro-transactions are educational artifacts showing the calculation of realistic
-observations; the separate demo ledger is not a client intake requirement or
-system deliverable. It has no production micro-to-macro ingestion arrow.
+## 1. System Components
+
+The international intake contract is SDMx files only. Synthetic bank
+micro-transactions are educational fixtures and have no production path.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "14px", "lineColor": "#64748B", "primaryTextColor": "#0F172A", "edgeLabelBackground": "#FFFFFF", "clusterBkg": "#F8FAFC", "titleColor": "#0F172A"}, "flowchart": {"nodeSpacing": 22, "rankSpacing": 34, "padding": 8, "curve": "basis", "subGraphTitleMargin": {"top": 6, "bottom": 8}}}}%%
 flowchart TB
-    subgraph DEMO["Synthetic fixture preparation: education only"]
-        MICROFIX["Generated bank micro-transactions"] --> GENERATOR["Aggregate and classify fixture observations"]
-        GENERATOR --> XML["Synthetic SDMx files"]
-        MICROFIX -.-> LEDGER["Protected demo ledger: sovereign_intake"]
+    subgraph INTAKE["1 · Intake Perimeter"]
+        direction LR
+        SRC["Reporting authority<br/>or synthetic fixtures"] -->|SDMx files only| VAL["Pinned BIS LBS 1.0<br/>21 workbook rules"]
+        VAL -->|PASS or QUARANTINE| HIST["Submission-aware history<br/>one MERGE per filing"]
     end
-    subgraph INTAKE["Modeled international intake"]
-        SUB["Reporting authority"] -->|SDMx files only| ARCHIVE["Admin-only submission archive"]
-        XML --> ARCHIVE
-        ARCHIVE --> VALIDATE["Pinned structure and implemented workbook checks"]
-        VALIDATE --> HISTORY["Submission-aware history: one Delta MERGE"]
-        STRUCTURE["Reviewed DSD, codelists and rulebook"] --> VALIDATE
+    subgraph GOV["2 · Governance Plane · Unity Catalog"]
+        direction TB
+        RLS["Lock 1 · Row filter<br/>country · lifecycle · CONF"]
+        MASK["Lock 2 · Column masks<br/>value · key xx.xx · lineage"]
+        PUB["Lock 3 · Publication<br/>PUBLISHED and IS_CURRENT"]
     end
-    subgraph GOVERNANCE["Unity Catalog: supported query paths"]
-        HISTORY --> POLICIES["Account-group RLS and decimal value mask"]
-        GROUPS["Databricks account memberships"] --> POLICIES
-        ENTRA["Entra identities"] -.->|setup reconciliation| GROUPS
+    subgraph SERVE["3 · Trusted Serving Plane"]
+        direction LR
+        APP["Databricks App<br/>SSO · caller token"] --> GW["Gateway<br/>identity · filters · lifecycle"]
+        ACA["Container Apps<br/>anonymous · Easy Auth"] --> GW
     end
-    subgraph SERVE["Trusted serving plane"]
-        DBAPP["Databricks App: SSO"] --> GATEWAY["Identity, user filters and lifecycle selection"]
-        ACA["Container Apps: anonymous or Easy Auth"] --> GATEWAY
-        GATEWAY -->|caller or explicit public principal| POLICIES
-        POLICIES --> RESULT["Entitled result"]
-        RESULT --> PUBLISHED["Current published SDMx products"]
-        RESULT --> AUDIT["Authorized submission/audit product"]
+    subgraph OUT["4 · Persona Outputs"]
+        direction TB
+        P1["Public<br/>published F values"]
+        P2["Researcher<br/>Discovery Gateway"]
+        P3["Submitter<br/>Analyst View"]
+        P4["Administrator<br/>full lifecycle audit"]
     end
-    PUBLISHED --> PUBLIC["Public: published free values"]
-    PUBLISHED --> RESEARCHER["Researcher: disclosure-approved discovery"]
-    AUDIT --> ANALYST["Analyst: reconcile expected filing with receiver state"]
-    AUDIT --> ADMIN["Administrator: authorized history and oversight"]
+    INTAKE -->|governed Delta table| GOV
+    GOV -->|resolved per caller, before predicates| SERVE
+    SERVE -->|entitled rows; downloads releasable only| OUT
+
+    classDef slate fill:#1E293B,stroke:#0F172A,color:#F8FAFC
+    classDef teal fill:#0F766E,stroke:#115E59,color:#FFFFFF
+    classDef indigo fill:#4338CA,stroke:#3730A3,color:#FFFFFF
+    classDef sky fill:#0369A1,stroke:#075985,color:#FFFFFF
+    class SRC,VAL,HIST slate
+    class RLS,MASK,PUB teal
+    class APP,ACA,GW indigo
+    class P1,P2,P3,P4 sky
+    style INTAKE fill:#F8FAFC,stroke:#1E293B,stroke-width:2px,color:#1E293B
+    style GOV fill:#F0FDFA,stroke:#0F766E,stroke-width:2px,color:#0F766E
+    style SERVE fill:#EEF2FF,stroke:#4338CA,stroke-width:2px,color:#4338CA
+    style OUT fill:#F0F9FF,stroke:#0369A1,stroke-width:2px,color:#0369A1
 ```
 
-The gateway handles tokens and results and therefore remains trusted. UC policies
-enforce row/value entitlements independently of the gateway's filter predicates.
-Published feeds select current accepted data; the underlying row filter does not
-itself enforce `IS_CURRENT`. Raw storage and privileged control-plane access need
-separate protection.
+The gateway handles tokens and results and remains trusted; Unity Catalog enforces
+row and value entitlements independently of its predicates. Published feeds select
+current accepted data; the row filter itself is not a time gate.
 
-### 1.1a Ownership Boundary
+## 2. Ownership Boundary
+
+One writer per object: Terraform owns infrastructure and grants, account setup owns
+memberships and run-as permission, the bundle owns data, policies and the App.
 
 ```mermaid
-flowchart LR
-    subgraph TF["Terraform: infrastructure and grants"]
-        ID["Entra apps/groups, federation and vault"]
-        INFRA["Workspace, storage, namespaces and compute policy"]
-        GRANTS["One writer per principal/securable grant pair"]
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "14px", "lineColor": "#64748B", "primaryTextColor": "#0F172A", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"nodeSpacing": 28, "rankSpacing": 30, "padding": 8, "curve": "basis", "subGraphTitleMargin": {"top": 6, "bottom": 8}}}}%%
+flowchart TB
+    subgraph TF["Terraform · infrastructure and grants"]
+        ID["Entra apps, groups,<br/>federation, vault"]
+        INFRA["Workspace, storage,<br/>namespaces, compute policy"]
+        GRANTS["One writer per<br/>principal and securable"]
     end
-    subgraph ACCOUNT["Account setup and run-as permission"]
-        MEMBERS["Databricks account memberships and assignments"]
-        RUNAS["Exact runtime service-principal use grant"]
+    subgraph ACCT["Account setup"]
+        MEMBERS["Account memberships<br/>and assignments"] --> RUNAS["Runtime service-principal<br/>use grant"]
     end
-    subgraph BUNDLE["Bundle and policy executor: data and policy"]
-        JOB["Stable run_as and ordered pipeline tasks"]
-        FUNCTIONS["Immutable content-addressed policy functions"]
-        TABLES["Protected table DDL and verified bindings"]
-        APP["Uploaded App source and exact-deployment activation"]
+    subgraph BUNDLE["Asset Bundle · data and policy"]
+        JOB["Stable run_as job"] --> FUNCS["Content-addressed<br/>policy functions"]
+        JOB --> APPSRC["App source and<br/>exact activation"]
+        FUNCS -->|bind without detaching| TABLES["Protected tables,<br/>verified bindings"]
     end
-    ID --> MEMBERS --> RUNAS --> JOB
+    ID --> MEMBERS
+    RUNAS --> JOB
     INFRA --> TABLES
-    FUNCTIONS -->|bind without detaching existing protection| TABLES
-    GRANTS -->|approved access after objects exist| TABLES
-    JOB --> FUNCTIONS
-    JOB --> APP
+    GRANTS -->|after objects exist| TABLES
+
+    classDef slate fill:#1E293B,stroke:#0F172A,color:#F8FAFC
+    classDef indigo fill:#4338CA,stroke:#3730A3,color:#FFFFFF
+    classDef teal fill:#0F766E,stroke:#115E59,color:#FFFFFF
+    class ID,INFRA,GRANTS slate
+    class MEMBERS,RUNAS indigo
+    class JOB,FUNCS,TABLES,APPSRC teal
+    style TF fill:#F8FAFC,stroke:#1E293B,stroke-width:2px,color:#1E293B
+    style ACCT fill:#EEF2FF,stroke:#4338CA,stroke-width:2px,color:#4338CA
+    style BUNDLE fill:#F0FDFA,stroke:#0F766E,stroke-width:2px,color:#0F766E
 ```
 
-Normal policy deployment never detaches row filters or masks. Changing a grant
-pair through multiple owners is prohibited. Stable runtime identities do not
-automatically migrate object ownership or remove human administration rights.
+Normal deployment never detaches a row filter or mask. Stable runtime identities do
+not migrate object ownership or remove human administration rights automatically.
 
-### 1.2 Data Ingestion and Atomic Quarantine Sequence
+## 3. Ingestion and Atomic Quarantine
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "14px", "actorBkg": "#1E293B", "actorBorder": "#0F172A", "actorTextColor": "#F8FAFC", "actorLineColor": "#94A3B8", "signalColor": "#64748B", "signalTextColor": "#0F172A", "noteBkgColor": "#E0F2FE", "noteTextColor": "#0C4A6E", "noteBorderColor": "#0369A1", "sequenceNumberColor": "#FFFFFF"}, "sequence": {"actorMargin": 36, "messageMargin": 26, "boxMargin": 6, "noteMargin": 8, "mirrorActors": false}}}%%
 sequenceDiagram
     autonumber
-    participant AUTH as Reporting authority or synthetic generator
-    participant ARCH as Protected SDMx archive
-    participant VAL as Contract and arithmetic validator
-    participant HIST as Submission-aware Delta history
-    participant PUB as Current published product
-    participant ANALYST as Own-jurisdiction analyst
-    AUTH->>ARCH: Full country/period/aggregation SDMx snapshot and immutable ID
-    ARCH->>VAL: Submitted observations, source digest and message metadata
+    participant AUTH as Reporting authority
+    participant VAL as Validator
+    participant HIST as Delta history
+    participant PUB as Published product
+    participant ANA as Own-country analyst
+    rect rgb(248, 250, 252)
+    AUTH->>VAL: Full country/period snapshot, immutable ID
     VAL-->>HIST: PASS / PUBLISHED with coverage notes
-    HIST->>HIST: One MERGE: close exact current scope and insert snapshot
-    Note over HIST: Current VALID_TO is NULL; genuine zero is retained
-    HIST-->>PUB: Accepted current observations, subject to entitlements
-    AUTH->>ARCH: Later filing with a named arithmetic failure
-    ARCH->>VAL: New immutable submission
-    VAL-->>HIST: FAIL / QUARANTINE and observation/batch feedback
-    HIST->>HIST: One MERGE: insert audit-only rows, leave accepted state unchanged
-    HIST-->>PUB: Prior accepted publication remains current
-    ANALYST->>HIST: Authorized published / all / quarantine query
-    HIST-->>ANALYST: IDs, timestamps, actual values and validation outcomes
-    Note over ANALYST: Reconcile expected latest filing with receiver state
-    ARCH->>HIST: Replay same ID and content
-    HIST-->>ARCH: No duplicate rows or new history commit
+    HIST->>HIST: One MERGE closes current scope, inserts snapshot
+    HIST-->>PUB: Accepted rows, subject to entitlements
+    end
+    rect rgb(255, 251, 235)
+    AUTH->>VAL: Later filing breaks LBS_CC01
+    VAL-->>HIST: FAIL / QUARANTINE with rule feedback
+    HIST->>HIST: One MERGE inserts audit-only rows
+    HIST-->>PUB: Prior accepted publication stays current
+    end
+    rect rgb(240, 249, 255)
+    ANA->>HIST: Published, all or quarantine view
+    HIST-->>ANA: IDs, timestamps, values, verdicts
+    Note over ANA: Expected latest filing vs receiver state
+    AUTH->>HIST: Replay of the same ID and content
+    HIST-->>AUTH: No new rows, no new commit
+    end
 ```
 
-An accepted smaller replacement retires omitted keys in its own scope. A new
-identical filing is retained as a distinct submission; replay of the same message
-is not. Older accepted arrivals are audit-only. The synthetic baseline contains
-22 published observations and its revision 22 quarantined observations across
-CA, US and GB. The ledger and macro history are separate transactions.
+A smaller accepted replacement retires omitted keys in its own scope. A new identical
+filing is a distinct submission; an older accepted arrival is audit-only.
 
-### 1.3 Entitlement and Information Disclosure
+## 4. Discovery Gateway and Disclosure
 
 ```mermaid
-flowchart LR
-    REQUEST["Authenticated SQL principal"] --> RLS["Account-group row entitlement"]
-    RLS --> MASK["Admin or own country: reveal; otherwise explicit F only"]
-    MASK --> SELECT["Current published product or authorized audit selection"]
-    SELECT --> RELEASE["Entitled output"]
-    RELEASE -.-> RISK["Totals, row existence and revisions can reveal masked values"]
-    RISK --> REVIEW["Disclosure assessment and synthetic challenge"]
-    REVIEW --> GATE{"Approved release product?"}
-    GATE -->|No| RESTRICT["Suppress or redesign release; restrict/remove Researcher if necessary"]
-    GATE -->|Yes| APPROVE["Client data authority records release approval"]
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "14px", "lineColor": "#64748B", "primaryTextColor": "#0F172A", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"nodeSpacing": 22, "rankSpacing": 32, "padding": 8, "curve": "basis"}}}%%
+flowchart TB
+    REQ["Researcher query<br/>e.g. counterparty = JP"] --> RLS["Row filter<br/>published rows"]
+    RLS --> GATE{"F or own<br/>country?"}
+    GATE -->|yes| EXACT["Exact key and value"]
+    GATE -->|no| MASKED["Value NULL<br/>key …US.xx.xx · lineage NULL"]
+    EXACT --> DL["Downloads<br/>releasable rows = public product"]
+    EXACT --> PORTAL["Portal preview"]
+    MASKED --> PORTAL
+    MASKED -.->|approved project| ENCLAVE["Secure Data Enclave<br/>concept only"]
+    PORTAL -.-> RISK["Margins still isolate a cell<br/>1000 − 400 − 500 = 100"]
+    RISK -.-> DECIDE["Complementary suppression<br/>or restrict the role"]
+
+    classDef slate fill:#1E293B,stroke:#0F172A,color:#F8FAFC
+    classDef teal fill:#0F766E,stroke:#115E59,color:#FFFFFF
+    classDef sky fill:#0369A1,stroke:#075985,color:#FFFFFF
+    classDef warn fill:#FEF3C7,stroke:#D97706,color:#78350F
+    classDef concept fill:#FFFFFF,stroke:#0369A1,stroke-dasharray:5 4,color:#0369A1
+    class REQ slate
+    class RLS,GATE,EXACT,MASKED teal
+    class DL,PORTAL sky
+    class RISK,DECIDE warn
+    class ENCLAVE concept
 ```
 
-This is a conceptual control map, not a physical SQL execution order or an
-implemented disclosure-control engine. RLS/DDM does not stop statistical inference.
-Community tests of the [open challenge](../SECURITY.md#statistical-reconstruction-challenge)
-must use synthetic data. Removing researcher discovery alone does not repair
-reconstruction possible from public totals.
+Masks resolve before predicates, so the counterparty filter cannot match a masked
+row. This is a control map, not an execution plan. It enforces entitlements; it does
+not establish statistical disclosure control ([open challenge](../SECURITY.md#statistical-reconstruction-challenge)).
 
-### 1.4 Safe Engagement: Build, Hand Over, Approve and Revoke
+## 5. The Contractor Dilemma Boundary
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "14px", "lineColor": "#64748B", "primaryTextColor": "#0F172A", "edgeLabelBackground": "#FFFFFF"}, "flowchart": {"nodeSpacing": 22, "rankSpacing": 34, "padding": 8, "curve": "basis", "subGraphTitleMargin": {"top": 6, "bottom": 8}}}}%%
 flowchart LR
-    SCOPE["Client: scope, metadata and acceptance"] --> BUILD["Provider: approved repository and synthetic development"]
-    BUILD --> REVIEW["Independent client review"]
-    REVIEW --> TRANSFER["Versioned source, tests, licenses and runbooks"]
-    TRANSFER --> IMPORT["Client clone/fork/import and identity configuration"]
-    IMPORT --> STAGE["Synthetic staging and live acceptance"]
-    STAGE --> GATE{"Client production approval"}
-    GATE -->|Approved| PROD["Client production SDMx intake"]
-    GATE -->|Revise| BUILD
-    REAL["Client confidential data: remains client-side"] --> PROD
-    PROD --> OPERATE["Client operators and analyst reconciliation"]
-    OPERATE --> REVOKE["Revoke provider access; retain runtime identities"]
+    subgraph SANDBOX["Provider and AI-agent sandbox · synthetic only"]
+        direction TB
+        CONTRACT["Approved DSD, codelists,<br/>rules, persona matrix"] --> FIX["Synthetic SDMx fixtures"] --> CODE["Code, policies, tests<br/>credential-free CI"]
+    end
+    subgraph CLIENT["Client sovereign boundary"]
+        direction TB
+        REVIEW["Independent review"] --> STAGE["Client import and<br/>synthetic staging"] --> GATE{"Production<br/>approval"}
+        GATE --> PROD["Production SDMx intake<br/>same policies"]
+        DATA[("Confidential filings")] --> PROD
+        PROD --> EXIT["Offboard provider<br/>keep runtime identities"]
+    end
+    SANDBOX ==>|reviewed code, tests, evidence| CLIENT
+
+    classDef indigo fill:#4338CA,stroke:#3730A3,color:#FFFFFF
+    classDef teal fill:#0F766E,stroke:#115E59,color:#FFFFFF
+    classDef slate fill:#1E293B,stroke:#0F172A,color:#F8FAFC
+    class CONTRACT,FIX,CODE indigo
+    class REVIEW,STAGE,GATE,PROD,EXIT teal
+    class DATA slate
+    style SANDBOX fill:#EEF2FF,stroke:#4338CA,stroke-width:2px,color:#4338CA
+    style CLIENT fill:#F0FDFA,stroke:#0F766E,stroke-width:2px,color:#0F766E
 ```
 
-No production records, provider credentials or sandbox state cross with the
-repository transfer. The client accepts production adaptations, disclosure,
-residency, recovery and operating cost. Offboarding covers groups, sessions,
-tokens, RBAC, vault, GitHub, ownership and retained exports. See the
-[engagement specification](ENTERPRISE_ONBOARDING_PLAYBOOK.md) and the detailed
-[image prompt](ENGAGEMENT_WORKFLOW_IMAGE_PROMPT.md).
+Confidential observations, client credentials, Terraform state and production exports
+never cross into the sandbox. The client-facing sequence with rework paths is in the
+[engagement playbook](ENTERPRISE_ONBOARDING_PLAYBOOK.md#engagement-workflow).
 
-## Evaluation and Extensibility
+## Rendering
 
-Successful reference provisioning and teardown measured approximately **75 minutes
-up including prerequisites**, **30 minutes down**, and **US$10 or less in Azure
-charges for deploy/test/teardown**. See [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
-These diagrams are not production performance or pricing guarantees.
-
-The pattern is technology-agnostic. Terraform enables provider/module extensions
-to AWS, GCP, Microsoft Fabric and open-source stacks; equivalent identity, policy,
-storage and lifecycle adapters must be implemented and verified. These diagrams
-show the Azure/Databricks implementation, not an already deployed multi-cloud estate.
-
-## Export Guidance
-
-Render Mermaid in GitHub or a compatible extension/tool. Support in VS Code,
-Confluence, Notion and slide software depends on the renderer or plugin; it is
-not universally built in. For slides/print, export a reviewed diagram as SVG or
-high-resolution PNG and verify text, arrows and color contrast. Use the current
-Mermaid specifications to replace older conceptual artwork when its embedded
-labels conflict with this contract.
+GitHub renders these blocks natively; other tools need a Mermaid renderer. For slides
+or print, use the publication PNGs, or export a reviewed diagram as SVG and check text,
+arrows and contrast. AI-generated artwork is never the architectural authority; see
+the [image prompts guide](figures/gemini_image_prompts.md).

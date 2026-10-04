@@ -85,7 +85,9 @@ and verdict. Latest submitted and current accepted publication remain distinct.
 Full accepted history and trusted transport receipt are separate workflows.
 
 Researcher discovery supports a later agreement request, not restricted-value
-permission. Row presence, counts, keys and public totals can reveal withheld data.
+permission. Restricted rows must arrive coordinate-masked (`xx.xx`) with NULL
+value and lineage, and must never appear in a download. Row presence, counts per
+prefix and public totals can still reveal withheld data.
 Invite [synthetic community challenges](../../SECURITY.md#statistical-reconstruction-challenge)
 and restrict/remove the role if existence makes reconstruction trivial.
 
