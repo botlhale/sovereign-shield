@@ -2,15 +2,17 @@
 
 **Executive Brief**
 
-## 1. The Decision
+## 1. The Question
 
 **A technology-agnostic delivery and information-governance pattern, demonstrated on Azure and Databricks.**
 
-**Author:** Botlhale Mosweu. **Project steward:** Augmenta Systems (13668754 Canada Inc.). Developed in a personal capacity; no employer, central bank, statistical institution or vendor sponsorship is implied.
+**Author:** Botlhale Mosweu. Developed in a personal capacity and shared for educational purposes; no employer, central bank, statistical institution or vendor sponsorship is implied.
 
-Consider a bounded pilot when an organization needs external specialists to implement a governed data workflow without giving them confidential production records. Provide an approved synthetic schema, sample lifecycle cases and an explicit access matrix. Retain production deployment, data-release and risk-acceptance decisions with the institution.
+Statistical engineering is increasingly delivered by contractors, systems integrators and AI coding agents, yet confidentiality obligations forbid showing them the data their controls protect. This brief summarizes one worked answer for the leaders who sponsor, approve or govern that work.
 
-The decision is whether this delivery pattern reduces engagement and handover friction for a specific workload. It is not whether a synthetic demonstration proves production readiness.
+The pattern fits when external specialists must implement a governed data workflow without receiving confidential production records. The institution provides an approved synthetic schema, sample lifecycle cases and an explicit access matrix, and retains production deployment, data-release and risk-acceptance decisions.
+
+The useful test is whether the pattern reduces delivery and handover friction for a specific workload. It is not whether a synthetic demonstration proves production readiness.
 
 <div style="page-break-after: always;"></div>
 
@@ -84,11 +86,13 @@ The [Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md) assig
 
 <div style="page-break-after: always;"></div>
 
-## 7. Investment and Roadmap
+## 7. Adopting the Pattern in Stages
+
+Start with one bounded workload and widen the scope only as evidence accumulates.
 
 **Discovery:** Agree the synthetic contract, access matrix, snapshot semantics, residency requirements and evaluation measures. Compare retaining the current system, extending established SDMx tooling, and an Azure-native pilot.
 
-**Bounded pilot:** Fund implementation and independent control review within an agreed time and spending ceiling. Default to single-node evaluation; larger compute and Photon require a separate cost decision. Measure onboarding effort, time to accepted/rejected feedback, replay recovery, query latency, and cost per accepted submission.
+**Bounded pilot:** Implement and independently review the controls within an agreed time and spending ceiling. Default to single-node evaluation; larger compute and Photon require a separate cost decision. Measure onboarding effort, time to accepted/rejected feedback, replay recovery, query latency, and cost per accepted submission.
 
 **Assurance:** Rehearse protected migration, test the live persona matrix, recovery and offboarding, validate disclosure control, and obtain legal/provenance clearance.
 
@@ -96,16 +100,16 @@ The [Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md) assig
 
 **Technology options:** Terraform module/provider boundaries support AWS, GCP, Microsoft Fabric and open-source alternatives. Identity, policy enforcement, storage and lifecycle adapters must be implemented and acceptance-tested; the Azure/Databricks code is not portable unchanged.
 
-**Operational adoption:** Requires accepted controls, recurring-cost estimates and an accountable client operating team.
+**Operational adoption:** Requires accepted controls, recurring-cost estimates and an accountable operating team within the institution.
 
 <div style="page-break-after: always;"></div>
 
-## 8. What to Ask Next
+## 8. Questions for Discussion
 
-Which access and revision cases would your architecture board require before permitting a pilot? Can an external contributor reproduce them without production data? Who accepts the statistical disclosure risk? Who owns the delivered runtime after the engagement ends?
+Which access and revision cases would your architecture board require before permitting a pilot? Can an external contributor, human or AI agent, reproduce them without production data? Who accepts the statistical disclosure risk? Who owns the delivered runtime after the external work ends?
 
-The contribution is a transparent integration and delivery example, complementing SDMx registries, reference infrastructure and pysdmx. It is not a claim that other organizations lack these controls or that this architecture is globally novel.
+The contribution is a transparent integration and delivery example, complementing SDMx registries, reference infrastructure and pysdmx. It is not a claim that other organizations lack these controls or that this architecture is globally novel. Practitioners who answer these questions differently are invited to compare approaches through the repository.
 
 [Repository](https://github.com/botlhale/sovereign-shield) | [Companion White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) | [Evidence and migration](RELEASE_EVIDENCE.md)
 
-**Independent work:** Synthetic data and public standards only. Not affiliated with, sponsored by, or representative of the Bank of Canada, Federal Reserve System, BIS, or any official statistical institution. This brief is a decision aid, not legal advice, production accreditation, or an offer of institutional endorsement.
+**Independent work:** Synthetic data and public standards only, shared for educational purposes. Not affiliated with, sponsored by, or representative of the Bank of Canada, Federal Reserve System, BIS, or any official statistical institution. This brief is educational material, not legal advice, production accreditation, a service offering or institutional endorsement.

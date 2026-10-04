@@ -10,7 +10,7 @@
 **Implementation status:** Synthetic provisioning, live control tests and workload teardown completed on Azure. The reference evaluation measured approximately 75 minutes to provision including prerequisites, 30 minutes to tear down, and US$10 or less in Azure charges for the deploy/test/teardown cycle. These are evaluation results, not production service levels; see [measurement scope](../RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 
 > **Independent Reference Architecture Notice:**  
-> This publication and associated reference implementations were developed in a personal capacity using synthetic data fixtures and publicly available international statistical standards (SDMx 3.0, BIS Locational Banking Statistics). This work is not affiliated with, sponsored by, or representative of the Bank of Canada, the Federal Reserve System, the Bank for International Settlements, or any official statistical institution.
+> This publication and associated reference implementations were developed in a personal capacity using synthetic data fixtures and publicly available international statistical standards (SDMx 3.0, BIS Locational Banking Statistics). They are shared for educational purposes and reflect only the author's views. This work is not affiliated with, sponsored by, or representative of the Bank of Canada, the Federal Reserve System, the Bank for International Settlements, or any official statistical institution.
 
 ---
 
@@ -32,7 +32,7 @@ A synthetic-first delivery model enables external specialists to implement and t
 
 <div style="page-break-inside: avoid;">
 
-![Synthetic-First Consulting Engagement](../figures/engagement_boundary.png)
+![Synthetic-First Delivery Boundary](../figures/engagement_boundary.png)
 
 *Figure 2 — The Contractor Dilemma: providers and AI agents build in a synthetic-only sandbox; confidential filings, identities and every approval stay inside the client boundary. The boundary is production isolation, not an air gap.*
 
@@ -43,7 +43,7 @@ A synthetic-first delivery model enables external specialists to implement and t
 
 Specialists implement against an approved synthetic contract, and client-controlled deployment identities remain independent of personnel changes. PR verification has no cloud credentials. Privileged planning and deployment require an explicit manual run on reviewed `main` and a protected GitHub environment. Runtime secrets, state and plans remain protected operational assets.
 
-The companion [Executive Brief](../EXECUTIVE_BRIEF.md) carries the same title, **Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**, and summarizes the institutional decision. The [Nature of Engagement and Handover](../ENTERPRISE_ONBOARDING_PLAYBOOK.md) defines delivery responsibilities.
+The companion [Executive Brief](../EXECUTIVE_BRIEF.md) carries the same title, **Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**, and summarizes the pattern for decision-makers. The [Nature of Engagement and Handover](../ENTERPRISE_ONBOARDING_PLAYBOOK.md) defines delivery responsibilities.
 
 **Submission boundary:** the modeled international exchange accepts SDMx files, not bank micro-transactions. Synthetic bank micro-transactions exist solely as educational fixtures illustrating how realistic statistical observations and confidentiality flags are calculated. The demo ledger is not an institutional intake requirement or system deliverable. Domestic granular-data collections and other reporting regimes are outside this exchange contract.
 
@@ -294,9 +294,9 @@ The distinction between an absent observation and a zero one is not cosmetic. Wr
 
 ### The Minimal Viable Synthetic Dataset (MVSD) Protocol
 
-Hiring organizations do not need to share internal records to initiate development:
+An institution does not need to share internal records to start development:
 
-1. The enterprise extracts structural metadata from its DSD or schema catalog.
+1. The institution extracts structural metadata from its DSD or schema catalog.
 2. The mock generator (`src/generate_sovereign_submissions.py`) produces an authentic synthetic fixture exercising all security branches: multiple jurisdictions, free-to-publish and confidential observations, and a revision cycle whose figures break named checks in the published BIS workbook. The corrupted submissions use only real, permitted codelist values — the failures are genuine arithmetic inconsistencies a validator detects, not malformed records a parser would reject, because a fixture that fails at parse time never reaches the controls it is meant to test.
 3. External contractors build and validate all SQL, PySpark, and Terraform logic against the MVSD using local test harnesses.
 
