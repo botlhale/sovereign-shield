@@ -7,17 +7,19 @@
 [![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform&logoColor=white)](terraform/)
 [![Data: synthetic only](https://img.shields.io/badge/Data-synthetic_only-0F766E)](SECURITY.md#statistical-reconstruction-challenge)
 
-**Let external engineers build a sovereign statistics platform without ever seeing sovereign data.**
+**How can engineers and AI coding agents build the controls that protect confidential statistics without ever seeing the data?**
 
-Sovereign Shield is a working reference architecture for governed SDMx 3.0 exchange on
-Azure Databricks. Providers, contractors and AI coding agents build and test against
-synthetic fixtures that match the official BIS Locational Banking Statistics structure.
-Unity Catalog policies attached to the governed table then decide, per caller, per row
-and per cell, what each persona may see. Production uses the same code and policies;
-only identities, memberships and data change.
+Sovereign Shield is an open, educational reference architecture that answers that question
+for one case: governed SDMx 3.0 exchange on Azure Databricks. Builders, whether in-house
+engineers, contractors or AI coding agents, develop and test against synthetic fixtures
+that match the official BIS Locational Banking Statistics structure. Unity Catalog
+policies attached to the governed table then decide, per caller, per row and per cell,
+what each persona may see. Production uses the same code and policies; only identities,
+memberships and data change. The code, evidence and limits are public so practitioners
+can study, reproduce and challenge the pattern; it is not a product or a service offering.
 
 > **Independent Reference Architecture Notice:**  
-> This publication and associated reference implementations were developed in a personal capacity using synthetic data fixtures and publicly available international statistical standards (SDMx 3.0, BIS Locational Banking Statistics). This work is not affiliated with, sponsored by, or representative of the Bank of Canada, the Federal Reserve System, the Bank for International Settlements, or any official statistical institution.
+> This publication and associated reference implementations were developed in a personal capacity using synthetic data fixtures and publicly available international statistical standards (SDMx 3.0, BIS Locational Banking Statistics). They are shared for educational purposes and reflect only the author's views. This work is not affiliated with, sponsored by, or representative of the Bank of Canada, the Federal Reserve System, the Bank for International Settlements, or any official statistical institution.
 
 ## The Problem: the Contractor Dilemma
 
@@ -33,24 +35,43 @@ data is a contradiction. Denying all access stalls delivery. Institutions bridge
 today with vetting, NDAs, supervised environments and access reviews. Those controls remain
 necessary, but the people building the controls can still end up looking at the data.
 
-## The Solution: the Sovereign Shield Pattern
+## The Pattern: Build Without Seeing
 
-1. **Contract, not data.** The client approves structure metadata only: DSD `BIS:BIS_LBS(1.0)`,
-   pinned codelists, 21 validation rules and a persona matrix. Providers generate synthetic
+1. **Contract, not data.** The data owner approves structure metadata only: DSD `BIS:BIS_LBS(1.0)`,
+   pinned codelists, 21 validation rules and a persona matrix. Builders generate synthetic
    SDMx filings that exercise every lifecycle state and persona branch.
 2. **Policies travel with the table.** Row filters and column masks are bound to the governed
    Delta table and resolve per caller at query time on every supported path: portal, API, SQL
    and notebooks. The same SQL runs in synthetic staging and production; no code changes are needed.
 3. **Prove it offline.** More than 230 credential-free tests assert the persona matrix, masks,
    atomic history and SDMx conformance. Live checks repeat the matrix with temporary identities.
-4. **Hand over and revoke.** The client imports a reviewed release, configures its own
+4. **Hand over and revoke.** The institution imports a reviewed release, configures its own
    identities and state, accepts synthetic staging, approves production and offboards the
-   provider. See the [engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md).
+   builders. See the [engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md).
 
 The researcher persona is a **Sovereign Discovery Gateway**: researchers learn that a restricted
 series exists, so they can approach the submitting central bank, but they receive neither the
 value nor the exact coordinates (`Q.S.C.A.USD.D.5J.A.US.xx.xx`). Access to restricted cells is
 reserved for a conceptual [Secure Data Enclave](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md#the-secure-data-enclave-conceptual-future-state).
+
+## Lessons Worth Reusing
+
+The platform matters less than these transferable lessons, each backed by a test or a
+documented limit in this repository:
+
+1. **Treat AI coding agents as external contractors.** They get the approved contract and
+   synthetic fixtures, never production records, secrets in prompts or standing access
+   ([provider workflow](.github/skills/contractor_zero_trust_workflow.md)).
+2. **Bind entitlements to the data, not the channel.** A table policy applies on every supported
+   query path; the design question for each new channel, an AI assistant included, is which
+   identity it queries with ([perimeter identity](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md#the-perimeter-identity-problem)).
+3. **Masking a value is not enough.** Exact coordinates, record hashes and filter probes can
+   re-identify what a mask hides, so the same reveal rule must govern each of them
+   ([Discovery Gateway](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md#the-sovereign-discovery-gateway)).
+4. **Latest submitted is not current accepted.** A rejected revision must never withdraw
+   correct published data, and analysts need to see both states ([Analyst View](.github/skills/persona_security_matrix.md#analyst-view)).
+5. **Entitlement is not disclosure control.** Published margins can still reconstruct a
+   withheld cell; suppression is a release decision ([open challenge](SECURITY.md#statistical-reconstruction-challenge)).
 
 ## Architecture
 
@@ -164,14 +185,14 @@ nothing it did not create.
 
 | Goal | Read |
 | --- | --- |
-| Decide whether to pilot | [Executive Brief](docs/EXECUTIVE_BRIEF.md) |
+| Get the eight-page overview | [Executive Brief](docs/EXECUTIVE_BRIEF.md) |
 | Understand the architecture and evidence | [White Paper](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) · [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md) |
 | Review the code | [Technical guide](docs/technical_guide.md) · [Technical reference](docs/technical_reference.md) |
 | Assess security | [Persona matrix](.github/skills/persona_security_matrix.md) · [Triple-Lock contract](.github/skills/triple_lock_security.md) · [Solution audit](docs/solution_audit.md) |
 | Check SDMx conformance | [Validation contract](.github/skills/sdmx_lbs_validation.md) · [Synthetic dataset contract](.github/skills/mvsd_specification.md) |
 | Deploy, recover or tear down | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) · [Resource provenance](docs/RESOURCE_PROVENANCE.md) |
-| Engage a provider | [Engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) · [Provider workflow](.github/skills/contractor_zero_trust_workflow.md) |
-| Present or publish | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) · [LinkedIn plan](docs/LINKEDIN_POST.md) · [Release guide](docs/PUBLICATION_AND_RELEASE.md) · [Image prompts](docs/figures/gemini_image_prompts.md) |
+| Learn the delivery and handover model | [Engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) · [Provider workflow](.github/skills/contractor_zero_trust_workflow.md) |
+| Present or share the material | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) · [Publication plan](docs/LINKEDIN_POST.md) · [Release guide](docs/PUBLICATION_AND_RELEASE.md) · [Image prompts](docs/figures/gemini_image_prompts.md) |
 | Verify measured results | [Release evidence](docs/RELEASE_EVIDENCE.md) |
 
 ## Background
@@ -183,8 +204,23 @@ and the BIS data portal. Three recurring requests shaped it: executives who want
 no developer can bypass, data holders who partner with researchers, and reporting analysts who
 need to know which of several submissions the international organization actually holds.
 International organizations often favour open-source SDMx stacks; this project asks what the
-same guarantees look like on a commercial lakehouse. It integrates known techniques and does
-not claim global novelty.
+same guarantees look like on a commercial lakehouse. It integrates known techniques, does
+not claim global novelty, and records what worked, what failed and what remains open so
+others can learn from it.
+
+## Learn, Challenge and Collaborate
+
+The repository exists to exchange practice. Useful ways to take part:
+
+- **Challenge it.** Attempt the synthetic [reconstruction challenge](SECURITY.md#statistical-reconstruction-challenge)
+  or remove a control and check that a test fails.
+- **Port it.** Adapt the pattern to Microsoft Fabric, AWS, GCP or an open-source stack with
+  equivalent identity, policy and history tests, and share what had to change.
+- **Review or extend it.** Peer review of the disclosure reasoning, SDMx validation or
+  delivery model is welcome, as are proposals for co-authoring, talks and research collaboration.
+
+Use a feature request for public technical proposals, private vulnerability reporting for new
+weaknesses, and a LinkedIn message to the author, Botlhale Mosweu, for other collaboration enquiries.
 
 ## AI-Assisted Development
 
@@ -197,5 +233,5 @@ validated and audited by senior engineering. See the [AI-assisted SDLC disclosur
 Contributions are welcome under the [contribution guide](CONTRIBUTING.md) and
 [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately through the
 [security policy](SECURITY.md). Licensed under [Apache 2.0](LICENSE); attribution is in
-[NOTICE](NOTICE). Developed by Botlhale Mosweu in a personal capacity; no support contract,
-institutional approval or production certification is implied.
+[NOTICE](NOTICE). Developed by Botlhale Mosweu in a personal capacity and shared for education;
+no service offering, support contract, institutional approval or production certification is implied.

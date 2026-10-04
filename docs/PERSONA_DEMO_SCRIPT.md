@@ -1,7 +1,7 @@
 # SovereignShield: Persona Demonstration
 
 **Audience:** statistical leaders, data architects, reporting analysts and researchers.
-**Format:** optional 3-5 minute technical follow-up after the publication launch.
+**Format:** optional 3-5 minute educational walkthrough after the anchor article.
 
 The companion publication is **Bridging Public Dissemination and Protected Data:
 A Zero-Trust SDMx Architecture on Azure Databricks**, available as an
@@ -153,8 +153,10 @@ do not relabel the 22-row screenshot as that view.
 
 > Technical feedback is invited on analyst reconciliation, institutional handover
 > and reconstruction from public values or researcher-visible rows. The repository
-> includes the evidence, limitations and security reporting route. No institutional
-> or vendor endorsement is implied.
+> includes the evidence, limitations and security reporting route, so anyone can
+> reproduce the results or try to break them with the synthetic fixtures; nothing
+> here authorizes testing a live or third-party deployment. This is independent,
+> educational work; no institutional or vendor endorsement is implied.
 
 ## Implemented and Proposed Workflows
 
@@ -167,5 +169,6 @@ do not relabel the 22-row screenshot as that view.
 | Discovery Gateway: value, coordinate and lineage masking | Complementary suppression or another approved statistical disclosure-control product |
 
 Use the [release evidence](RELEASE_EVIDENCE.md) for dated results and measurement
-scope. The brief leads the LinkedIn launch; the full White Paper provides depth.
+scope. The anchor article leads the LinkedIn series; the brief and the full White
+Paper provide depth.
 A video is supporting material, not a prerequisite or a guaranteed reach multiplier.

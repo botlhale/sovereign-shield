@@ -29,7 +29,7 @@ Include, where available:
 - logs or request identifiers with credentials and personal data removed; and
 - a proposed remediation or test case.
 
-The project steward will assess the report, communicate through the private advisory, and coordinate remediation and disclosure as appropriate. No response-time or remediation-time service level is implied by this public repository.
+The maintainer will assess the report, communicate through the private advisory, and coordinate remediation and disclosure as appropriate. No response-time or remediation-time service level is implied by this public repository.
 
 ## In Scope
 
