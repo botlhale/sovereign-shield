@@ -300,10 +300,13 @@ helpers are isolated demonstrations, not a supported deployment route.
 Organizations that already run Azure and Databricks can attach Sovereign Shield to
 that estate from bash on Linux, macOS or WSL. The scripts look up every resource
 first, reuse what exists without modifying or re-tagging it, and create only the
-missing delta. A resource counts as missing only when the CLI reports it not found;
-any other lookup error, such as an expired login or throttling, stops the run.
-Teardown is stricter: it accepts only the object's own not-found error, an Azure code
-such as `ResourceNotFound` or `RoleAssignmentNotFound`, or Databricks naming that
+missing delta. A resource counts as missing only when the CLI answers with that
+object's own not-found error: an Azure code such as `ResourceGroupNotFound` or
+`ResourceNotFound`, the CLI naming the vault or storage account it searched the
+subscription for, or Databricks naming that object as not existing. Any other lookup
+error, such as an expired login, a missing subscription or throttling, stops the run.
+Teardown applies the same rule: it accepts only the object's own not-found error, such
+as `ResourceNotFound` or `RoleAssignmentNotFound`, or Databricks naming that
 object as not existing. Subscription, authentication, throttling, endpoint or
 missing-parent errors stop it with the manifest entry still open.
 Both scripts take the same checkout-level lifecycle lock as `up`/`down`, so

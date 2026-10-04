@@ -342,6 +342,18 @@ def test_dry_run_changes_nothing(estate):
     assert not estate.manifest_path.exists()
 
 
+def test_dry_run_plans_children_of_a_planned_resource_group_without_looking_them_up(estate):
+    result = estate.run(UP, "--subscription", "sub-1", "--resource-group", "rg-new", "--location", "canadacentral",
+                        "--workspace-name", "ws-new", "--key-vault", "kv-ss", "--storage-account", "stss",
+                        "--non-interactive", "--skip-policies", "--dry-run")
+
+    assert result.returncode == 0, result.stderr
+    assert "create  databricks_workspace ws-new" in result.stderr
+    assert "create  access_connector" in result.stderr
+    assert not [call for call in estate.calls() if "--resource-group" in call and "rg-new" in call]
+    assert creates(estate.calls()) == []
+
+
 def test_up_refuses_to_create_without_confirmation(estate):
     result = estate.up()
 
@@ -349,15 +361,37 @@ def test_up_refuses_to_create_without_confirmation(estate):
     assert creates(estate.calls()) == []
 
 
-def test_up_aborts_when_a_lookup_fails_for_any_reason_but_absence(estate):
-    """An expired login must not look like a missing vault and trigger a create."""
-    estate.edit_state(lambda state: state.update(failures={"az keyvault show": "(AuthorizationFailed) token expired"}))
+@pytest.mark.parametrize("failures, reason", [
+    ({"az keyvault show": "(AuthorizationFailed) token expired"}, "AuthorizationFailed"),
+    ({"az keyvault show": "ERROR: (SubscriptionNotFound) The subscription 'sub-1' could not be found.\nCode: SubscriptionNotFound"},
+     "SubscriptionNotFound"),
+    ({"az keyvault show": "ERROR: (TooManyRequests) Throttled; the endpoint was not found in time.\nCode: TooManyRequests"},
+     "TooManyRequests"),
+])
+def test_up_aborts_when_a_lookup_fails_for_any_reason_but_absence(estate, failures, reason):
+    """An expired login or a missing subscription must not look like a missing vault and trigger a create."""
+    estate.edit_state(lambda state: state.update(failures=failures))
     result = estate.up("--yes")
 
     assert result.returncode != 0
-    assert "could not tell whether this exists" in result.stderr and "AuthorizationFailed" in result.stderr
+    assert "could not tell whether this exists" in result.stderr and reason in result.stderr
     assert creates(estate.calls()) == []
     assert not estate.manifest_path.exists()
+
+
+def test_up_treats_only_an_object_not_found_error_as_absence_in_unity_catalog(estate):
+    """A workspace or metastore error that mentions 'does not exist' never plans a Unity Catalog create."""
+    assert estate.up("--yes").returncode == 0
+    before = estate.provenance()
+    estate.edit_state(lambda state: state.update(failures={
+        "databricks storage-credentials get": "Error: Workspace adb-1.azuredatabricks.net not found; the metastore does not exist."}))
+    estate.reset_log()
+
+    result = estate.up("--yes")
+
+    assert result.returncode != 0 and "could not tell whether this exists" in result.stderr
+    assert creates(estate.calls()) == []
+    assert estate.provenance() == before
 
 
 def test_down_removes_only_created_assets_in_dependency_order(estate):

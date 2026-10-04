@@ -188,6 +188,7 @@ create() {
   shift 2
   if ((DRY_RUN)); then
     note "create  $kind $name"
+    PLANNED+=("$kind $name")
     printf '{"id":"planned/%s","name":"%s"}' "$kind" "$name"
     return 0
   fi
@@ -208,17 +209,36 @@ retry() {
 
 need_location() { [[ -n "$LOCATION" ]] || die "--location is required to create $1."; }
 
-# Sets FOUND and succeeds when the object exists; fails only on a confirmed not-found. Any other error
-# (expired login, throttling, outage) aborts, so an existing resource is never created or relabelled.
+# The error an object answers with when it alone is missing: an Azure error code, the CLI naming the
+# vault or account it searched the subscription for, or Databricks naming the object itself.
+# Subscription, authentication, throttling, endpoint or missing-parent errors match none.
+missing_pattern() {
+  local name
+  name="$(sed 's/[][\\.*^$+?(){}|]/\\&/g' <<<"$2")"
+  case "$1" in
+    resource_group) printf '%s' '\(ResourceGroupNotFound\)|Code: ResourceGroupNotFound' ;;
+    key_vault) printf '%s' "\\(ResourceNotFound\\)|Code: ResourceNotFound|The Vault '$name' not found within subscription" ;;
+    storage_account) printf '%s' "\\(ResourceNotFound\\)|Code: ResourceNotFound|Storage account '$name' not found" ;;
+    storage_container) printf '%s' '\((ResourceNotFound|ContainerNotFound)\)|Code: (ResourceNotFound|ContainerNotFound)' ;;
+    access_connector|databricks_workspace) printf '%s' '\(ResourceNotFound\)|Code: ResourceNotFound' ;;
+    volume|schema|catalog|external_location|storage_credential)
+      printf "(^|[^[:alnum:]_.-])'?%s'? does not exist" "$name" ;;
+  esac
+}
+
+# Sets FOUND and succeeds when the object exists; fails only on the object's own not-found error. Any
+# other error (expired login, throttling, outage) aborts, so an existing resource is never created or relabelled.
 FOUND=""
 lookup() {
-  local error
+  local pattern error
+  pattern="$(missing_pattern "$1" "$2")"
+  shift 2
   error="$(mktemp)"
   if FOUND="$("$@" 2>"$error")"; then
     rm -f "$error"
     return 0
   fi
-  if grep -qiE 'not[ _]?found|not be found|does not exist|RESOURCE_DOES_NOT_EXIST' "$error"; then
+  if [[ -n "$pattern" ]] && grep -qE -- "$pattern" "$error"; then
     rm -f "$error"
     return 1
   fi
@@ -228,13 +248,17 @@ lookup() {
   exit 1
 }
 
+# In a dry run a planned parent does not exist yet, so its children are planned without a lookup.
+PLANNED=()
+planned() { [[ " ${PLANNED[*]-} " == *" $1 $2 "* ]]; }
+
 # ---------------------------------------------------------------------
 # Azure control plane
 # ---------------------------------------------------------------------
 provision_azure() {
   local json principal assignment
   log "Azure resources in subscription $SUBSCRIPTION"
-  if lookup az group show --name "$RESOURCE_GROUP" -o json; then
+  if lookup resource_group "$RESOURCE_GROUP" az group show --name "$RESOURCE_GROUP" -o json; then
     json="$FOUND"
     attach resource_group "$RESOURCE_GROUP" "$(jq -r .id <<<"$json")"
     [[ -n "$LOCATION" ]] || LOCATION="$(jq -r .location <<<"$json")"
@@ -244,7 +268,7 @@ provision_azure() {
       --tags "${TAGS[@]}" -o json >/dev/null
   fi
 
-  if lookup az keyvault show --name "$KEY_VAULT" -o json; then
+  if lookup key_vault "$KEY_VAULT" az keyvault show --name "$KEY_VAULT" -o json; then
     attach key_vault "$KEY_VAULT" "$(jq -r .id <<<"$FOUND")"
   else
     need_location "Key Vault $KEY_VAULT"
@@ -253,7 +277,7 @@ provision_azure() {
       --tags "${TAGS[@]}" -o json >/dev/null
   fi
 
-  if lookup az storage account show --name "$STORAGE_ACCOUNT" -o json; then
+  if lookup storage_account "$STORAGE_ACCOUNT" az storage account show --name "$STORAGE_ACCOUNT" -o json; then
     json="$FOUND"
     [[ "$(jq -r '.isHnsEnabled // false' <<<"$json")" == true ]] ||
       die "Storage account $STORAGE_ACCOUNT exists without a hierarchical namespace; Unity Catalog needs ADLS Gen2."
@@ -268,7 +292,7 @@ provision_azure() {
   STORAGE_ID="$(jq -r .id <<<"$json")"
 
   if [[ "$STORAGE_ID" != planned/* ]] &&
-    lookup az storage container-rm show --storage-account "$STORAGE_ID" --name "$CONTAINER" -o json; then
+    lookup storage_container "$STORAGE_ACCOUNT/$CONTAINER" az storage container-rm show --storage-account "$STORAGE_ID" --name "$CONTAINER" -o json; then
     attach storage_container "$STORAGE_ACCOUNT/$CONTAINER" "$(jq -r .id <<<"$FOUND")"
   else
     create storage_container "$STORAGE_ACCOUNT/$CONTAINER" az storage container-rm create \
@@ -282,7 +306,8 @@ provision_azure() {
     [[ -n "$json" ]] || die "No workspace with URL $host is visible in subscription $SUBSCRIPTION."
     WORKSPACE_NAME="$(jq -r .name <<<"$json")"
     attach databricks_workspace "$WORKSPACE_NAME" "$(jq -r .id <<<"$json")"
-  elif lookup az databricks workspace show --resource-group "$RESOURCE_GROUP" --name "$WORKSPACE_NAME" -o json; then
+  elif ! planned resource_group "$RESOURCE_GROUP" &&
+    lookup databricks_workspace "$WORKSPACE_NAME" az databricks workspace show --resource-group "$RESOURCE_GROUP" --name "$WORKSPACE_NAME" -o json; then
     json="$FOUND"
     attach databricks_workspace "$WORKSPACE_NAME" "$(jq -r .id <<<"$json")"
   else
@@ -298,7 +323,8 @@ provision_azure() {
     WORKSPACE_HOST=""
   fi
 
-  if lookup az databricks access-connector show --resource-group "$RESOURCE_GROUP" --name "$ACCESS_CONNECTOR" -o json; then
+  if ! planned resource_group "$RESOURCE_GROUP" &&
+    lookup access_connector "$ACCESS_CONNECTOR" az databricks access-connector show --resource-group "$RESOURCE_GROUP" --name "$ACCESS_CONNECTOR" -o json; then
     json="$FOUND"
     attach access_connector "$ACCESS_CONNECTOR" "$(jq -r .id <<<"$json")"
   else
@@ -347,7 +373,7 @@ provision_databricks() {
     die "The workspace uses metastore $metastore, not the expected $METASTORE_ID."
   attach metastore "$metastore" "$metastore"
 
-  if lookup databricks storage-credentials get "$STORAGE_CREDENTIAL" -o json; then
+  if lookup storage_credential "$STORAGE_CREDENTIAL" databricks storage-credentials get "$STORAGE_CREDENTIAL" -o json; then
     attach storage_credential "$STORAGE_CREDENTIAL" "$(jq -r '.id // .name' <<<"$FOUND")"
   else
     create storage_credential "$STORAGE_CREDENTIAL" databricks storage-credentials create -o json --json "$(jq -nc \
@@ -355,7 +381,7 @@ provision_databricks() {
       '{name: $name, azure_managed_identity: {access_connector_id: $connector}, comment: $comment}')" >/dev/null
   fi
 
-  if lookup databricks external-locations get "$EXTERNAL_LOCATION" -o json; then
+  if lookup external_location "$EXTERNAL_LOCATION" databricks external-locations get "$EXTERNAL_LOCATION" -o json; then
     json="$FOUND"
     attach external_location "$EXTERNAL_LOCATION" "$(jq -r '.id // .name' <<<"$json")"
   else
@@ -366,7 +392,7 @@ provision_databricks() {
   root="$(jq -r '.url // empty' <<<"$json")"
   root="${root:-abfss://$CONTAINER@$STORAGE_ACCOUNT.dfs.core.windows.net/}"
 
-  if lookup databricks catalogs get "$CATALOG" -o json; then
+  if lookup catalog "$CATALOG" databricks catalogs get "$CATALOG" -o json; then
     attach catalog "$CATALOG" "$CATALOG"
     CATALOG_CREATED=0
   else
@@ -376,14 +402,16 @@ provision_databricks() {
   fi
 
   for schema in "${SCHEMAS[@]}"; do
-    if lookup databricks schemas get "$CATALOG.$schema" -o json; then
+    if ! planned catalog "$CATALOG" &&
+      lookup schema "$CATALOG.$schema" databricks schemas get "$CATALOG.$schema" -o json; then
       attach schema "$CATALOG.$schema" "$CATALOG.$schema"
     else
       create schema "$CATALOG.$schema" databricks schemas create "$schema" "$CATALOG" --comment "$TAG_COMMENT" -o json >/dev/null
     fi
   done
 
-  if lookup databricks volumes read "$CATALOG.sovereign_submissions.submissions" -o json; then
+  if ! planned schema "$CATALOG.sovereign_submissions" &&
+    lookup volume "$CATALOG.sovereign_submissions.submissions" databricks volumes read "$CATALOG.sovereign_submissions.submissions" -o json; then
     attach volume "$CATALOG.sovereign_submissions.submissions" "$CATALOG.sovereign_submissions.submissions"
   else
     create volume "$CATALOG.sovereign_submissions.submissions" databricks volumes create "$CATALOG" \
