@@ -7,7 +7,9 @@ tests. Offline verification on Linux (Python 3.14.4) recorded **245 passed, 12 s
 skips are opt-in live and stress tests. The local demo, a researcher persona fixture, the
 figure renders and the Markdown link check were run. No cloud resource was created, changed
 or read. This replaces the historical audit of commit `1d09269`; its findings are tracked in
-[Resolution of the Historical Audit](#resolution-of-the-historical-audit).
+[Resolution of the Historical Audit](#resolution-of-the-historical-audit). The readiness,
+publication and legal sections were revised on 4 October 2026 for an educational,
+knowledge-sharing publication strategy; the technical findings are unchanged.
 
 ## Findings at This Revision
 
@@ -80,9 +82,9 @@ or read. This replaces the historical audit of commit `1d09269`; its findings ar
 
 ## Readiness Score
 
-**Overall: 7/10 for a promoted portfolio and LinkedIn launch**, up from 5/10. It rises to 8
-once finding 1 passes live and clearance is documented. This is not a production-readiness
-score: real confidential data needs findings 2, 4 and 5 resolved and institutional acceptance.
+**Overall: 7/10 for educational publication on LinkedIn and in an archive**, up from 5/10. It
+rises to 8 once finding 1 passes live. This is not a production-readiness score: real
+confidential data needs findings 2, 4 and 5 resolved and institutional acceptance.
 
 | Evaluation | Score | Assessment |
 | --- | ---: | --- |
@@ -92,8 +94,8 @@ score: real confidential data needs findings 2, 4 and 5 resolved and institution
 | Statistical disclosure | 5/10 | Honest and testable, but margins remain open and counts are visible |
 | Lifecycle engineering | 7/10 | Greenfield proven live; bring-your-own estate stub-tested; greenfield is Windows-bound |
 | Documentation | 8/10 | One README, consolidated runbook, removed duplicates, modern figures; publications still dense |
-| Institutional and IP boundary | 7/10 | Clear notices and a reset history credential; the publication scope of the outside-activity approval and `NOTICE` ownership wording need owner action |
-| Publication readiness | 7/10 | Strong story and evidence; finding 1 and clearance gate the launch |
+| Institutional and IP boundary | 7/10 | Clear notices and a reset history credential; `NOTICE` ownership wording needs owner action |
+| Publication readiness | 7/10 | Strong story and evidence; until finding 1 passes live, coordinate masking is described as tested offline |
 
 ## Design Challenges
 
@@ -112,7 +114,7 @@ score: real confidential data needs findings 2, 4 and 5 resolved and institution
 
 ## Publication Assessment
 
-**Worth publishing, positioned as practitioner evidence rather than a new invention.**
+**Worth publishing as educational practitioner evidence rather than a new invention or a pitch.**
 Row filters, column masks, SDMx tooling, synthetic data and secure enclaves all exist. What is
 uncommon is a working, reproducible integration for international statistical exchange with
 the limits stated in public: synthetic-first delivery for contractors and AI agents, a
@@ -124,17 +126,20 @@ reconstruction counter-example. That candour is the differentiator with senior r
 - **Narrow audience, high signal.** SDMx, central-bank statistics and Unity Catalog readers
   are a small group; expect quality conversations rather than reach. A three-part series,
   contractor dilemma, Discovery Gateway, analyst reconciliation, builds standing more
-  reliably than one long post.
-- **Avoid** "novel", "guarantee", "air-gapped" and "zero trust" as a selling point, any
-  employer name or system description, and speculation about which cloud an international
-  organization uses. The [LinkedIn plan](LINKEDIN_POST.md) carries a draft that follows these rules.
+  reliably than one long post. Transferable lessons, such as entitlement-aware retrieval for
+  AI assistants, widen the audience without diluting the evidence.
+- **Teach, don't sell.** Service offers, rates or calls to hire would undercut the
+  independence notice and the candour readers value; collaboration proposals follow credibility.
+- **Avoid** "novel", "guarantee", "air-gapped" and "zero trust" as a selling point, naming an
+  employer outside the independence notice, any internal system description, and speculation
+  about which cloud an international organization uses. The [LinkedIn plan](LINKEDIN_POST.md)
+  carries a draft that follows these rules.
 
 ## Legal Boundaries
 
-Repository inspection cannot certify provenance or employment compliance. Confirm in writing
-that the existing outside-activity approval covers public publication on this subject, the
-project's intellectual property and any new client category, such as central banks or
-international organizations. Describe experience generically. Third-party standards files keep their publishers' terms. The
-slash in `NOTICE` ("Botlhale Mosweu / Augmenta Systems") still leaves the copyright holder
-ambiguous; confirm the rights holder before changing it. Disclose AI assistance where a venue
-requires it, using the [AI-assisted SDLC disclosure](../CONTRIBUTING.md#ai-assisted-software-development-life-cycle).
+Repository inspection cannot certify provenance, ownership or employment compliance; the
+author remains responsible for them. Describe experience generically. Third-party standards
+files keep their publishers' terms. The slash in `NOTICE` ("Botlhale Mosweu / Augmenta
+Systems") still leaves the copyright holder ambiguous; confirm the rights holder before
+changing it. Disclose AI assistance where a venue requires it, using the
+[AI-assisted SDLC disclosure](../CONTRIBUTING.md#ai-assisted-software-development-life-cycle).

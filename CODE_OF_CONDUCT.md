@@ -34,7 +34,7 @@ This policy applies in repository issues, pull requests, discussions, code revie
 
 Project maintainers may remove, edit, or reject comments, commits, issues, pull requests, or other contributions that do not align with this policy. Responses may include a private correction, warning, temporary restriction, or permanent ban, depending on context, severity, and pattern of behavior.
 
-Report conduct concerns privately through the repository's **Security** tab by selecting **Report a vulnerability** and prefixing the report title with `Code of Conduct`. Do not include sensitive conduct reports in a public issue. Reports will be reviewed by the project steward, and the privacy and safety of the reporter will be respected.
+Report conduct concerns privately through the repository's **Security** tab by selecting **Report a vulnerability** and prefixing the report title with `Code of Conduct`. Do not include sensitive conduct reports in a public issue. Reports will be reviewed by the maintainer, and the privacy and safety of the reporter will be respected.
 
 ## Attribution
 

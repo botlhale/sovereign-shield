@@ -37,7 +37,7 @@ The **Analyst View** is the regional submitter workflow. Analysts reconcile the 
 
 Synthetic national submissions enter a protected archive. Validation makes a country/period verdict. Delta history separates accepted state from rejected arrivals. Unity Catalog evaluates query-time row and column policies. A gateway serves current SDMx feeds and distinct audit CSVs.
 
-The international intake contract is **SDMx files only**. Synthetic bank micro-transactions are educational fixtures explaining the calculation of realistic observations; they are not a client intake requirement or system deliverable. Domestic granular-data collections are outside this modeled exchange.
+The international intake contract is **SDMx files only**. Synthetic bank micro-transactions are educational fixtures explaining the calculation of realistic observations; they are not an institutional intake requirement or system deliverable. Domestic granular-data collections are outside this modeled exchange.
 
 The image describes the architecture, not proof of physical country residency or complete confidentiality protection. The demonstrator uses a shared workspace with logical jurisdiction boundaries.
 
@@ -82,7 +82,7 @@ Detailed methods and unresolved gates are in [Release Evidence](RELEASE_EVIDENCE
 
 Full offboarding reviews groups, sessions, tokens, Azure/vault/GitHub rights and delegated ownership. A group removal is one control, not the whole process.
 
-The [Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md) assigns repository, permission, acceptance and operational responsibilities from discovery through client-controlled deployment.
+The [Nature of Engagement and Handover](ENTERPRISE_ONBOARDING_PLAYBOOK.md) assigns repository, permission, acceptance and operational responsibilities from discovery through institution-controlled deployment.
 
 <div style="page-break-after: always;"></div>
 

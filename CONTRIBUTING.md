@@ -1,6 +1,6 @@
 # Contributing to SovereignShield
 
-SovereignShield is developed in a personal capacity as an independent reference implementation for governed statistical-data platforms. Issues, documentation improvements, tests, and focused pull requests are welcome.
+SovereignShield is developed in a personal capacity and shared for educational purposes as an independent reference implementation for governed statistical-data platforms. Issues, documentation improvements, tests, focused pull requests, synthetic reconstruction attempts, and lessons from ports to other platforms are welcome.
 
 ## Before You Start
 
@@ -141,10 +141,10 @@ A useful pull request:
 
 Maintainers may ask for changes or decline a proposal that expands operational scope, weakens a security invariant, duplicates an existing mechanism, or does not fit the reference architecture.
 
-## Licensing and Commercial Support
+## Licensing and Collaboration
 
 Unless explicitly stated otherwise, contributions intentionally submitted for inclusion are licensed under the [Apache License 2.0](LICENSE), consistent with section 5 of that license.
 
-Participation in this repository does not create a client, employment, support, warranty, or procurement relationship with the author, maintainers, or copyright holders. Production implementation, institutional assessment, and contracted support are separate engagements from community contribution review.
+Participation in this repository does not create a client, employment, support, warranty, or procurement relationship with the author, maintainers, or copyright holders. The repository is educational material, not a service offering. Proposals for research collaboration, co-authoring, talks, or independent review are welcome through the channels listed under [Learn, Challenge and Collaborate](README.md#learn-challenge-and-collaborate) and remain separate from community contribution review.
 
 By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

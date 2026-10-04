@@ -3,12 +3,13 @@
 **Recommendation:** use Zenodo as the primary citable home for the current White
 Paper and Executive Brief, with a versioned GitHub Release for code and evidence.
 Figshare is the second archival option for an eligible reusable research output,
-not a second DOI deposit of the same already published paper. LinkedIn provides
-professional discovery; neither an archive deposit nor a GitHub release is peer review.
+not a second DOI deposit of the same already published paper. LinkedIn shares the
+work with practitioners; neither an archive deposit nor a GitHub release is peer review.
+Describe every deposit as an educational practitioner report, not a product or service.
 
 The shared publication title is **Bridging Public Dissemination and Protected Data:
 A Zero-Trust SDMx Architecture on Azure Databricks**. Formats are identified
-separately as Executive Brief and White Paper. Author, company stewardship,
+separately as Executive Brief and White Paper. Author, copyright holder,
 licensing rights and institutional affiliation remain distinct.
 
 Official platform requirements below were checked on **18 September 2026**. Recheck
@@ -35,12 +36,13 @@ confidential client information even if file access is restricted.
    companion file; do not package third-party reference PDFs/workbooks without rights.
 2. Select the publication/report resource type offered by the form. Enter the
    exact shared title, author Botlhale Mosweu, actual affiliation/personal-capacity
-   information, date and version. Identify Augmenta Systems as steward separately
-   where metadata supports it; do not add an employer as sponsor or coauthor.
-3. Add an abstract/description covering method, synthetic scope, implementation,
-   observed lifecycle results and limits. Include SDMx, information architecture,
-   statistical disclosure, data governance and infrastructure-as-code keywords.
-   Link the specific tested code version and release evidence.
+   information, date and version. Record only roles that actually apply; do not
+   add an employer as sponsor or coauthor.
+3. Add an abstract/description covering educational purpose, method, synthetic
+   scope, implementation, observed lifecycle results and limits. Include SDMx,
+   information architecture, statistical disclosure, data governance and
+   infrastructure-as-code keywords. Link the specific tested code version and
+   release evidence.
 4. If this exact object has no DOI, reserve one using **Get a DOI now**, insert it
    into the final PDFs, then upload those files. If it already has a DOI, use the
    existing DOI according to Zenodo's guidance rather than minting another.
@@ -69,7 +71,7 @@ Sources: [create/upload/publish](https://help.zenodo.org/docs/deposit/create-new
 methods, synthetic evidence and reusable diagrams. Use it as an alternative to
 Zenodo, or for a distinct supporting artifact linked to the canonical paper.
 The free platform excludes product promotion and content without research reuse
-value; it is not a consulting marketing host or a duplicate-publication service.
+value; it is not a promotional host or a duplicate-publication service.
 
 **Requirements:** a verified email/account, ownership or permission to publish,
 no sensitive data, appropriate item type, the form's required metadata, an explicit

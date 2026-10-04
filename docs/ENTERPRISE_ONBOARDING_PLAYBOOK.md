@@ -3,15 +3,18 @@
 **Audience:** client sponsor, enterprise data and information architects, data
 authority, security reviewer, procurement, platform owner and external provider.
 
-SovereignShield supports an external technical consulting engagement in which
-the provider develops against an approved synthetic information contract and
-the client retains control of production data, identities, infrastructure and
-release decisions. An independent reference repository is an implementation
-starting point, not a production service or an automatic right to client access.
+This playbook is educational guidance for any institution that engages an external
+technical provider, whether a systems integrator, an independent contractor or a team
+directing AI coding agents, to build governed data controls. The provider develops
+against an approved synthetic information contract while the institution, called the
+client here, retains control of production data, identities, infrastructure and release
+decisions. It describes a delivery model, not a service offering: an independent
+reference repository is an implementation starting point, not a production service or
+an automatic right to client access.
 
 The companion Executive Brief and White Paper share the title **Bridging Public
 Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**.
-The [Executive Brief](EXECUTIVE_BRIEF.md) supports the investment decision;
+The [Executive Brief](EXECUTIVE_BRIEF.md) summarizes the pattern for decision-makers;
 the [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md)
 describes the controls and evidence.
 
@@ -36,8 +39,7 @@ and must not be assumed available for an independent engagement.
 | External technical provider | Architecture, code, synthetic fixtures, tests, documentation, defect correction and knowledge transfer within the agreed scope |
 | Client operations team | Monitoring, incident response, backup/restore, patching, cost oversight and ownership after acceptance |
 
-Augmenta Systems (13668754 Canada Inc.) is the project steward. Individual
-authorship, company stewardship, contractual work-product ownership and third-party
+Individual authorship, copyright, contractual work-product ownership and third-party
 licenses are distinct; none implies employer or institutional endorsement.
 
 ## 2. Client Prerequisites and Access
@@ -131,8 +133,8 @@ owns jobs, table DDL and protected policy bindings. Assign one writer to each
 managed object or principal/securable grant pair.
 
 The reference architecture has completed live Azure provisioning and teardown; the
-[measured evaluation](RELEASE_EVIDENCE.md#reference-evaluation-metrics) bounds the cost
-of a synthetic pilot, not engagement fees or production capacity.
+[measured evaluation](RELEASE_EVIDENCE.md#reference-evaluation-metrics) bounds the cloud
+cost of a synthetic pilot, not delivery effort or production capacity.
 
 ## 5. Handover and Client-Controlled Deployment
 
