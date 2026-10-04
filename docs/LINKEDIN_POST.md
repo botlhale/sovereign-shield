@@ -78,7 +78,7 @@ What it does not solve
 Access control is not disclosure control. In the synthetic data, a published total of 1,000 minus public components of 400 and 500 still reveals a restricted cell of 100, masked coordinates or not. That needs complementary suppression decided by the data authority. Researchers who genuinely need restricted cells belong in a secure enclave: approved projects, no raw export, reviewed outputs. That part is a concept, not code.
 
 Beyond statistics
-The same question now faces AI assistants grounded in enterprise knowledge: retrieval should return only the evidence the person asking is entitled to see. Binding that rule to the data, and letting each channel query with the caller's own identity rather than one shared privileged account, keeps the decision in one governed place. Sovereign Shield does not include an assistant, but its gateway faces the same identity question.
+The same question now faces AI assistants grounded in enterprise knowledge: retrieval should return only the evidence the person asking is entitled to see. Binding that rule to the data, letting signed-in channels query with the caller's own identity and giving anonymous traffic a least-privileged public identity, never one shared privileged account, keeps the decision in one governed place. Sovereign Shield does not include an assistant, but its gateway faces the same identity question.
 
 Evidence
 A complete Azure deployment came up in about 75 minutes and tore down in 30, for under US$10 in Azure charges. Those are synthetic evaluation numbers, not production estimates. The code, white paper and an open reconstruction challenge are here: https://github.com/botlhale/sovereign-shield
@@ -121,7 +121,8 @@ Enterprise AI discussions increasingly treat retrieval, entitlement and evaluati
 services behind many assistants. A short post can reach that audience without overstating
 the work: "Entitlement-aware retrieval: what a statistical Discovery Gateway teaches
 enterprise knowledge systems." Cover entitlements bound to the data rather than to each
-assistant, channels that query with the caller's identity
+assistant, signed-in channels that query with the caller's identity while anonymous traffic
+uses a least-privileged public identity
 ([perimeter identity](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md#the-perimeter-identity-problem)),
 and confirming that evidence exists without disclosing it. Close with the limit that
 entitlement is not disclosure control. Say plainly that the repository contains no AI

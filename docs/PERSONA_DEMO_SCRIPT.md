@@ -154,8 +154,9 @@ do not relabel the 22-row screenshot as that view.
 > Technical feedback is invited on analyst reconciliation, institutional handover
 > and reconstruction from public values or researcher-visible rows. The repository
 > includes the evidence, limitations and security reporting route, so anyone can
-> reproduce the results or try to break them. This is independent, educational
-> work; no institutional or vendor endorsement is implied.
+> reproduce the results or try to break them with the synthetic fixtures; nothing
+> here authorizes testing a live or third-party deployment. This is independent,
+> educational work; no institutional or vendor endorsement is implied.
 
 ## Implemented and Proposed Workflows
 
