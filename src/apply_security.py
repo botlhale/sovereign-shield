@@ -142,7 +142,7 @@ def verify_policy_functions(spark, statements: list[str]) -> None:
 
 
 def verify_existing_table_contracts(spark) -> None:
-    required = {"L_REP_CTY", "SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "SUBMITTED_AT", "RECEIVED_AT", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"}
+    required = {"L_REP_CTY", "SUBMISSION_ID", "SOURCE_SHA256", "RECORD_ID", "version_hash", "SUBMITTED_AT", "RECEIVED_AT", "BATCH_FAILED_RULE_ID", "VALIDATION_NOTES"}
     for schema, table, measure in (
         ("sovereign_shield", "agg_sdmx_history", "OBS_VALUE"),
         ("sovereign_intake", "lbs_micro_transactions", "transaction_amount"),
