@@ -220,7 +220,8 @@ The repository exists to exchange practice. Useful ways to take part:
   delivery model is welcome, as are proposals for co-authoring, talks and research collaboration.
 
 Use a feature request for public technical proposals, private vulnerability reporting for new
-weaknesses, and a LinkedIn message to the author, Botlhale Mosweu, for other collaboration enquiries.
+weaknesses, and a [LinkedIn message to the author, Botlhale Mosweu](https://www.linkedin.com/in/botlhale-ntsimane-mosweu-17653a7),
+for other collaboration enquiries.
 
 ## AI-Assisted Development
 
