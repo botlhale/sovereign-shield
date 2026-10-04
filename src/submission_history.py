@@ -55,7 +55,7 @@ def prepare_submission(frame, context):
     scopes = source.assign(REPORTING_COUNTRY=source["TIME_SERIES_CODE"].str.split(".").str[8])
     if len(scopes[["REPORTING_COUNTRY", "DATE", "AGG_CODE"]].drop_duplicates()) != 1:
         raise ValueError("One submission must have exactly one country/period/aggregation scope.")
-    if scopes["REPORTING_COUNTRY"].isna().any():
+    if scopes["REPORTING_COUNTRY"].isna().any() or scopes["REPORTING_COUNTRY"].eq("").any():
         raise ValueError("Invalid reporting-country security anchor.")
     states = source["BATCH_STATUS"].unique().tolist()
     if len(states) != 1 or states[0] not in ("PUBLISHED", "QUARANTINE"):

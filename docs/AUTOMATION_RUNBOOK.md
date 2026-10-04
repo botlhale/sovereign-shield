@@ -332,13 +332,11 @@ scripts/sovereign_down_custom.sh              # type DELETE to confirm
 | SQL warehouse | Attached by ID or name | 2X-Small serverless, auto-stop 10 minutes, tagged | Created one only |
 | Policy functions, protected tables and published view | Functions attached; tables and the view refused unless `--adopt-policy-objects` | Created through the warehouse by [apply_policies.py](../scripts/apply_policies.py) | Created ones, before their schemas |
 
-Applying the policy plane adds or verifies the `l_rep_cty_is_key_segment_9`
-constraint on the history table, rebinds masks and row filters on the protected
-tables, and replaces the published view; teardown cannot restore any of that prior
+Applying the policy plane rebinds masks and row filters on the protected
+tables and replaces the published view; teardown cannot restore any of that prior
 state. A run therefore stops before policy DDL when one of those objects exists and
 the manifest did not record creating it. Pass `--adopt-policy-objects` to accept
-these persistent changes: adopted objects and the added constraint remain after
-teardown.
+these persistent changes: adopted objects remain after teardown.
 Before teardown, drop or rebind masks and row filters on adopted tables that reference created
 policy functions, and restore the view's earlier definition.
 

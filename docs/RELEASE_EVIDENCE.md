@@ -138,7 +138,7 @@ The structure snapshot is an extracted component/code contract, not a full regis
 
 ## Mandatory Migration Gate
 
-**Do not deploy this release over the old DOUBLE history, or over a history table without the `L_REP_CTY` policy anchor, as a routine update.** The policy executor refuses incompatible existing schemas before changing bindings; the Spark writer also refuses missing or legacy tables. Before rebinding, the executor also adds the Delta CHECK constraint `l_rep_cty_is_key_segment_9` (`L_REP_CTY` must equal segment 9 of `TIME_SERIES_CODE`), which Delta validates against every stored row and enforces on every later write; any mismatched row aborts deployment with existing policies unchanged. The live evaluation used a fresh empty workload, not an in-place legacy-history migration.
+**Do not deploy this release over the old DOUBLE history, or over a history table without the `L_REP_CTY` policy anchor, as a routine update.** The policy executor refuses incompatible existing schemas before changing bindings; the Spark writer also refuses missing or legacy tables. Column-mask policies are unsupported on tables with CHECK constraints, so the submission writers enforce the anchor instead: they refuse any row whose `L_REP_CTY` is null, empty or not segment 9 of `TIME_SERIES_CODE`. Stored rows are not re-validated at deployment, so a migrated history must populate `L_REP_CTY` from segment 9. The live evaluation used a fresh empty workload, not an in-place legacy-history migration.
 
 For a retained environment, the platform owner must approve and rehearse a migration:
 
