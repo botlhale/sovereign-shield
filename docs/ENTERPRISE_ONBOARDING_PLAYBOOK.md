@@ -13,7 +13,7 @@ reference repository is an implementation starting point, not a production servi
 an automatic right to client access.
 
 The companion Executive Brief and White Paper share the title **Bridging Public
-Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**.
+Dissemination and Protected Data: A Least-Privilege SDMx Architecture on Azure Databricks**.
 The [Executive Brief](EXECUTIVE_BRIEF.md) summarizes the pattern for decision-makers;
 the [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md)
 describes the controls and evidence.

@@ -139,7 +139,6 @@ reconstruction counter-example. That candour is the differentiator with senior r
 
 Repository inspection cannot certify provenance, ownership or employment compliance; the
 author remains responsible for them. Describe experience generically. Third-party standards
-files keep their publishers' terms. The slash in `NOTICE` ("Botlhale Mosweu / Augmenta
-Systems") still leaves the copyright holder ambiguous; confirm the rights holder before
-changing it. Disclose AI assistance where a venue requires it, using the
+files keep their publishers' terms. `LICENSE` and `NOTICE` name Botlhale Mosweu as the
+sole copyright holder. Disclose AI assistance where a venue requires it, using the
 [AI-assisted SDLC disclosure](../CONTRIBUTING.md#ai-assisted-software-development-life-cycle).

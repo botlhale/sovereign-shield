@@ -8,7 +8,7 @@ work with practitioners; neither an archive deposit nor a GitHub release is peer
 Describe every deposit as an educational practitioner report, not a product or service.
 
 The shared publication title is **Bridging Public Dissemination and Protected Data:
-A Zero-Trust SDMx Architecture on Azure Databricks**. Formats are identified
+A Least-Privilege SDMx Architecture on Azure Databricks**. Formats are identified
 separately as Executive Brief and White Paper. Author, copyright holder,
 licensing rights and institutional affiliation remain distinct.
 
