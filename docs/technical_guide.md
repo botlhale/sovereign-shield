@@ -157,7 +157,7 @@ session starts must not be hidden as environmental skips.
 
 ## Pass 7: Provider Engagement and Handover
 
-Read [the provider workflow](../.github/skills/contractor_zero_trust_workflow.md),
+Read [the provider workflow](../.github/skills/contractor_least_privilege_workflow.md),
 [the client playbook](ENTERPRISE_ONBOARDING_PLAYBOOK.md) and
 [the promotion workflow](../.github/workflows/promote.yml).
 

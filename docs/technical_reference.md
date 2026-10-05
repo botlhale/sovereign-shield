@@ -84,7 +84,7 @@ period shapes allowed by the pinned data contract are accepted as LBS submission
 
 ---
 
-## 4. The Zero-Trust Triple-Lock security matrix
+## 4. The Least-Privilege Triple-Lock security matrix
 
 Unity Catalog table policies enforce row/value entitlements on supported query
 paths independently of application predicates. Runtime/access-mode limitations,

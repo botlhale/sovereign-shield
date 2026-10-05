@@ -1,6 +1,6 @@
 **White Paper**
 
-# Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks
+# Bridging Public Dissemination and Protected Data: A Least-Privilege SDMx Architecture on Azure Databricks
 
 **Author:** Botlhale Mosweu  
 **Role:** Enterprise Data Platform Architect  
@@ -43,7 +43,7 @@ A synthetic-first delivery model enables external specialists to implement and t
 
 Specialists implement against an approved synthetic contract, and client-controlled deployment identities remain independent of personnel changes. PR verification has no cloud credentials. Privileged planning and deployment require an explicit manual run on reviewed `main` and a protected GitHub environment. Runtime secrets, state and plans remain protected operational assets.
 
-The companion [Executive Brief](../EXECUTIVE_BRIEF.md) carries the same title, **Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks**, and summarizes the pattern for decision-makers. The [Nature of Engagement and Handover](../ENTERPRISE_ONBOARDING_PLAYBOOK.md) defines delivery responsibilities.
+The companion [Executive Brief](../EXECUTIVE_BRIEF.md) carries the same title, **Bridging Public Dissemination and Protected Data: A Least-Privilege SDMx Architecture on Azure Databricks**, and summarizes the pattern for decision-makers. The [Nature of Engagement and Handover](../ENTERPRISE_ONBOARDING_PLAYBOOK.md) defines delivery responsibilities.
 
 **Submission boundary:** the modeled international exchange accepts SDMx files, not bank micro-transactions. Synthetic bank micro-transactions exist solely as educational fixtures illustrating how realistic statistical observations and confidentiality flags are calculated. The demo ledger is not an institutional intake requirement or system deliverable. Domestic granular-data collections and other reporting regimes are outside this exchange contract.
 

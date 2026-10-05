@@ -113,7 +113,7 @@ else
 fi
 
 echo
-echo "Zero-Trust Identity Layer Provisioned Successfully."
+echo "Least-Privilege Identity Layer Provisioned Successfully."
 if [ "${GENERATED_PASSWORD:-0}" = "1" ]; then
   echo
   echo "  Temporary password for any user created by this run:"

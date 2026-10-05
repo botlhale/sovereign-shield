@@ -10,7 +10,7 @@ proposals are a welcome outcome, not the target.
 author's voice, follow it with the [Executive Brief](EXECUTIVE_BRIEF.md) as a document post,
 and publish one technical follow-up a week later. The Executive Brief and
 [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md) keep their
-shared title, **Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx
+shared title, **Bridging Public Dissemination and Protected Data: A Least-Privilege SDMx
 Architecture on Azure Databricks**.
 
 **Author:** Botlhale Mosweu, in a personal capacity. This is not the work of the Bank of
