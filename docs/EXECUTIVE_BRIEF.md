@@ -1,4 +1,4 @@
-# Bridging Public Dissemination and Protected Data: A Zero-Trust SDMx Architecture on Azure Databricks
+# Bridging Public Dissemination and Protected Data: A Least-Privilege SDMx Architecture on Azure Databricks
 
 **Executive Brief**
 

@@ -6,3 +6,6 @@ contact_links:
   - name: Deployment and operations documentation
     url: https://github.com/botlhale/sovereign-shield/blob/main/docs/AUTOMATION_RUNBOOK.md
     about: Review setup, recovery, pause, and teardown guidance before opening an issue.
+  - name: Collaboration enquiries
+    url: https://www.linkedin.com/in/botlhale-ntsimane-mosweu-17653a7
+    about: Message the author, Botlhale Mosweu, on LinkedIn about co-authoring, talks, or research collaboration.

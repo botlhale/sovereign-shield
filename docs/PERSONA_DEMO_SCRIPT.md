@@ -4,7 +4,7 @@
 **Format:** optional 3-5 minute educational walkthrough after the anchor article.
 
 The companion publication is **Bridging Public Dissemination and Protected Data:
-A Zero-Trust SDMx Architecture on Azure Databricks**, available as an
+A Least-Privilege SDMx Architecture on Azure Databricks**, available as an
 [Executive Brief](EXECUTIVE_BRIEF.md) and [White Paper](whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md).
 Follow [the publication plan](LINKEDIN_POST.md) for ordering and evidence links.
 
