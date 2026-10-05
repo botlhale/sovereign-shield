@@ -14,7 +14,7 @@ an implemented feature or a substitute for institutional acceptance.
 | [Policy deployment](triple_lock_security.md) | Protected DDL, immutable functions and ownership | Changing policies, bindings or runtime configuration |
 | [SDMx validation](sdmx_lbs_validation.md) | Format, component/code and arithmetic validation | Changing rule interpretation or serialization |
 | [Submission history](scd2_engine.md) | Immutable filing identity, replay and atomic full replacements | Changing persistence, ordering or audit semantics |
-| [External-provider workflow](contractor_zero_trust_workflow.md) | Synthetic development, reviewed promotion, handover and offboarding | Onboarding contributors or reviewing delivery access |
+| [External-provider workflow](contractor_least_privilege_workflow.md) | Synthetic development, reviewed promotion, handover and offboarding | Onboarding contributors or reviewing delivery access |
 
 ## Information Boundaries
 

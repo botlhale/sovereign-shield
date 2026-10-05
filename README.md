@@ -61,7 +61,7 @@ documented limit in this repository:
 
 1. **Treat AI coding agents as external contractors.** They get the approved contract and
    synthetic fixtures, never production records, secrets in prompts or standing access
-   ([provider workflow](.github/skills/contractor_zero_trust_workflow.md)).
+   ([provider workflow](.github/skills/contractor_least_privilege_workflow.md)).
 2. **Bind entitlements to the data, not the channel.** A table policy applies on every supported
    query path; the design question for each new channel, an AI assistant included, is which
    identity it queries with ([perimeter identity](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md#the-perimeter-identity-problem)).
@@ -191,7 +191,7 @@ nothing it did not create.
 | Assess security | [Persona matrix](.github/skills/persona_security_matrix.md) · [Triple-Lock contract](.github/skills/triple_lock_security.md) · [Solution audit](docs/solution_audit.md) |
 | Check SDMx conformance | [Validation contract](.github/skills/sdmx_lbs_validation.md) · [Synthetic dataset contract](.github/skills/mvsd_specification.md) |
 | Deploy, recover or tear down | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) · [Resource provenance](docs/RESOURCE_PROVENANCE.md) |
-| Learn the delivery and handover model | [Engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) · [Provider workflow](.github/skills/contractor_zero_trust_workflow.md) |
+| Learn the delivery and handover model | [Engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) · [Provider workflow](.github/skills/contractor_least_privilege_workflow.md) |
 | Present or share the material | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) · [Publication plan](docs/LINKEDIN_POST.md) · [Release guide](docs/PUBLICATION_AND_RELEASE.md) · [Image prompts](docs/figures/gemini_image_prompts.md) |
 | Verify measured results | [Release evidence](docs/RELEASE_EVIDENCE.md) |
 

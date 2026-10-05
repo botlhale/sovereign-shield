@@ -119,4 +119,4 @@ See [Nature of Engagement and Handover](../../docs/ENTERPRISE_ONBOARDING_PLAYBOO
 - [SDMx validation](sdmx_lbs_validation.md)
 - [Submission history](scd2_engine.md)
 - [Protected policy deployment](triple_lock_security.md)
-- [Provider workflow](contractor_zero_trust_workflow.md)
+- [Provider workflow](contractor_least_privilege_workflow.md)

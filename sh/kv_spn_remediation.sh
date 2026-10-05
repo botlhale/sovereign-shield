@@ -47,6 +47,6 @@ az keyvault secret set --vault-name "$KEYVAULT_NAME" --name "spn-client-id" --va
 az keyvault secret set --vault-name "$KEYVAULT_NAME" --name "spn-client-secret" --value "$SPN_SECRET" --output none
 az keyvault secret set --vault-name "$KEYVAULT_NAME" --name "spn-tenant-id" --value "$SPN_TENANT_ID" --output none
 
-echo "=== Success! Zero-Trust Key Vault & SPN Configured ==="
+echo "=== Success! Least-Privilege Key Vault & SPN Configured ==="
 echo "Key Vault Name: $KEYVAULT_NAME"
 echo "Resource Group: $RESOURCE_GROUP ($LOCATION)"

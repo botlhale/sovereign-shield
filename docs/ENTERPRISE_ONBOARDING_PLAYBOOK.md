@@ -241,7 +241,7 @@ equivalent stakeholder diagrams.
 
 - [Synthetic information contract](../.github/skills/mvsd_specification.md)
 - [Persona and policy contract](../.github/skills/persona_security_matrix.md)
-- [Engineer delivery workflow](../.github/skills/contractor_zero_trust_workflow.md)
+- [Engineer delivery workflow](../.github/skills/contractor_least_privilege_workflow.md)
 - [Architecture diagrams](ARCHITECTURE_DIAGRAMS.md)
 - [Operations and stage recovery](AUTOMATION_RUNBOOK.md)
 - [Persona demonstration and evidence](PERSONA_DEMO_SCRIPT.md)
