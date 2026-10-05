@@ -6,13 +6,15 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from deltalake import DeltaTable
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from decimal_measures import decimal_text
 from generate_sovereign_submissions import aggregate_micro_to_macro, generate_micro_transactions, generate_sdmx_ml
 from sdmx_rule_validator import SDMxRuleValidator
-from submission_history import SubmissionContext, merge_local_submission
+from submission_history import HISTORY_COLUMNS, SubmissionContext, merge_local_submission
 
 DATABRICKS_VARIABLES = ("DATABRICKS_HOST", "DATABRICKS_SERVER_HOSTNAME", "DATABRICKS_HTTP_PATH", "DATABRICKS_WAREHOUSE_ID")
 PERSONAS = {
@@ -24,9 +26,22 @@ PERSONAS = {
 }
 
 
-def build_demo(output):
+def build_demo(output, migrate_legacy=False):
     validator = SDMxRuleValidator()
     catalog = output / "catalog" / "agg_sdmx_history"
+    if (catalog / "_delta_log").exists():
+        missing = sorted(set(HISTORY_COLUMNS) - {field.name for field in DeltaTable(str(catalog)).schema().fields})
+        if missing and not migrate_legacy:
+            raise SystemExit(
+                f"{catalog} predates the current history contract (missing {', '.join(missing)}). Rerun with "
+                "--migrate-legacy to preserve it and replay the archived arrivals, or choose a new --output."
+            )
+        if missing:
+            # Outside catalog/, so the policy mirror never reads the preserved legacy rows.
+            archive = output / "legacy" / f"agg_sdmx_history-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}"
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            catalog.rename(archive)
+            print(f"Legacy history preserved at {archive.resolve()}; replaying archived arrivals.")
     for cycle in ("baseline", "revision"):
         directory = output / "arrivals" / cycle
         directory.mkdir(parents=True, exist_ok=True)
@@ -82,9 +97,11 @@ if __name__ == "__main__":
     parser.add_argument("--persona", choices=sorted(PERSONAS), action="append", default=[])
     parser.add_argument("--serve", choices=sorted(PERSONAS), help="serve the local portal as this persona fixture")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--migrate-legacy", action="store_true",
+                        help="preserve an incompatible local history under legacy/ and replay the archived arrivals")
     args = parser.parse_args()
     os.environ["SOVEREIGNSHIELD_LOCAL_DELTA"] = str(args.output / "catalog")
-    build_demo(args.output)
+    build_demo(args.output, migrate_legacy=args.migrate_legacy)
     for selected in args.persona:
         show_persona(args.output, selected)
     if args.serve:
