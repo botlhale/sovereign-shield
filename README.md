@@ -156,7 +156,7 @@ submitted filing can be rejected while an earlier accepted version stays publish
 
 | Starting point | Entry point | Guide |
 | --- | --- | --- |
-| Empty subscription (Windows PowerShell) | `sh/sovereignshield_up.ps1` / `sh/sovereignshield_down.ps1` | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) |
+| Empty subscription (PowerShell on Windows, or `pwsh` on Linux) | `sh/sovereignshield_up.ps1` / `sh/sovereignshield_down.ps1` | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) |
 | Existing Azure and Databricks estate (bash) | `scripts/sovereign_up_custom.sh` / `scripts/sovereign_down_custom.sh` | [Bring your own estate](docs/AUTOMATION_RUNBOOK.md#bring-your-own-azure-estate) |
 
 The greenfield reference cycle took about **75 minutes** to bring up, including prerequisite

@@ -393,11 +393,16 @@ if ($EnableEntraSignIn) {
     # az.cmd is a cmd.exe wrapper. Passing a SAS URL directly through its
     # argument list splits on '&' and silently stores only the first parameter.
     # Expanding the value from an environment variable inside a quoted cmd.exe
-    # argument preserves the complete query string.
+    # argument preserves the complete query string. Elsewhere az receives argv intact.
     $env:EASY_AUTH_SECRET = "easy-auth-token-sas=$tokenSasUrl"
     try {
-        $secretCommand = "az.cmd containerapp secret set -n `"$AppName`" -g `"$ResourceGroup`" --secrets `"%EASY_AUTH_SECRET%`" --output none"
-        cmd.exe /d /s /c $secretCommand
+        if ([System.Environment]::OSVersion.Platform -eq "Win32NT") {
+            $secretCommand = "az.cmd containerapp secret set -n `"$AppName`" -g `"$ResourceGroup`" --secrets `"%EASY_AUTH_SECRET%`" --output none"
+            cmd.exe /d /s /c $secretCommand
+        }
+        else {
+            az containerapp secret set -n $AppName -g $ResourceGroup --secrets $env:EASY_AUTH_SECRET --output none
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "Could not store the Easy Auth token-store SAS secret."
         }

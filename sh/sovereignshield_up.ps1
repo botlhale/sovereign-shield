@@ -71,7 +71,7 @@ if ($StartAtStage -gt $StopAfterStage) {
     throw "StartAtStage cannot be greater than StopAfterStage."
 }
 
-$lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
+$lifecycleLock = $null
 Push-Location $repoRoot
 try {
     function Invoke-Stage {
@@ -105,7 +105,7 @@ try {
         foreach ($command in @("az", "databricks", "git")) {
             Assert-SovereignShieldCommand $command
         }
-        if (-not $SkipTests) { Assert-SovereignShieldCommand ".\.venv\Scripts\python.exe" }
+        if (-not $SkipTests) { $python = Get-SovereignShieldPython -RepoRoot $repoRoot }
 
         foreach ($relativePath in @(
             "terraform\$TerraformVarFile",
@@ -127,11 +127,14 @@ try {
 
         Test-SovereignShieldEntraUsers -TenantDomain $TenantDomain
         if (-not $SkipTests) {
-            Invoke-SovereignShieldNative -FilePath ".\.venv\Scripts\python.exe" `
+            Invoke-SovereignShieldNative -FilePath $python `
                 -Arguments @("-m", "pytest", "-q") | Out-Null
         }
     }
     if ($StopAfterStage -eq 0) { return }
+
+    # Held from Stage 1: the Stage 0 suite exercises scripts that take this same lock.
+    $lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
 
     Invoke-Stage 1 "Terraform foundation" {
         Invoke-SovereignShieldTerraform -Terraform $terraform -RepoRoot $repoRoot `
@@ -325,5 +328,5 @@ try {
 }
 finally {
     Pop-Location
-    $lifecycleLock.Dispose()
+    if ($lifecycleLock) { $lifecycleLock.Dispose() }
 }

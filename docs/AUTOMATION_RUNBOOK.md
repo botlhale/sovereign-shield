@@ -2,9 +2,10 @@
 
 The orchestration scripts wrap Terraform, Databricks Asset Bundles and the
 stage-specific helpers. They execute those tools in the required order and stop on
-the first failed gate. The greenfield orchestrator targets Windows PowerShell; on
-Linux or macOS, attach to an existing estate with the
-[bring-your-own scripts](#bring-your-own-azure-estate).
+the first failed gate. The greenfield orchestrator runs in PowerShell on Windows and
+in PowerShell 7 (`pwsh`) on Linux; enter the commands below at a PowerShell prompt.
+The recorded reference runs used Windows. To attach to an existing estate from bash,
+use the [bring-your-own scripts](#bring-your-own-azure-estate).
 
 For a resource-by-resource explanation of both Azure resource groups, the
 Databricks account layer, creation ownership, reuse behavior, cost relevance,
