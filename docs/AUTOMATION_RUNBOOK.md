@@ -275,7 +275,7 @@ Resource ownership and retention boundaries are detailed in the
 | Stage 6 deployment wait timed out | Reconcile the exact pending/latest deployment; never submit another copy |
 | Generation completed, ingestion failed | Repair the failed job tasks against archived arrivals; do not regenerate filings |
 | ACR build or push failed | Reuse the registry with a verified tag: `container_apps_deploy.ps1 -RegistryName <registry> -ImageTag <tag> -SkipImageBuild` |
-| Workspace delete timed out or stays `Deleting` | Azure refuses a second delete (`ApplianceBeingDeleted`) while one runs. Rerun `down` once `az databricks workspace list -g rg-sovereignshield` no longer lists the workspace |
+| Workspace delete timed out or stays `Deleting` | `down` waits up to an hour for an in-progress delete, since Azure refuses a second one (`ApplianceBeingDeleted`). A workspace deleted without force can loop while Databricks recreates an Event Grid topic on its retained storage; deleting the leftover `databricks-rg-rg-sovereignshield` group stops that |
 | Legacy DOUBLE history or another bundle path | Follow the [migration gate](RELEASE_EVIDENCE.md#mandatory-migration-gate); never force a routine apply |
 
 Use current Terraform outputs, not identifiers copied from dated deployment records.

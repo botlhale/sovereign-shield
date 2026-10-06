@@ -180,6 +180,16 @@ try {
     }
 
     Start-TimedStep "Terraform destroy"
+    $workspaceStateQuery = @("databricks", "workspace", "list", "--resource-group", $ResourceGroup,
+        "--query", "[?name=='$WorkspaceName'].provisioningState | [0]", "-o", "tsv")
+    if (((& az @workspaceStateQuery) | Out-String).Trim() -eq "Deleting" -and -not $WhatIfPreference) {
+        # Azure refuses a second delete (ApplianceBeingDeleted) while one is running.
+        Write-Host "Waiting up to an hour for the in-progress deletion of $WorkspaceName." -ForegroundColor DarkGray
+        & az databricks workspace wait --deleted --resource-group $ResourceGroup --name $WorkspaceName | Out-Null
+        # The wait also exits 0 when it times out.
+        $stillThere = ((& az @workspaceStateQuery) | Out-String).Trim()
+        if ($stillThere) { throw "Workspace $WorkspaceName is still $stillThere after an hour. Rerun down once it is gone." }
+    }
     if ($PSCmdlet.ShouldProcess("Terraform-managed SovereignShield workload", "Destroy")) {
         Invoke-SovereignShieldTerraform -Terraform $terraform -RepoRoot $repoRoot -Arguments @(
             "destroy", "-input=false", "-auto-approve", "-var-file=$TerraformVarFile",
