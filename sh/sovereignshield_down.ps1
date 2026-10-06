@@ -62,8 +62,9 @@ try {
     Invoke-SovereignShieldNative -FilePath "az" -Arguments @("account", "show", "--output", "none") | Out-Null
 
     Install-SovereignShieldAzExtension -Name databricks
+    # A workspace that is already being deleted serves no API; Terraform finishes its removal.
     $workspaceHost = (& az databricks workspace list --resource-group $ResourceGroup `
-        --query "[?name=='$WorkspaceName'].workspaceUrl | [0]" -o tsv | Out-String).Trim()
+        --query "[?name=='$WorkspaceName' && provisioningState=='Succeeded'].workspaceUrl | [0]" -o tsv | Out-String).Trim()
     if ($workspaceHost) { Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost }
 
     if ($Mode -eq "Pause") {

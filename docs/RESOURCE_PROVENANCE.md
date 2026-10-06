@@ -197,7 +197,9 @@ The script discovers live tables and functions before deleting schemas, destroys
 bundle resources, handles script-managed or Terraform-managed Container Apps,
 runs Terraform destroy, removes an orphaned Databricks diagnostic workspace if
 Azure leaves one behind, and verifies both zero Terraform state entries and zero
-resources in `rg-sovereignshield` before reporting success.
+resources in `rg-sovereignshield` before reporting success. Terraform force-deletes
+the workspace, so the Databricks-managed group and the workspace's default Unity
+Catalog storage are removed with it.
 
 It preserves the backend and Databricks account identity records. Human Entra
 users are never created or deleted by the orchestration scripts.
