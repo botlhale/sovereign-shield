@@ -271,6 +271,7 @@ Resource ownership and retention boundaries are detailed in the
 | Failure | Recovery |
 | --- | --- |
 | Stage 3 run-as grant not yet visible | Bounded same-ETag verification; resume at Stage 3 after checking account authorization |
+| Stage 1 warehouse refused for missing `databricks-sql-access` | A new workspace gives its admins SQL access a few minutes after creation; the Stage 1 retry waits up to 15 minutes for it. Otherwise resume with `-StartAtStage 1` |
 | Stage 6 new App has no default source path | Source resolves from the selected bundle; resume at Stage 6, not Stage 3 |
 | Stage 6 deployment wait timed out | Reconcile the exact pending/latest deployment; never submit another copy |
 | Generation completed, ingestion failed | Repair the failed job tasks against archived arrivals; do not regenerate filings |

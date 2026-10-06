@@ -172,6 +172,24 @@ try {
 
             Write-Warning "Foundation apply stopped after workspace creation. Retrying against https://$workspaceHost."
             Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost
+            # New workspaces give admins databricks-sql-access minutes after creation; the warehouse needs it.
+            Write-Host "Waiting until the new workspace accepts SQL warehouse calls from the deployer." -ForegroundColor DarkGray
+            $deadline = (Get-Date).AddMinutes(15)
+            $previousPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                do {
+                    & databricks warehouses list --output json 2>$null | Out-Null
+                    $sqlReady = $LASTEXITCODE -eq 0
+                    if (-not $sqlReady) { Start-Sleep -Seconds 15 }
+                } until ($sqlReady -or (Get-Date) -gt $deadline)
+            }
+            finally {
+                $ErrorActionPreference = $previousPreference
+            }
+            if (-not $sqlReady) {
+                throw "The deployer still lacks databricks-sql-access in https://$workspaceHost after 15 minutes."
+            }
             Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
                 -VarFile $TerraformVarFile -Variables $foundationVariables -ApproveComputeScale:$ApproveComputeScale
         }
