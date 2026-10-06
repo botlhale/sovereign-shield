@@ -50,6 +50,7 @@ try {
     }
     Invoke-SovereignShieldNative -FilePath "az" -Arguments @("account", "show", "--output", "none") | Out-Null
 
+    Install-SovereignShieldAzExtension -Name databricks
     $workspaceHost = (& az databricks workspace list --resource-group $ResourceGroup `
         --query "[?name=='$WorkspaceName'].workspaceUrl | [0]" -o tsv | Out-String).Trim()
     if ($workspaceHost) { Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost }

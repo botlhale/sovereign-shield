@@ -26,6 +26,16 @@ function Assert-SovereignShieldCommand {
     }
 }
 
+function Install-SovereignShieldAzExtension {
+    param([Parameter(Mandatory = $true)][string]$Name)
+
+    # Otherwise az asks to install it on first use, and captured output hides that prompt.
+    & az extension add --name $Name --only-show-errors | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Azure CLI could not install the '$Name' extension. Run: az extension add --name $Name"
+    }
+}
+
 function Get-SovereignShieldPython {
     param([string]$RepoRoot)
     foreach ($relative in @(".venv\Scripts\python.exe", ".venv/bin/python")) {
@@ -226,6 +236,7 @@ Export-ModuleMember -Function @(
     "Set-SovereignShieldBundleVariables",
     "Resolve-SovereignShieldApplicationId",
     "Assert-SovereignShieldCommand",
+    "Install-SovereignShieldAzExtension",
     "Invoke-SovereignShieldNative",
     "Invoke-SovereignShieldTerraform",
     "Invoke-SovereignShieldTerraformApply",

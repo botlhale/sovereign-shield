@@ -61,6 +61,16 @@ def test_readiness_reads_terraform_without_a_powershell_stdin_pipe(monkeypatch, 
     assert calls == [(["terraform.exe", "-chdir=project/terraform", "show", "-json"], {"capture_output": True, "text": True, "check": True})]
 
 
+def test_az_databricks_extension_is_installed_before_first_use():
+    """Without the extension az asks to install it, and captured output hides that prompt."""
+    scripts = [path for path in (ROOT / "sh").glob("*.ps1") if "az databricks " in path.read_text(encoding="utf-8")]
+    assert scripts
+    for path in scripts:
+        source = path.read_text(encoding="utf-8")
+        install = source.find("Install-SovereignShieldAzExtension -Name databricks")
+        assert 0 <= install < source.index("az databricks "), path.name
+
+
 def test_empty_native_terraform_output_fails_closed(monkeypatch):
     from types import SimpleNamespace
 

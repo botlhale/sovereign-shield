@@ -135,6 +135,7 @@ try {
 
     # Held from Stage 1: the Stage 0 suite exercises scripts that take this same lock.
     $lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
+    Install-SovereignShieldAzExtension -Name databricks
 
     Invoke-Stage 1 "Terraform foundation" {
         Invoke-SovereignShieldTerraform -Terraform $terraform -RepoRoot $repoRoot `
