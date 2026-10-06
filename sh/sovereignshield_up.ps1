@@ -87,9 +87,15 @@ try {
 
         Write-Host "`n[$Number/8] $Name" -ForegroundColor Cyan
         $timer = [System.Diagnostics.Stopwatch]::StartNew()
-        & $Action
-        $timer.Stop()
-        $stageTimings[$Name] = $timer.Elapsed
+        $completed = $false
+        try {
+            & $Action
+            $completed = $true
+        }
+        finally {
+            $timer.Stop()
+            $stageTimings["[$Number/8] $Name$(if (-not $completed) { ' (incomplete)' })"] = $timer.Elapsed
+        }
         Write-Host "[$Number/8] COMPLETE in $([math]::Round($timer.Elapsed.TotalMinutes, 1)) minute(s)" -ForegroundColor Green
     }
 
@@ -319,15 +325,10 @@ try {
         Write-Host "  Public rows    : $($publicResult.row_count)"
         Write-Host "  Warehouse      : $warehouseId"
         Write-Host "  Submission root: $submissionVolume"
-        Write-Host "  Elapsed         : $([math]::Round(((Get-Date) - $startedAt).TotalMinutes, 1)) minute(s)"
-    }
-
-    Write-Host "`nStage timings" -ForegroundColor Cyan
-    $stageTimings.GetEnumerator() | ForEach-Object {
-        "  {0,-55} {1,6:N1} min" -f $_.Key, $_.Value.TotalMinutes
     }
 }
 finally {
     Pop-Location
     if ($lifecycleLock) { $lifecycleLock.Dispose() }
+    Write-SovereignShieldTimingSummary -Timings $stageTimings -StartedAt $startedAt
 }

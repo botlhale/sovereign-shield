@@ -41,6 +41,17 @@ $ErrorActionPreference = "Stop"
 Import-Module (Join-Path $PSScriptRoot "lib\SovereignShield.Orchestration.psm1") -Force
 $repoRoot = Get-SovereignShieldRepoRoot
 $terraform = Get-SovereignShieldTerraform
+$startedAt = Get-Date
+$stepTimings = [ordered]@{}
+$stepTimer = [System.Diagnostics.Stopwatch]::StartNew()
+$step = "Preflight and workspace discovery"
+$stepFailed = $false
+
+function Start-TimedStep([string]$Name) {
+    $stepTimings[$script:step] = $stepTimer.Elapsed
+    $script:step = $Name
+    $stepTimer.Restart()
+}
 
 $lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
 Push-Location $repoRoot
@@ -56,6 +67,7 @@ try {
     if ($workspaceHost) { Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost }
 
     if ($Mode -eq "Pause") {
+        Start-TimedStep "Pause portal compute"
         if ($PSCmdlet.ShouldProcess("SovereignShield portals", "Pause compute")) {
             if ($workspaceHost) {
                 Invoke-SovereignShieldNative -FilePath "databricks" `
@@ -78,6 +90,7 @@ try {
         throw "Workload teardown is destructive. Re-run with -ConfirmWorkloadDestruction or preview with -WhatIf."
     }
 
+    Start-TimedStep "Unity Catalog tables, views and functions"
     $state = & $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" state list 2>$null
     if ($LASTEXITCODE -ne 0) { throw "Terraform state could not be read." }
     $catalogManagedByTerraform = [bool]($state | Select-String "databricks_catalog\.main")
@@ -118,12 +131,14 @@ try {
         }
     }
 
+    Start-TimedStep "Databricks bundle destroy"
     if ($workspaceHost -and $PSCmdlet.ShouldProcess("Databricks bundle resources", "Destroy job, app and uploaded files")) {
         Set-SovereignShieldBundleVariables -Terraform $terraform -RepoRoot $repoRoot -Target $Target
         Invoke-SovereignShieldNative -FilePath "databricks" `
             -Arguments @("bundle", "destroy", "-t", $Target, "--auto-approve") -AllowFailure | Out-Null
     }
 
+    Start-TimedStep "Container Apps gateway"
     $gatewayManagedByTerraform = [bool]($state | Select-String "module.dissemination_gateway")
 
     if ($gatewayManagedByTerraform) {
@@ -163,6 +178,7 @@ try {
         }
     }
 
+    Start-TimedStep "Terraform destroy"
     if ($PSCmdlet.ShouldProcess("Terraform-managed SovereignShield workload", "Destroy")) {
         Invoke-SovereignShieldTerraform -Terraform $terraform -RepoRoot $repoRoot -Arguments @(
             "destroy", "-input=false", "-auto-approve", "-var-file=$TerraformVarFile",
@@ -171,6 +187,7 @@ try {
         ) | Out-Null
     }
 
+    Start-TimedStep "Orphaned diagnostic workspace"
     # Azure can orphan the workspace diagnostic resource after deleting the
     # Databricks workspace and its managed resource group. The generated name
     # is scoped to this workload resource group and has no Terraform owner.
@@ -190,6 +207,7 @@ try {
         return
     }
 
+    Start-TimedStep "Verify nothing remains"
     $remainingState = @(& $terraform "-chdir=$(Join-Path $repoRoot 'terraform')" state list 2>&1)
     if ($LASTEXITCODE -ne 0) { throw "Terraform state could not be verified after destroy." }
     if ($remainingState.Count -gt 0) {
@@ -215,7 +233,13 @@ try {
     Write-Host "`nConfirm no workload resources remain:" -ForegroundColor Cyan
     Write-Host "  az resource list --resource-group $ResourceGroup --output table"
 }
+catch {
+    $stepFailed = $true
+    throw
+}
 finally {
     Pop-Location
     $lifecycleLock.Dispose()
+    $stepTimings["$step$(if ($stepFailed) { ' (incomplete)' })"] = $stepTimer.Elapsed
+    Write-SovereignShieldTimingSummary -Timings $stepTimings -StartedAt $startedAt
 }

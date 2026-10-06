@@ -36,6 +36,26 @@ function Install-SovereignShieldAzExtension {
     }
 }
 
+function Write-SovereignShieldTimingSummary {
+    param(
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Timings,
+        [Parameter(Mandatory = $true)][datetime]$StartedAt
+    )
+
+    $finishedAt = Get-Date
+    $total = $finishedAt - $StartedAt
+    $recorded = [TimeSpan]::Zero
+    $row = "  {0,-68} {1:hh\:mm\:ss}"
+    Write-Host "`nTimings (hh:mm:ss)" -ForegroundColor Cyan
+    foreach ($entry in $Timings.GetEnumerator()) {
+        Write-Host ($row -f $entry.Key, $entry.Value)
+        $recorded += $entry.Value
+    }
+    Write-Host ($row -f "Between steps", ($total - $recorded))
+    Write-Host ($row -f "Total", $total) -ForegroundColor Cyan
+    Write-Host ("  Started {0:yyyy-MM-dd HH:mm:ss zzz}, finished {1:yyyy-MM-dd HH:mm:ss zzz}" -f $StartedAt, $finishedAt)
+}
+
 function Get-SovereignShieldPython {
     param([string]$RepoRoot)
     foreach ($relative in @(".venv\Scripts\python.exe", ".venv/bin/python")) {
@@ -237,6 +257,7 @@ Export-ModuleMember -Function @(
     "Resolve-SovereignShieldApplicationId",
     "Assert-SovereignShieldCommand",
     "Install-SovereignShieldAzExtension",
+    "Write-SovereignShieldTimingSummary",
     "Invoke-SovereignShieldNative",
     "Invoke-SovereignShieldTerraform",
     "Invoke-SovereignShieldTerraformApply",
