@@ -93,7 +93,7 @@ confidential data needs findings 2, 4 and 5 resolved and institutional acceptanc
 | Declarative separation | 8/10 | One writer per object; Terraform grants, bundle policies, verified bindings |
 | Temporal and SDMx integrity | 8/10 | Pinned contract, 21 rules, atomic MERGE, exact decimals, standard feeds published-only |
 | Statistical disclosure | 5/10 | Honest and testable, but margins remain open and counts are visible |
-| Lifecycle engineering | 7/10 | Greenfield proven live; bring-your-own estate stub-tested; greenfield is Windows-bound |
+| Lifecycle engineering | 7/10 | Greenfield proven live; bring-your-own estate stub-tested; greenfield runs on Windows and Linux `pwsh`, macOS untested |
 | Documentation | 8/10 | One README, consolidated runbook, removed duplicates, modern figures; publications still dense |
 | Institutional and IP boundary | 7/10 | Clear notices and a reset history credential; `LICENSE` and `NOTICE` name Botlhale Mosweu as sole copyright holder |
 | Publication readiness | 7/10 | Strong story and evidence; until finding 1 passes live, coordinate masking is described as tested offline |
