@@ -1,0 +1,41 @@
+# Deterministic control bands for the Maintain stage (docs/AI_SDLC.md).
+#
+# sh/check_lifecycle_bands.py compares the latest complete run of each lifecycle
+# with the mean and standard deviation of the complete runs before it. Rules are
+# evaluated in the order listed and the first one that fires sets the tier, so
+# list the most severe first. Change a band only with a recorded reason (an
+# intent), never to silence a signal.
+
+version: 1
+history: ops/lifecycle_timings.jsonl
+
+metrics:
+  - id: up_total_minutes
+    lifecycle: up
+    field: total_minutes
+    window: 10        # baseline: up to this many complete runs before the latest
+    min_runs: 5       # below this the band is still being built
+    min_sigma: 1.0    # minutes; a very steady baseline must not flag noise
+  - id: down_total_minutes
+    lifecycle: down
+    field: total_minutes
+    window: 10
+    min_runs: 5
+    min_sigma: 1.0
+
+rules:
+  - id: beyond-3-sigma
+    tier: propose
+  - id: two-of-three-beyond-2-sigma
+    tier: propose
+  - id: eight-on-one-side
+    tier: diagnose
+  - id: beyond-2-sigma
+    tier: diagnose
+  - id: beyond-1-sigma
+    tier: log
+
+tiers:
+  propose: Write a draft intent for the service owner to triage.
+  diagnose: The service owner compares the step timings of the flagged runs with the baseline.
+  log: Note the run in the timing summary; no action.

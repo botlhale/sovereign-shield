@@ -28,6 +28,8 @@ python -m pytest tests/<file>.py -p no:cacheprovider -o addopts=""
 python sh/verify_docs.py                                     # links and anchors (sh/requirements-docs.txt)
 python sh/verify_docs.py --print-proof                       # after publication edits: brief must be 8 pages
 python evals/run_evals.py --self-test                        # committed eval cases still reproduce their incidents
+python sh/check_lifecycle_bands.py                           # latest lifecycle durations against ops/bands.yaml
+python sh/sdlc_metrics.py                                    # intent lead times and Intent: trailer coverage
 terraform -chdir=terraform fmt -recursive -check
 terraform -chdir=terraform init -backend=false -input=false && terraform -chdir=terraform validate
 ```
@@ -54,6 +56,7 @@ without output is not verified.
 | `.claude/`, `REVIEW.md` | Agent skills, subagents and hooks; review criteria |
 | `intent/` | Change records: intent, spec and plan per change |
 | `evals/` | Agent evals: one case per past incident, scored by the regression tests |
+| `ops/` | Lifecycle timing history (appended by full up and down runs) and its control bands |
 
 ## Skills
 

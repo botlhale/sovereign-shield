@@ -269,4 +269,8 @@ finally {
     $lifecycleLock.Dispose()
     $stepTimings["$step$(if ($stepFailed) { ' (incomplete)' })"] = $stepTimer.Elapsed
     Write-SovereignShieldTimingSummary -Timings $stepTimings -StartedAt $startedAt
+    if ($Mode -eq "Workload" -and $ConfirmWorkloadDestruction -and -not $WhatIfPreference) {
+        Add-SovereignShieldTimingRecord -RepoRoot $repoRoot -Lifecycle down -Timings $stepTimings `
+            -StartedAt $startedAt -Completed (-not $stepFailed)
+    }
 }

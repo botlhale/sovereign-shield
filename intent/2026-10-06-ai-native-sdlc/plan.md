@@ -12,8 +12,8 @@
 | 1. Agent context and skills | `AGENTS.md`, `CLAUDE.md`, `.claude/skills/{intent-capture,spec-from-intent,implementation-plan,unity-catalog-policy,submission-history,sdmx-contract,evidence-and-claims,cloud-lifecycle}/SKILL.md`, `.claude/agents/{verifier,policy-reviewer}.md` |
 | 2. Gates and review | `.claude/hooks/pretool_gate.py`, `.claude/settings.json`, `.github/hooks/sovereignshield.json`, `.gitignore`, `REVIEW.md`, `.github/CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/workflows/claude-review.yml`, `tests/test_ai_sdlc.py` |
 | 3. Evals | `evals/README.md`, `evals/run_evals.py`, `evals/cases/*.json`, `.github/workflows/agent-evals.yml`, `tests/test_agent_evals.py`, `tests/conftest.py` (`--evals`), `pytest.ini` marker, new regression tests in `tests/test_deployment_boundaries.py` |
-| 4. Maintain loop | `ops/lifecycle_timings.jsonl`, `ops/bands.yaml`, `sh/check_lifecycle_bands.py`, `sh/sdlc_metrics.py`, `sh/lib/SovereignShield.Orchestration.psm1` (`Add-SovereignShieldTimingRecord`), `sh/sovereignshield_up.ps1`, `sh/sovereignshield_down.ps1`, `tests/test_lifecycle_bands.py`, `tests/test_sdlc_metrics.py` |
-| 5. Explanation | `docs/AI_SDLC.md`, `intent/README.md` (How to Request a Change), `README.md`, `CONTRIBUTING.md`, `docs/AUTOMATION_RUNBOOK.md`, `evals/README.md` links |
+| 4. Maintain loop | `ops/lifecycle_timings.jsonl`, `ops/bands.yaml`, `sh/check_lifecycle_bands.py`, `sh/sdlc_metrics.py`, `sh/lib/SovereignShield.Orchestration.psm1` (`Add-SovereignShieldTimingRecord`), `sh/sovereignshield_up.ps1`, `sh/sovereignshield_down.ps1`, `docs/AUTOMATION_RUNBOOK.md` (timing record), `tests/test_lifecycle_bands.py`, `tests/test_sdlc_metrics.py`, `tests/test_deployment_boundaries.py` (module export guard) |
+| 5. Explanation | `docs/AI_SDLC.md`, `intent/README.md` (How to Request a Change), `README.md`, `CONTRIBUTING.md`, `evals/README.md` links |
 
 ## Order of work
 
@@ -36,6 +36,11 @@
    - Add the record writer to the orchestration module.
    - Call it from both lifecycle scripts only for full runs, inside `finally`, so
      it never masks the original error.
+   - Export it from the module. The first test run caught the missing export,
+     which would have thrown inside `finally` on the next cloud run; a guard test
+     now checks every module function the scripts call is exported.
+   - Document the record in the runbook in the same commit, since it changes what
+     an operator commits after a run.
    - Seed the history with the operator-reported 6 October totals.
 5. **Explanation.** Write the operating model, the request guide and the links,
    then run the full proof.

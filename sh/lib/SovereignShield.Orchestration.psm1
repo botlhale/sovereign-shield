@@ -56,6 +56,44 @@ function Write-SovereignShieldTimingSummary {
     Write-Host ("  Started {0:yyyy-MM-dd HH:mm:ss zzz}, finished {1:yyyy-MM-dd HH:mm:ss zzz}" -f $StartedAt, $finishedAt)
 }
 
+function Add-SovereignShieldTimingRecord {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][ValidateSet("up", "down")][string]$Lifecycle,
+        [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Timings,
+        [Parameter(Mandatory = $true)][datetime]$StartedAt,
+        [Parameter(Mandatory = $true)][bool]$Completed
+    )
+
+    # Feeds the control bands in ops/bands.yaml; recording must never fail a lifecycle run.
+    try {
+        $steps = [ordered]@{}
+        foreach ($entry in $Timings.GetEnumerator()) {
+            $steps[$entry.Key] = [math]::Round($entry.Value.TotalMinutes, 1)
+        }
+        $record = [ordered]@{
+            lifecycle     = $Lifecycle
+            started_at    = $StartedAt.ToString("yyyy-MM-ddTHH:mm:sszzz")
+            total_minutes = [math]::Round(((Get-Date) - $StartedAt).TotalMinutes, 1)
+            outcome       = if ($Completed) { "complete" } else { "incomplete" }
+            source        = "measured"
+            os            = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
+            powershell    = $PSVersionTable.PSVersion.ToString()
+            steps         = $steps
+        }
+        [System.IO.File]::AppendAllText((Join-Path $RepoRoot "ops/lifecycle_timings.jsonl"),
+            ($record | ConvertTo-Json -Compress) + "`n", [System.Text.UTF8Encoding]::new($false))
+        Write-Host "Run recorded in ops/lifecycle_timings.jsonl; commit it with the run's evidence." -ForegroundColor DarkGray
+
+        $python = Get-SovereignShieldPython -RepoRoot $RepoRoot
+        & $python (Join-Path $RepoRoot "sh/check_lifecycle_bands.py") --lifecycle $Lifecycle --write-intent
+        if ($LASTEXITCODE -ne 0) { Write-Warning "The lifecycle control bands could not be checked." }
+    }
+    catch {
+        Write-Warning "The lifecycle timing was not recorded: $($_.Exception.Message)"
+    }
+}
+
 function Get-SovereignShieldPython {
     param([string]$RepoRoot)
     foreach ($relative in @(".venv\Scripts\python.exe", ".venv/bin/python")) {
@@ -258,6 +296,7 @@ Export-ModuleMember -Function @(
     "Assert-SovereignShieldCommand",
     "Install-SovereignShieldAzExtension",
     "Write-SovereignShieldTimingSummary",
+    "Add-SovereignShieldTimingRecord",
     "Invoke-SovereignShieldNative",
     "Invoke-SovereignShieldTerraform",
     "Invoke-SovereignShieldTerraformApply",

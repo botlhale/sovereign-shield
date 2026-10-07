@@ -128,6 +128,17 @@ def test_up_preflight_runs_on_linux_and_tests_before_taking_the_lock():
     assert up.index("if ($StopAfterStage -eq 0) { return }") < up.index("Enter-SovereignShieldLifecycleLock")
 
 
+def test_orchestration_module_exports_every_function_the_scripts_call():
+    """An unexported function fails only when a lifecycle run reaches the call, often in finally."""
+    module = (ROOT / "sh/lib/SovereignShield.Orchestration.psm1").read_text(encoding="utf-8")
+    defined = set(re.findall(r"^function ([\w-]+)", module, re.MULTILINE))
+    exported = set(re.findall(r'"([\w-]+)"', module.split("Export-ModuleMember", 1)[1]))
+    called = set()
+    for path in (ROOT / "sh").glob("*.ps1"):
+        called |= defined & set(re.findall(r"[\w]+-SovereignShield\w*", path.read_text(encoding="utf-8")))
+    assert called and called <= exported, sorted(called - exported)
+
+
 def test_empty_native_terraform_output_fails_closed(monkeypatch):
     from types import SimpleNamespace
 
