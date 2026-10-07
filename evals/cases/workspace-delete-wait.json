@@ -1,0 +1,16 @@
+{
+  "id": "workspace-delete-wait",
+  "incident": "b7e7d33",
+  "summary": "Down re-checks the workspace after az wait, because the wait exits 0 when it times out.",
+  "prompt": "A rerun of down after an interrupted teardown failed in terraform destroy with ApplianceBeingDeleted, even though down printed that it was waiting for the in-progress workspace deletion. Make down reliably wait out an in-progress workspace deletion before terraform destroy, and fail with a clear message if the workspace is still there afterwards.",
+  "defect": [
+    {
+      "path": "sh/sovereignshield_down.ps1",
+      "find": "        # The wait also exits 0 when it times out.\n        $stillThere = ((& az @workspaceStateQuery) | Out-String).Trim()\n        if ($stillThere) { throw \"Workspace $WorkspaceName is still $stillThere after an hour. Rerun down once it is gone.\" }\n    }\n",
+      "replace": "    }\n"
+    }
+  ],
+  "checks": [
+    "tests/test_deployment_boundaries.py::test_down_waits_out_an_in_progress_workspace_delete_before_terraform_destroy"
+  ]
+}

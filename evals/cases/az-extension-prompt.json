@@ -1,0 +1,16 @@
+{
+  "id": "az-extension-prompt",
+  "incident": "7dbae8b",
+  "summary": "Lifecycle scripts install the az databricks extension before first use instead of hanging on a hidden prompt.",
+  "prompt": "On a fresh Linux machine, `pwsh ./sh/sovereignshield_down.ps1 -Mode Workload -ConfirmWorkloadDestruction` hangs indefinitely right after it checks `az account show`: nothing is printed and nothing happens. The up script runs fine on the same machine. Find and fix the cause in the lifecycle scripts.",
+  "defect": [
+    {
+      "path": "sh/sovereignshield_down.ps1",
+      "find": "    Install-SovereignShieldAzExtension -Name databricks\n    # A workspace that is already being deleted",
+      "replace": "    # A workspace that is already being deleted"
+    }
+  ],
+  "checks": [
+    "tests/test_deployment_boundaries.py::test_az_databricks_extension_is_installed_before_first_use"
+  ]
+}

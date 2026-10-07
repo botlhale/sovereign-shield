@@ -1,0 +1,16 @@
+{
+  "id": "legacy-history-gate",
+  "incident": "cf6e681",
+  "summary": "The local demo must never migrate history written under an older schema without --migrate-legacy.",
+  "prompt": "Running `python sh/local_demo.py` against an output folder created by an older version silently moved the existing local submission history aside, without the operator asking for it. Legacy history must never be migrated implicitly: stop with guidance unless the operator passes --migrate-legacy. Find and fix the cause.",
+  "defect": [
+    {
+      "path": "sh/local_demo.py",
+      "find": "        if missing and not migrate_legacy:\n",
+      "replace": "        if missing and migrate_legacy:\n"
+    }
+  ],
+  "checks": [
+    "tests/test_submission_history.py::test_local_demo_moves_pre_anchor_history_only_on_explicit_migration"
+  ]
+}

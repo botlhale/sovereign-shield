@@ -27,6 +27,7 @@ python -m pytest tests/ -p no:cacheprovider -o addopts=""   # offline suite, pri
 python -m pytest tests/<file>.py -p no:cacheprovider -o addopts=""
 python sh/verify_docs.py                                     # links and anchors (sh/requirements-docs.txt)
 python sh/verify_docs.py --print-proof                       # after publication edits: brief must be 8 pages
+python evals/run_evals.py --self-test                        # committed eval cases still reproduce their incidents
 terraform -chdir=terraform fmt -recursive -check
 terraform -chdir=terraform init -backend=false -input=false && terraform -chdir=terraform validate
 ```
@@ -52,6 +53,7 @@ without output is not verified.
 | `.github/skills/` | Reference contracts, the source of truth for data, policy and delivery rules |
 | `.claude/`, `REVIEW.md` | Agent skills, subagents and hooks; review criteria |
 | `intent/` | Change records: intent, spec and plan per change |
+| `evals/` | Agent evals: one case per past incident, scored by the regression tests |
 
 ## Skills
 
