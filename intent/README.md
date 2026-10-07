@@ -123,6 +123,10 @@ gate approvals that did not happen at the time.
 
 | Intent | Status | Summary |
 | --- | --- | --- |
+| [2026-10-05-legacy-demo-history-migration](2026-10-05-legacy-demo-history-migration/intent.md) | retrospective | Never migrate local demo history without `--migrate-legacy` |
+| [2026-10-05-linux-lifecycle](2026-10-05-linux-lifecycle/intent.md) | retrospective | Run the greenfield lifecycle from Linux with PowerShell 7 |
+| [2026-10-06-lifecycle-timing-tables](2026-10-06-lifecycle-timing-tables/intent.md) | retrospective | Show how long each lifecycle step takes |
+| [2026-10-06-teardown-bringup-hardening](2026-10-06-teardown-bringup-hardening/intent.md) | retrospective | Make teardown and rebuild finish without manual recovery |
 | [2026-10-06-reference-timings](2026-10-06-reference-timings/intent.md) | verified | Publish the 6 October lifecycle timings as the current reference |
 | [2026-10-06-ai-native-sdlc](2026-10-06-ai-native-sdlc/intent.md) | planned | Run the repository on the six-stage AI-native SDLC |
 | [2026-10-06-gemini-figure-review](2026-10-06-gemini-figure-review/intent.md) | verified | Decide whether the new Gemini engagement figures can be published |
