@@ -1,6 +1,6 @@
 # Intent: Decide whether the new Gemini engagement figures can be published
 
-- **Status:** specified
+- **Status:** planned
 - **Originator:** @botlhale
 - **Product owner:** @botlhale
 - **Date:** 2026-10-06

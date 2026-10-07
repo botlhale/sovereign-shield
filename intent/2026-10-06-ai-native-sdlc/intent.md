@@ -1,6 +1,6 @@
 # Intent: Run the repository on the six-stage AI-native SDLC
 
-- **Status:** specified
+- **Status:** planned
 - **Originator:** @botlhale, as Enterprise Data Architect and Enterprise Information Architect
 - **Product owner:** @botlhale
 - **Date:** 2026-10-06
