@@ -81,7 +81,7 @@ Beyond statistics
 The same question now faces AI assistants grounded in enterprise knowledge: retrieval should return only the evidence the person asking is entitled to see. Binding that rule to the data, letting signed-in channels query with the caller's own identity and giving anonymous traffic a least-privileged public identity, never one shared privileged account, keeps the decision in one governed place. Sovereign Shield does not include an assistant, but its gateway faces the same identity question.
 
 Evidence
-A complete Azure deployment came up in about 42 minutes and tore down in 35, for under US$10 in Azure charges. Those are synthetic evaluation numbers, not production estimates. The code, white paper and an open reconstruction challenge are here: https://github.com/botlhale/sovereign-shield
+With prerequisites already in place, a complete Azure deployment came up in about 42 minutes and tore down in about 35, for US$10 or less in Azure charges. Those are synthetic evaluation numbers, not production estimates. The code, white paper and an open reconstruction challenge are here: https://github.com/botlhale/sovereign-shield
 
 Independent, educational work on synthetic data and public standards, written in a personal capacity. It is not the work of the Bank of Canada or any other institution, and the views are my own.
 

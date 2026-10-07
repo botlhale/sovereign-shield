@@ -62,11 +62,16 @@ function Add-SovereignShieldTimingRecord {
         [Parameter(Mandatory = $true)][ValidateSet("up", "down")][string]$Lifecycle,
         [Parameter(Mandatory = $true)][System.Collections.IDictionary]$Timings,
         [Parameter(Mandatory = $true)][datetime]$StartedAt,
-        [Parameter(Mandatory = $true)][bool]$Completed
+        [Parameter(Mandatory = $true)][bool]$Completed,
+        [System.IO.FileStream]$LifecycleLock
     )
 
     # Feeds the control bands in ops/bands.yaml; recording must never fail a lifecycle run.
+    # The history and intent index change only under the lifecycle lock: the caller's, or
+    # one taken here, so a concurrent lifecycle cannot interleave its own record.
+    $ownLock = $null
     try {
+        if (-not $LifecycleLock) { $ownLock = Enter-SovereignShieldLifecycleLock -RepoRoot $RepoRoot }
         $steps = [ordered]@{}
         foreach ($entry in $Timings.GetEnumerator()) {
             $steps[$entry.Key] = [math]::Round($entry.Value.TotalMinutes, 1)
@@ -91,6 +96,9 @@ function Add-SovereignShieldTimingRecord {
     }
     catch {
         Write-Warning "The lifecycle timing was not recorded: $($_.Exception.Message)"
+    }
+    finally {
+        if ($ownLock) { $ownLock.Dispose() }
     }
 }
 

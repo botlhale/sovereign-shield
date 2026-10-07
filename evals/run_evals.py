@@ -152,7 +152,7 @@ def agent_case(case: dict, ref: str, agent: str, timeout: int) -> dict:
         checks_passed, _ = run_checks(case, tree)
         touched = forbidden(case, changed_paths(tree, base))
     return {
-        "id": case["id"], "passed": checks_passed and not touched, "checks_passed": checks_passed,
+        "id": case["id"], "passed": agent_exit == 0 and checks_passed and not touched, "checks_passed": checks_passed,
         "forbidden_changes": touched, "agent_exit": agent_exit,
         "seconds": round(time.monotonic() - started, 1), "agent_output_tail": tail,
     }
@@ -186,6 +186,7 @@ def main(argv: list = None) -> int:
     rate = sum(result["passed"] for result in results) / len(results)
     for result in results:
         print(f"{'pass' if result['passed'] else 'FAIL'} {result['id']} ({result['seconds']} s)"
+              + (f" agent exit: {result['agent_exit']}" if result["agent_exit"] != 0 else "")
               + (f" forbidden: {result['forbidden_changes']}" if result["forbidden_changes"] else ""))
     print(f"pass rate {rate:.0%} (threshold {args.threshold:.0%})")
     if args.output:

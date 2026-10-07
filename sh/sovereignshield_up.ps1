@@ -352,11 +352,16 @@ try {
 }
 finally {
     Pop-Location
-    if ($lifecycleLock) { $lifecycleLock.Dispose() }
-    Write-SovereignShieldTimingSummary -Timings $stageTimings -StartedAt $startedAt
-    # Only full runs with the offline suite are comparable with the control-band baseline.
-    if ($StartAtStage -eq 0 -and $StopAfterStage -eq 8 -and -not $SkipTests) {
-        Add-SovereignShieldTimingRecord -RepoRoot $repoRoot -Lifecycle up -Timings $stageTimings `
-            -StartedAt $startedAt -Completed $lifecycleCompleted
+    try {
+        Write-SovereignShieldTimingSummary -Timings $stageTimings -StartedAt $startedAt
+        # Only full runs with the offline suite are comparable with the control-band baseline.
+        if ($StartAtStage -eq 0 -and $StopAfterStage -eq 8 -and -not $SkipTests) {
+            Add-SovereignShieldTimingRecord -RepoRoot $repoRoot -Lifecycle up -Timings $stageTimings `
+                -StartedAt $startedAt -Completed $lifecycleCompleted -LifecycleLock $lifecycleLock
+        }
+    }
+    finally {
+        # Released only after the timing record and control bands have been written.
+        if ($lifecycleLock) { $lifecycleLock.Dispose() }
     }
 }

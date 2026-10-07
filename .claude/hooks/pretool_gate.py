@@ -6,10 +6,13 @@ hookSpecificOutput.permissionDecision on stdout. The gate:
 
 - asks for a human decision before cloud lifecycle and publishing commands;
 - asks before edits to the Unity Catalog policy files;
-- denies reads and edits of credential files;
+- denies reads and edits of credential files, including terminal commands that
+  name one;
 - in fix mode, denies edits to tests/ and evals/, so the only way to green is to
-  change the code. Fix mode is on while .sovereignshield-fix-mode exists at the
-  repository root or SOVEREIGNSHIELD_FIX_MODE is set.
+  change the code. A terminal command that names either folder must consist only
+  of read-only or test-running segments. Fix mode is on while
+  .sovereignshield-fix-mode exists at the repository root or
+  SOVEREIGNSHIELD_FIX_MODE is set.
 
 VS Code runs every PreToolUse hook for every tool (it ignores matchers), so tools
 the gate does not know pass through untouched. An unexpected error exits 1, which
@@ -45,8 +48,24 @@ POLICY_FILES = {
 FIX_LOCKED = ("tests/", "evals/")
 CREDENTIAL_PATH = re.compile(
     r"(?:^|/)(?:\.env(?:\.[^/]*)?|[^/]*\.tfstate(?:\.[^/]*)?|[^/]*\.(?:pem|pfx|p12|key)|\.databrickscfg)$"
-    r"|(?:^|/)\.azure/"
+    r"|(?:^|/)\.(?:azure|ssh)(?:/|$)"
 )
+# Terminal commands are split into words at whitespace, quotes and shell punctuation.
+COMMAND_WORD_SEPARATORS = re.compile(r"[\s'\"`;|&<>()=,]+")
+# In fix mode, a command naming tests/ or evals/ may only chain these segments.
+COMMAND_SEGMENT_SEPARATORS = re.compile(r"&&|\|\||(?<!>)&|[;|\n]")
+FIX_MODE_SAFE_SEGMENT = re.compile(
+    r"\s*(?:"
+    r"cd\s+\S+"
+    r"|(?:\S*python[\d.]*(?:\.exe)?\s+-m\s+)?pytest\b.*"
+    r"|\S*python[\d.]*(?:\.exe)?\s+evals/run_evals\.py\b.*"
+    r"|git\s+(?:status|diff|log|show|add|commit)\b.*"
+    r"|(?:ls|cat|head|tail|grep|rg|wc)\b.*"
+    r")\s*",
+    re.DOTALL,
+)
+# Redirection or command substitution can write anywhere, whatever the segment.
+FIX_MODE_UNSAFE = re.compile(r"(?<!2)>(?!&1)|2>(?!&1)|\$\(|`")
 
 def _cli(program: str, subcommands: str) -> str:
     """Matches `program [options and words] subcommand`, stopping at quoted text."""
@@ -99,16 +118,42 @@ def _paths(tool_input: Mapping) -> Iterator[str]:
 
 
 def _relative(path: str, cwd: Optional[str]) -> Optional[str]:
-    candidate = Path(path).expanduser()
-    if not candidate.is_absolute():
-        candidate = Path(cwd or ROOT) / candidate
     try:
+        candidate = Path(path).expanduser()
+        if not candidate.is_absolute():
+            candidate = Path(cwd or ROOT) / candidate
         return candidate.resolve().relative_to(ROOT).as_posix()
-    except ValueError:
+    except (ValueError, RuntimeError, OSError):
         return None
 
 
-def _command_decision(command: str, environ: Mapping[str, str]) -> Optional[dict]:
+def _command_words(command: str) -> Iterator[str]:
+    return (word for word in COMMAND_WORD_SEPARATORS.split(command) if word)
+
+
+def _credential_path(raw: str, relative: Optional[str]) -> bool:
+    try:
+        normalized = Path(raw).expanduser().as_posix()
+    except RuntimeError:
+        normalized = Path(raw).as_posix()
+    return bool(CREDENTIAL_PATH.search(relative or normalized))
+
+
+def _fix_locked(relative: Optional[str]) -> bool:
+    return relative is not None and (relative.startswith(FIX_LOCKED) or f"{relative}/" in FIX_LOCKED)
+
+
+def _command_decision(command: str, cwd: Optional[str], environ: Mapping[str, str]) -> Optional[dict]:
+    words = [(word, _relative(word, cwd)) for word in _command_words(command)]
+    if any(_credential_path(word, relative) for word, relative in words):
+        return _decision("deny", "Credential files stay out of agent context; ask a human for the value you need.")
+    if _fix_mode(environ) and any(_fix_locked(relative) for _, relative in words) and (
+            FIX_MODE_UNSAFE.search(command) or not all(
+                FIX_MODE_SAFE_SEGMENT.fullmatch(segment)
+                for segment in COMMAND_SEGMENT_SEPARATORS.split(command) if segment.strip())):
+        return _decision("deny", (
+            "Fix mode locks tests/ and evals/: a command that names them may only read them or run the "
+            "tests. Make the failing test pass by changing the code."))
     for label, pattern in COMMAND_GATES:
         if pattern.search(command):
             return _decision("ask", (
@@ -120,8 +165,7 @@ def _command_decision(command: str, environ: Mapping[str, str]) -> Optional[dict
 
 
 def _path_decision(raw: str, relative: Optional[str], editing: bool, environ: Mapping[str, str]) -> Optional[dict]:
-    normalized = Path(raw).expanduser().as_posix()
-    if CREDENTIAL_PATH.search(relative or normalized):
+    if _credential_path(raw, relative):
         return _decision("deny", "Credential files stay out of agent context; ask a human for the value you need.")
     if not editing or relative is None:
         return None
@@ -148,7 +192,7 @@ def decide(payload: Mapping, environ: Mapping[str, str] = os.environ) -> Optiona
 
     if tool in TERMINAL_TOOLS:
         command = tool_input.get("command")
-        return _command_decision(command, environ) if isinstance(command, str) else None
+        return _command_decision(command, cwd, environ) if isinstance(command, str) else None
 
     if tool not in EDIT_TOOLS and tool not in READ_TOOLS:
         return None
