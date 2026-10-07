@@ -41,6 +41,9 @@
    then run the full proof.
 
 Each step is one commit with the trailer `Intent: 2026-10-06-ai-native-sdlc`.
+Steps 1 and 2 landed as one commit, because `CLAUDE.md` and `AGENTS.md`
+describe the gates and would otherwise point to controls that did not exist yet.
+The subagents moved to that commit too, since they apply `REVIEW.md`.
 
 ## Risks
 

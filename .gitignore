@@ -271,3 +271,8 @@ docs/Gemini_Generated_Image_*
 
 # Operator task recipes carry environment identifiers; keep them local.
 .vscode/tasks.json
+
+# Agent sessions: personal Claude Code settings and the fix-mode marker that
+# .claude/hooks/pretool_gate.py reads are per-checkout state.
+.claude/settings.local.json
+.sovereignshield-fix-mode

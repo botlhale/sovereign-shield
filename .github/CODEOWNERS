@@ -1,0 +1,24 @@
+# Code owners approve changes under branch protection ("Require review from Code
+# Owners"). One maintainer holds every role in this reference project; a client
+# adoption replaces these handles with the named owner of each gate.
+
+*                                   @botlhale
+
+# Policy owner: Unity Catalog policy, grants and their deployment.
+/src/unity_catalog_triple_lock.sql  @botlhale
+/src/unity_catalog_grants.sql       @botlhale
+/src/apply_security.py              @botlhale
+/scripts/apply_policies.py          @botlhale
+/.github/skills/                    @botlhale
+
+# Process owner: agent instructions, skills, hooks, review criteria and evals.
+/AGENTS.md                          @botlhale
+/CLAUDE.md                          @botlhale
+/REVIEW.md                          @botlhale
+/.claude/                           @botlhale
+/.github/hooks/                     @botlhale
+/evals/                             @botlhale
+
+# Release owner: workflows and infrastructure.
+/.github/workflows/                 @botlhale
+/terraform/                         @botlhale
