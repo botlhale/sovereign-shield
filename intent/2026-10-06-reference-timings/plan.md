@@ -60,4 +60,20 @@ No operational state changes.
 
 ## Evidence
 
-Recorded when the status becomes verified.
+Verified on 6 October 2026, before the implementing commit.
+
+- The contract test was changed first and failed for all three publications.
+  After the edits, `tests/test_documentation_contract.py` passed 16 of 16.
+- `sh/verify_docs.py` verified 388 local links and anchors. `--print-proof`
+  produced an eight-page Executive Brief and a 20-page white paper, with each
+  figure on a page that has an image.
+- `git grep` for the old wording finds only the dated records, the
+  evidence-register history and these intent records.
+- `git diff --stat docs/figures` lists only `compute_strategy.svg`,
+  `compute_strategy.png` and `manifest.json`.
+  - Text extents were measured in the same headless Chrome: the widest panel line
+    ends at x=1005 of 1536.
+  - The render used Lato, the third font in the SVG stack, because Inter and
+    Segoe UI are not installed on this Linux machine. The other five figures keep
+    their earlier Segoe UI renders.
+- Full offline suite: 275 passed, 13 skipped.

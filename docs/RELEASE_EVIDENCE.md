@@ -11,14 +11,20 @@ those evaluations, not the current availability of a continuously operated servi
 
 | Measure | Observed Reference Result | Boundary |
 | --- | --- | --- |
-| Full project bring-up using `sh/sovereignshield_up.ps1` | Approximately 75 minutes, including prerequisite setup | Synthetic evaluation, not a production provisioning SLA |
-| Workload teardown using `sh/sovereignshield_down.ps1` | Approximately 30 minutes | Separate from the 75-minute bring-up; retained backend/identity artifacts follow the runbook |
-| Azure charges for deployment, testing and teardown | US$10 or less | Measured reference cycle, not a price guarantee or recurring production estimate |
-| Lifecycle completion | Both scripts completed without errors in the confirmed evaluation | Institutional production acceptance remains a separate gate |
+| Full project bring-up using `sh/sovereignshield_up.ps1` | Approximately 42 minutes for all eight stages, including the offline test suite, with prerequisites already in place (6 October 2026). Earlier: approximately 75 minutes including prerequisite setup (18 September 2026) | Synthetic evaluation, not a production provisioning SLA |
+| Workload teardown using `sh/sovereignshield_down.ps1` | Approximately 35 minutes (6 October 2026). Earlier: approximately 30 minutes (18 September 2026) | Separate from bring-up; retained backend/identity artifacts follow the runbook |
+| Azure charges for deployment, testing and teardown | US$10 or less in each cycle | Measured reference cycle, not a price guarantee or recurring production estimate |
+| Lifecycle completion | Both scripts completed without errors in both cycles | Institutional production acceptance remains a separate gate |
 
-**Measurement provenance:** project-operator evaluation confirmed on 18 September
-2026. The supplied timing includes prerequisites. A line-item billing export,
-credit/tax treatment and allocation of persistent shared resources were not supplied.
+**Measurement provenance:** the current reference cycle was run by the project
+operator on 6 October 2026 from Ubuntu Linux with PowerShell 7.6. The state
+backend, Entra persona users and Databricks account identities already existed,
+so its bring-up time excludes prerequisite setup. Since the earlier cycle, teardown
+also waits until Azure confirms that the Container Apps environment and the
+workspace are deleted, rather than trusting the CLI's own polling. The earlier cycle,
+confirmed on 18 September 2026 from Windows, included prerequisite setup. Both
+timings and costs are operator-reported. A line-item billing export, credit/tax
+treatment and allocation of persistent shared resources were not supplied.
 The recorded US-dollar cycle cost supports low-cost synthetic evaluation; it does
 not establish an independently audited billing total or a ceiling for other runs.
 Region, capacity, runtime, warehouse activity, storage, logs, egress, retained

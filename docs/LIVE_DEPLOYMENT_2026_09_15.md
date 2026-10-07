@@ -135,10 +135,11 @@ not be verified and is not reported as below $50; billing also lags resource use
 The workload is now removed, but the retained state backend can incur storage
 costs. No hard real-time billing cap or zero-total-cost claim is made.
 
-The later confirmed reference evaluation measured about 75 minutes up including
-prerequisites, 30 minutes down and US$10 or less in Azure charges for the full
-cycle. Its [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics)
-is separate from this earlier billing-API limitation. Historical figures are not
+The later reference evaluation confirmed on 18 September 2026 measured about
+75 minutes up including prerequisites, 30 minutes down and US$10 or less in Azure
+charges for the full cycle. Its scope, and that of later cycles, is recorded under
+[reference evaluation metrics](RELEASE_EVIDENCE.md#reference-evaluation-metrics),
+separate from this earlier billing-API limitation. Historical figures are not
 retroactively changed. Public-total and researcher-row inference remain the
 [open disclosure challenge](../SECURITY.md#statistical-reconstruction-challenge).
 

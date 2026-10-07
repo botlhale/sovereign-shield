@@ -96,7 +96,7 @@ Start with one bounded workload and widen the scope only as evidence accumulates
 
 **Assurance:** Rehearse protected migration, test the live persona matrix, recovery and offboarding, validate disclosure control, and obtain legal/provenance clearance.
 
-**Reference evaluation:** successful provisioning took approximately **75 minutes including prerequisites**; teardown took **30 minutes**. The deploy/test/teardown cycle cost **US$10 or less in Azure charges**. This is an observed synthetic-workload result, not a production estimate or guaranteed price. [Measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
+**Reference evaluation:** provisioning took approximately **42 minutes with prerequisites in place**; teardown took **35 minutes**. The deploy/test/teardown cycle cost **US$10 or less in Azure charges**. This is an observed synthetic-workload result, not a production estimate or guaranteed price. [Measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 
 **Technology options:** Terraform module/provider boundaries support AWS, GCP, Microsoft Fabric and open-source alternatives. Identity, policy enforcement, storage and lifecycle adapters must be implemented and acceptance-tested; the Azure/Databricks code is not portable unchanged.
 

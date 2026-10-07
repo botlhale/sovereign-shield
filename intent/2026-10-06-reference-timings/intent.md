@@ -1,6 +1,6 @@
 # Intent: Publish the 6 October lifecycle timings as the current reference
 
-- **Status:** planned
+- **Status:** verified
 - **Originator:** Project operator
 - **Product owner:** @botlhale
 - **Date:** 2026-10-06

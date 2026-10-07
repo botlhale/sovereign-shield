@@ -85,9 +85,10 @@ The default run executes:
 | 7 | Build and deploy Container Apps with anonymous and Entra access |
 | 8 | Check App status, persona SQL entitlements, 13-row public fixture and Easy Auth; optionally configure GitHub |
 
-The successful reference evaluation measured approximately **75 minutes to bring
-up the entire project, including prerequisite setup**, and **30 minutes for
-teardown**. Deployment, testing and teardown incurred **US$10 or less in Azure
+The most recent successful reference cycle (6 October 2026, Ubuntu Linux with
+PowerShell 7) measured approximately **42 minutes to bring up the entire project,
+with prerequisite setup already in place**, and **35 minutes for teardown**.
+Deployment, testing and teardown incurred **US$10 or less in Azure
 charges**. These are observed synthetic-workload results, not stage SLAs or a
 guaranteed cost ceiling. Regional capacity, RBAC propagation, runtime, storage,
 warehouse activity and retained resources affect each run. See

@@ -163,11 +163,12 @@ driven by replica uptime, CPU/memory allocation, requests, registry/storage, and
 logs. Pause mode sets minimum replicas to zero; workload teardown deletes the
 app, environment, matching registry, and token store.
 
-Successful reference provisioning took approximately **75 minutes including
-prerequisites**, followed by **30 minutes for teardown**. The complete deploy,
-test and teardown cycle cost **US$10 or less in Azure charges**. This is a measured
-synthetic evaluation, not a recurring production estimate or zero-cost retention
-claim. See [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
+The most recent successful reference provisioning (6 October 2026) took
+approximately **42 minutes with prerequisites already in place**, followed by
+**35 minutes for teardown**. The complete deploy, test and teardown cycle cost
+**US$10 or less in Azure charges**. This is a measured synthetic evaluation, not a
+recurring production estimate or zero-cost retention claim. See
+[measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
 
 ## Remote State Resource Group
 

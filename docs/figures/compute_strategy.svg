@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
   <title id="title">Evaluation Compute and Scale Decisions</title>
-  <desc id="description">Ingestion, dissemination warehouse and gateway are sized independently. Ingestion defaults to single node without Photon and driver-bound parsing does not distribute with more workers. Warehouse size and concurrency are separate levers. Pause is not guaranteed zero cost. The synthetic reference cycle took about 75 minutes up including prerequisites, 30 minutes down and US$10 or less in Azure charges.</desc>
+  <desc id="description">Ingestion, dissemination warehouse and gateway are sized independently. Ingestion defaults to single node without Photon and driver-bound parsing does not distribute with more workers. Warehouse size and concurrency are separate levers. Pause is not guaranteed zero cost. The synthetic reference cycle of 6 October 2026 took about 42 minutes up with prerequisites already in place, 35 minutes down and US$10 or less in Azure charges.</desc>
   <defs>
     <filter id="lift" x="-8%" y="-8%" width="116%" height="130%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#0F172A" flood-opacity="0.18"/></filter>
   </defs>
@@ -58,9 +58,9 @@
   <text x="1116" y="484" class="note">are retained deliberately.</text>
 
   <rect x="64" y="540" width="1472" height="134" rx="18" fill="#0F766E" filter="url(#lift)"/>
-  <text x="92" y="580" class="label">SUCCESSFUL SYNTHETIC REFERENCE CYCLE</text>
-  <text x="92" y="624" class="big">~75 minutes up · ~30 minutes down · US$10 or less in Azure charges</text>
-  <text x="92" y="656" class="b">Bring-up includes prerequisite setup. Observed evaluation results, not an SLA, price ceiling or throughput benchmark.</text>
+  <text x="92" y="580" class="label">SYNTHETIC REFERENCE CYCLE · 6 OCTOBER 2026</text>
+  <text x="92" y="624" class="big">~42 minutes up · ~35 minutes down · US$10 or less in Azure charges</text>
+  <text x="92" y="656" class="b">Prerequisites already in place. Observed evaluation results, not an SLA, price ceiling or throughput benchmark.</text>
 
   <text x="64" y="738" class="foot">Cost drivers: region, VM and DBU runtime, warehouse size and concurrency, replicas, storage, logs, egress and retained resources.</text>
   <text x="64" y="764" class="foot">Terraform supports alternative-provider adaptations; equivalent identity, policy, storage and history controls require their own tests.</text>

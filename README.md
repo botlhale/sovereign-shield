@@ -159,9 +159,10 @@ submitted filing can be rejected while an earlier accepted version stays publish
 | Empty subscription (PowerShell on Windows, or `pwsh` on Linux) | `sh/sovereignshield_up.ps1` / `sh/sovereignshield_down.ps1` | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) |
 | Existing Azure and Databricks estate (bash) | `scripts/sovereign_up_custom.sh` / `scripts/sovereign_down_custom.sh` | [Bring your own estate](docs/AUTOMATION_RUNBOOK.md#bring-your-own-azure-estate) |
 
-The greenfield reference cycle took about **75 minutes** to bring up, including prerequisite
-setup, **30 minutes** to tear down and **US$10** or less in Azure charges. These are observed
-synthetic results, not an SLA or price ceiling ([measurement scope](docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics)).
+The most recent greenfield reference cycle (6 October 2026) took about **42 minutes** to
+bring up, with prerequisites already in place, **35 minutes** to tear down and **US$10** or
+less in Azure charges. These are observed synthetic results, not an SLA or price ceiling
+([measurement scope](docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics)).
 The custom scripts attach to existing resources, create only the missing delta, tag what
 they create and record it in `.sovereign_provisioned_manifest.json`, so teardown removes
 nothing it did not create.
