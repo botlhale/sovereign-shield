@@ -15,6 +15,11 @@ resource "azurerm_databricks_workspace" "main" {
   sku = "premium"
 
   tags = var.tags
+
+  # Deleting the workspace also removes its managed resource group, which can outlast the 30-minute default.
+  timeouts {
+    delete = "60m"
+  }
 }
 
 # ---------------------------------------------------------------------------

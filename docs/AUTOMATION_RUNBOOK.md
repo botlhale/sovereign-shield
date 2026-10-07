@@ -2,9 +2,10 @@
 
 The orchestration scripts wrap Terraform, Databricks Asset Bundles and the
 stage-specific helpers. They execute those tools in the required order and stop on
-the first failed gate. The greenfield orchestrator targets Windows PowerShell; on
-Linux or macOS, attach to an existing estate with the
-[bring-your-own scripts](#bring-your-own-azure-estate).
+the first failed gate. The greenfield orchestrator runs in PowerShell on Windows and
+in PowerShell 7 (`pwsh`) on Linux; enter the commands below at a PowerShell prompt.
+The recorded reference runs used Windows. To attach to an existing estate from bash,
+use the [bring-your-own scripts](#bring-your-own-azure-estate).
 
 For a resource-by-resource explanation of both Azure resource groups, the
 Databricks account layer, creation ownership, reuse behavior, cost relevance,
@@ -270,10 +271,12 @@ Resource ownership and retention boundaries are detailed in the
 | Failure | Recovery |
 | --- | --- |
 | Stage 3 run-as grant not yet visible | Bounded same-ETag verification; resume at Stage 3 after checking account authorization |
+| Stage 1 warehouse refused for missing `databricks-sql-access` | A new workspace gives its admins SQL access a few minutes after creation; the Stage 1 retry waits up to 15 minutes for it. Otherwise resume with `-StartAtStage 1` |
 | Stage 6 new App has no default source path | Source resolves from the selected bundle; resume at Stage 6, not Stage 3 |
 | Stage 6 deployment wait timed out | Reconcile the exact pending/latest deployment; never submit another copy |
 | Generation completed, ingestion failed | Repair the failed job tasks against archived arrivals; do not regenerate filings |
 | ACR build or push failed | Reuse the registry with a verified tag: `container_apps_deploy.ps1 -RegistryName <registry> -ImageTag <tag> -SkipImageBuild` |
+| Workspace delete timed out or stays `Deleting` | `down` waits up to an hour for an in-progress delete, since Azure refuses a second one (`ApplianceBeingDeleted`). A workspace deleted without force can loop while Databricks recreates an Event Grid topic on its retained storage; deleting the leftover `databricks-rg-rg-sovereignshield` group stops that |
 | Legacy DOUBLE history or another bundle path | Follow the [migration gate](RELEASE_EVIDENCE.md#mandatory-migration-gate); never force a routine apply |
 
 Use current Terraform outputs, not identifiers copied from dated deployment records.

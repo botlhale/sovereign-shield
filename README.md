@@ -115,7 +115,9 @@ python sh/local_demo.py --serve researcher               # browse http://127.0.0
 `local_demo.py` generates synthetic SDMx-ML filings, validates them, loads a local Delta
 history and applies the policy mirror. `--persona` accepts `public`, `researcher`,
 `submitter-ca`, `submitter-us` and `admin`. `--serve` labels a local fixture for the portal
-and refuses to start when Databricks connection variables are set. For scale fixtures, run
+and refuses to start when Databricks connection variables are set. A local history written
+before the `L_REP_CTY` policy anchor is refused; `--migrate-legacy` preserves it under `legacy/`
+and replays the archived arrivals into the current contract. For scale fixtures, run
 `python src/generate_stress_test_data.py --rows 100000` and `pytest --stress`.
 
 **Try breaking it.** Remove the segment-9 check from `_apply_persona` in
@@ -154,7 +156,7 @@ submitted filing can be rejected while an earlier accepted version stays publish
 
 | Starting point | Entry point | Guide |
 | --- | --- | --- |
-| Empty subscription (Windows PowerShell) | `sh/sovereignshield_up.ps1` / `sh/sovereignshield_down.ps1` | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) |
+| Empty subscription (PowerShell on Windows, or `pwsh` on Linux) | `sh/sovereignshield_up.ps1` / `sh/sovereignshield_down.ps1` | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) |
 | Existing Azure and Databricks estate (bash) | `scripts/sovereign_up_custom.sh` / `scripts/sovereign_down_custom.sh` | [Bring your own estate](docs/AUTOMATION_RUNBOOK.md#bring-your-own-azure-estate) |
 
 The greenfield reference cycle took about **75 minutes** to bring up, including prerequisite

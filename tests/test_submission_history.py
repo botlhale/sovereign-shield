@@ -189,3 +189,32 @@ def test_legacy_local_entry_point_uses_atomic_replay(tmp_path):
     merge_scd2_micro_pandas(frame, "ca", table_path=path)
     assert merge_scd2_micro_pandas(frame, "ca", table_path=path) == 0
     assert DeltaTable(path + "_ca").version() == 0
+
+
+def test_local_demo_moves_pre_anchor_history_only_on_explicit_migration(tmp_path, monkeypatch, repo_root):
+    import importlib.util
+    from pathlib import Path
+
+    from deltalake import write_deltalake
+    from submission_history import arrow_history, prepare_submission
+
+    spec = importlib.util.spec_from_file_location("local_demo", Path(repo_root) / "sh" / "local_demo.py")
+    local_demo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(local_demo)
+    baseline_ca = local_demo.generate_micro_transactions("baseline")["ca"]
+    monkeypatch.setattr(local_demo, "generate_micro_transactions",
+                        lambda cycle: {"ca": baseline_ca} if cycle == "baseline" else {})
+    legacy = tmp_path / "catalog" / "agg_sdmx_history"
+    write_deltalake(str(legacy), arrow_history(prepare_submission(batch(), context("legacy"))).drop_columns(["L_REP_CTY"]))
+
+    with pytest.raises(SystemExit, match="missing L_REP_CTY"):
+        local_demo.build_demo(tmp_path)
+    assert DeltaTable(str(legacy)).version() == 0
+
+    local_demo.build_demo(tmp_path, migrate_legacy=True)
+    (archive,) = (tmp_path / "legacy").iterdir()
+    assert len(DeltaTable(str(archive)).to_pandas()) == 2
+    assert "L_REP_CTY" not in DeltaTable(str(archive)).to_pandas()
+    replayed = DeltaTable(str(legacy)).to_pandas()
+    assert len(replayed) > 0
+    assert set(replayed["L_REP_CTY"]) == {"CA"}

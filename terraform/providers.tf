@@ -29,6 +29,10 @@ provider "azurerm" {
     resource_group {
       prevent_deletion_if_contains_resources = true
     }
+    databricks_workspace {
+      # Azure otherwise retains the workspace's default Unity Catalog storage, which left a teardown stuck in Deleting.
+      force_delete = true
+    }
   }
 }
 

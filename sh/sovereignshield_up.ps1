@@ -71,7 +71,7 @@ if ($StartAtStage -gt $StopAfterStage) {
     throw "StartAtStage cannot be greater than StopAfterStage."
 }
 
-$lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
+$lifecycleLock = $null
 Push-Location $repoRoot
 try {
     function Invoke-Stage {
@@ -87,9 +87,15 @@ try {
 
         Write-Host "`n[$Number/8] $Name" -ForegroundColor Cyan
         $timer = [System.Diagnostics.Stopwatch]::StartNew()
-        & $Action
-        $timer.Stop()
-        $stageTimings[$Name] = $timer.Elapsed
+        $completed = $false
+        try {
+            & $Action
+            $completed = $true
+        }
+        finally {
+            $timer.Stop()
+            $stageTimings["[$Number/8] $Name$(if (-not $completed) { ' (incomplete)' })"] = $timer.Elapsed
+        }
         Write-Host "[$Number/8] COMPLETE in $([math]::Round($timer.Elapsed.TotalMinutes, 1)) minute(s)" -ForegroundColor Green
     }
 
@@ -105,7 +111,7 @@ try {
         foreach ($command in @("az", "databricks", "git")) {
             Assert-SovereignShieldCommand $command
         }
-        if (-not $SkipTests) { Assert-SovereignShieldCommand ".\.venv\Scripts\python.exe" }
+        if (-not $SkipTests) { $python = Get-SovereignShieldPython -RepoRoot $repoRoot }
 
         foreach ($relativePath in @(
             "terraform\$TerraformVarFile",
@@ -116,6 +122,14 @@ try {
             }
         }
 
+        # Offline suite runs before the lock: it exercises scripts that take this same lock.
+        if (-not $SkipTests) {
+            Invoke-SovereignShieldNative -FilePath $python `
+                -Arguments @("-m", "pytest", "-q") | Out-Null
+        }
+
+        # Held before the first subscription change and through every later stage.
+        $script:lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
         Invoke-SovereignShieldNative -FilePath "az" -Arguments @("account", "show", "--output", "none") | Out-Null
         foreach ($provider in @(
             "Microsoft.Databricks", "Microsoft.App", "Microsoft.OperationalInsights",
@@ -126,12 +140,11 @@ try {
         }
 
         Test-SovereignShieldEntraUsers -TenantDomain $TenantDomain
-        if (-not $SkipTests) {
-            Invoke-SovereignShieldNative -FilePath ".\.venv\Scripts\python.exe" `
-                -Arguments @("-m", "pytest", "-q") | Out-Null
-        }
     }
     if ($StopAfterStage -eq 0) { return }
+
+    if (-not $lifecycleLock) { $lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot }
+    Install-SovereignShieldAzExtension -Name databricks
 
     Invoke-Stage 1 "Terraform foundation" {
         Invoke-SovereignShieldTerraform -Terraform $terraform -RepoRoot $repoRoot `
@@ -162,6 +175,24 @@ try {
 
             Write-Warning "Foundation apply stopped after workspace creation. Retrying against https://$workspaceHost."
             Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost
+            # New workspaces give admins databricks-sql-access minutes after creation; the warehouse needs it.
+            Write-Host "Waiting until the new workspace accepts SQL warehouse calls from the deployer." -ForegroundColor DarkGray
+            $deadline = (Get-Date).AddMinutes(15)
+            $previousPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+                do {
+                    & databricks warehouses list --output json 2>$null | Out-Null
+                    $sqlReady = $LASTEXITCODE -eq 0
+                    if (-not $sqlReady) { Start-Sleep -Seconds 15 }
+                } until ($sqlReady -or (Get-Date) -gt $deadline)
+            }
+            finally {
+                $ErrorActionPreference = $previousPreference
+            }
+            if (-not $sqlReady) {
+                throw "The deployer still lacks databricks-sql-access in https://$workspaceHost after 15 minutes."
+            }
             Invoke-SovereignShieldTerraformApply -Terraform $terraform -RepoRoot $repoRoot `
                 -VarFile $TerraformVarFile -Variables $foundationVariables -ApproveComputeScale:$ApproveComputeScale
         }
@@ -315,15 +346,10 @@ try {
         Write-Host "  Public rows    : $($publicResult.row_count)"
         Write-Host "  Warehouse      : $warehouseId"
         Write-Host "  Submission root: $submissionVolume"
-        Write-Host "  Elapsed         : $([math]::Round(((Get-Date) - $startedAt).TotalMinutes, 1)) minute(s)"
-    }
-
-    Write-Host "`nStage timings" -ForegroundColor Cyan
-    $stageTimings.GetEnumerator() | ForEach-Object {
-        "  {0,-55} {1,6:N1} min" -f $_.Key, $_.Value.TotalMinutes
     }
 }
 finally {
     Pop-Location
-    $lifecycleLock.Dispose()
+    if ($lifecycleLock) { $lifecycleLock.Dispose() }
+    Write-SovereignShieldTimingSummary -Timings $stageTimings -StartedAt $startedAt
 }

@@ -364,6 +364,7 @@ try {
     }
 
     Write-Host "`n=== 4. Workspace assignment ===" -ForegroundColor Cyan
+    Install-SovereignShieldAzExtension -Name databricks
     $workspaceId = az databricks workspace show -g $ResourceGroup -n $WorkspaceName --query workspaceId -o tsv
     if ([string]::IsNullOrWhiteSpace($workspaceId)) {
         throw "Workspace $WorkspaceName not found in $ResourceGroup. Run sh/databricks_create.sh first."
