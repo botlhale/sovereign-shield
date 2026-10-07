@@ -201,7 +201,9 @@ def test_local_demo_moves_pre_anchor_history_only_on_explicit_migration(tmp_path
     spec = importlib.util.spec_from_file_location("local_demo", Path(repo_root) / "sh" / "local_demo.py")
     local_demo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(local_demo)
-    monkeypatch.setattr(local_demo, "generate_micro_transactions", lambda cycle: {})
+    baseline_ca = local_demo.generate_micro_transactions("baseline")["ca"]
+    monkeypatch.setattr(local_demo, "generate_micro_transactions",
+                        lambda cycle: {"ca": baseline_ca} if cycle == "baseline" else {})
     legacy = tmp_path / "catalog" / "agg_sdmx_history"
     write_deltalake(str(legacy), arrow_history(prepare_submission(batch(), context("legacy"))).drop_columns(["L_REP_CTY"]))
 
@@ -211,5 +213,8 @@ def test_local_demo_moves_pre_anchor_history_only_on_explicit_migration(tmp_path
 
     local_demo.build_demo(tmp_path, migrate_legacy=True)
     (archive,) = (tmp_path / "legacy").iterdir()
-    assert not legacy.exists()
     assert len(DeltaTable(str(archive)).to_pandas()) == 2
+    assert "L_REP_CTY" not in DeltaTable(str(archive)).to_pandas()
+    replayed = DeltaTable(str(legacy)).to_pandas()
+    assert len(replayed) > 0
+    assert set(replayed["L_REP_CTY"]) == {"CA"}
