@@ -120,12 +120,26 @@ def test_down_waits_until_azure_removes_the_container_apps_environment():
 
 
 def test_up_preflight_runs_on_linux_and_tests_before_taking_the_lock():
-    """Stage 0 used a Windows-only interpreter path, and on Linux the lock is an flock (0e5b228)."""
+    """No Windows-only Python path (0e5b228); the suite runs before the flock, held before Azure changes (c38f3a7)."""
     up = (ROOT / "sh/sovereignshield_up.ps1").read_text(encoding="utf-8")
     assert r"Scripts\python.exe" not in up
     stage0 = _section(up, 'Invoke-Stage 0 "Preflight and offline verification"', "if ($StopAfterStage -eq 0) { return }")
-    assert "Get-SovereignShieldPython" in stage0 and '"pytest"' in stage0
-    assert up.index("if ($StopAfterStage -eq 0) { return }") < up.index("Enter-SovereignShieldLifecycleLock")
+    assert "Get-SovereignShieldPython" in stage0
+    suite, lock = stage0.index('"-m", "pytest"'), stage0.index("Enter-SovereignShieldLifecycleLock")
+    assert suite < lock < stage0.index('"provider", "register"')
+    resumed = _section(up, "if ($StopAfterStage -eq 0) { return }", 'Invoke-Stage 1 "')
+    assert "Enter-SovereignShieldLifecycleLock" in resumed, "a run that starts after Stage 0 still takes the lock"
+
+
+def test_down_stops_when_an_azure_cli_query_fails():
+    """A failed az query returned nothing, which read as "already gone" and let teardown skip ahead (c38f3a7)."""
+    down = (ROOT / "sh/sovereignshield_down.ps1").read_text(encoding="utf-8")
+    discovery = down[:down.index("Set-SovereignShieldWorkspaceAuth")]
+    assert "if ($LASTEXITCODE -ne 0) { throw" in discovery[discovery.index("provisioningState=='Succeeded'"):]
+    gateway = _section(down, '"containerapp", "env", "delete"', "az acr list")
+    assert '$LASTEXITCODE -ne 0 -or $groupExists -notin @("true", "false")' in gateway
+    destroy = _section(down, 'Start-TimedStep "Terraform destroy"', '"destroy", "-input=false"')
+    assert destroy.count("& az @workspaceStateQuery") == destroy.count("if ($LASTEXITCODE -ne 0) { throw") == 2
 
 
 def test_orchestration_module_exports_every_function_the_scripts_call():

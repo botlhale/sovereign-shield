@@ -6,7 +6,7 @@
   "defect": [
     {
       "path": "sh/sovereignshield_down.ps1",
-      "find": "        # The wait also exits 0 when it times out.\n        $stillThere = ((& az @workspaceStateQuery) | Out-String).Trim()\n        if ($stillThere) { throw \"Workspace $WorkspaceName is still $stillThere after an hour. Rerun down once it is gone.\" }\n    }\n",
+      "find": "        # The wait also exits 0 when it times out.\n        $stillThere = ((& az @workspaceStateQuery) | Out-String).Trim()\n        if ($LASTEXITCODE -ne 0) { throw \"Could not confirm that workspace $WorkspaceName was deleted.\" }\n        if ($stillThere) { throw \"Workspace $WorkspaceName is still $stillThere after an hour. Rerun down once it is gone.\" }\n    }\n",
       "replace": "    }\n"
     }
   ],

@@ -53,3 +53,6 @@ beyond the owner's requests.
     and `::test_az_databricks_extension_is_installed_before_first_use`;
   - eval cases `linux-preflight-python` and `az-extension-prompt`;
   - the complete 6 October 2026 cycle ran from Ubuntu with PowerShell 7.6.
+- **Later change:** `c38f3a7` takes the lock inside Stage 0, after the offline suite
+  and before the first Azure change
+  ([2026-10-06-lifecycle-lock-before-azure-changes](../2026-10-06-lifecycle-lock-before-azure-changes/intent.md)).
