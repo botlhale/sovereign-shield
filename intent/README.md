@@ -125,4 +125,4 @@ gate approvals that did not happen at the time.
 | --- | --- | --- |
 | [2026-10-06-reference-timings](2026-10-06-reference-timings/intent.md) | verified | Publish the 6 October lifecycle timings as the current reference |
 | [2026-10-06-ai-native-sdlc](2026-10-06-ai-native-sdlc/intent.md) | planned | Run the repository on the six-stage AI-native SDLC |
-| [2026-10-06-gemini-figure-review](2026-10-06-gemini-figure-review/intent.md) | planned | Decide whether the new Gemini engagement figures can be published |
+| [2026-10-06-gemini-figure-review](2026-10-06-gemini-figure-review/intent.md) | verified | Decide whether the new Gemini engagement figures can be published |

@@ -41,4 +41,19 @@ Revert the implementing commit. No figures or publications change.
 
 ## Evidence
 
-Recorded when the status becomes verified.
+Verified on 6 October 2026, before the implementing commit. Each render was compared
+with `docs/figures/review/engagement_workflow.svg` or `submission_reconciliation.svg`,
+node by node and arrow by arrow.
+
+- Figure A (`…l71f3ml71f3ml71f.jpeg`) fails Topology, Ownership and Text. Not
+  integrated.
+- Figure B, first render (`…x39tprx39tprx39t.jpeg`), fails Text: leaked "Title:" and
+  "Subtitle:" prefixes and printed node IDs. Not integrated.
+- Figure B, refined render (`…yhwrbnyhwrbnyhwr.jpeg`), fails Text: printed node IDs
+  and one misplaced annotation. It is two edits from publishable. Not integrated.
+- `git status --short docs/aiimages` reports `?? docs/aiimages/`: no render is
+  committed.
+- `tests/test_documentation_contract.py` passed 16 of 16. `sh/verify_docs.py`
+  verified 455 local links and anchors.
+- The follow-up edit prompts for each render went to the product owner with this
+  change.
