@@ -125,6 +125,16 @@ generated claim is accepted only when a test, a dated live record or a cited
 standard supports it. No confidential, client or production data is given to AI
 tools; prompts use synthetic fixtures and public standards only.
 
+Changes follow the [AI-native SDLC operating model](docs/AI_SDLC.md). Each one has a
+committed intent, spec and plan under [intent/](intent/README.md), and its commits
+carry `Intent: <folder>` and `Assisted-by: <agent (model)>` trailers. Agents load
+[AGENTS.md](AGENTS.md) and the project skills. A shared gate asks a person before
+cloud lifecycle, publishing and policy-file actions, and locks the tests while a
+bug is fixed. Agent evals replay past incidents, pull requests are reviewed against
+[REVIEW.md](REVIEW.md), and control bands turn unusual lifecycle durations into
+draft intents. [How to Request a Change](intent/README.md#how-to-request-a-change)
+shows the prompts for each step.
+
 Contributors may use AI tools under the same rules. Disclose substantial AI
 assistance in the pull request, review every line you submit, and never paste
 secrets, tokens or non-public institutional material into a prompt.
@@ -133,11 +143,12 @@ secrets, tokens or non-public institutional material into a prompt.
 
 A useful pull request:
 
-1. explains the problem and why the proposed behavior is correct;
-2. identifies affected security, data, deployment, or standards boundaries;
-3. includes focused tests and relevant documentation updates;
-4. reports commands run and their results; and
-5. contains no generated environment files or unrelated formatting churn.
+1. links the intent folder that records the problem, its spec and its plan;
+2. explains the problem and why the proposed behavior is correct;
+3. identifies affected security, data, deployment, or standards boundaries;
+4. includes focused tests and relevant documentation updates;
+5. reports commands run and their results; and
+6. contains no generated environment files or unrelated formatting churn.
 
 Maintainers may ask for changes or decline a proposal that expands operational scope, weakens a security invariant, duplicates an existing mechanism, or does not fit the reference architecture.
 

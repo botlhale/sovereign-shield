@@ -1,7 +1,7 @@
 # Agent Evals
 
 Continuous evals for the agents that work in this repository, the Test stage of
-the AI-native SDLC. Every case is an incident this repository
+the [AI-native SDLC](../docs/AI_SDLC.md#stages-artifacts-and-gates). Every case is an incident this repository
 really had. An agent given the operator's symptom, in a checkout where the defect
 is back, should fix the code without touching the tests. Scoring is deterministic:
 named pytest checks must pass, and no forbidden path may change.

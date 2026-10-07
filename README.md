@@ -197,6 +197,7 @@ nothing it did not create.
 | Learn the delivery and handover model | [Engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) · [Provider workflow](.github/skills/contractor_least_privilege_workflow.md) |
 | Present or share the material | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) · [Publication plan](docs/LINKEDIN_POST.md) · [Release guide](docs/PUBLICATION_AND_RELEASE.md) · [Image prompts](docs/figures/gemini_image_prompts.md) |
 | Verify measured results | [Release evidence](docs/RELEASE_EVIDENCE.md) |
+| Change the project with AI agents | [AI-native SDLC](docs/AI_SDLC.md) · [Request a change](intent/README.md#how-to-request-a-change) · [Review criteria](REVIEW.md) · [Agent evals](evals/README.md) |
 
 ## Background
 
@@ -230,7 +231,11 @@ for other collaboration enquiries.
 
 Generative AI accelerated scaffolding, SDMx structure mapping, fixture generation and
 documentation. Architecture, mathematical disclosure rules and security controls were designed,
-validated and audited by senior engineering. See the [AI-assisted SDLC disclosure](CONTRIBUTING.md#ai-assisted-software-development-life-cycle).
+validated and audited by senior engineering. Changes follow an [AI-native SDLC](docs/AI_SDLC.md):
+each starts as a committed intent, gains a spec and a plan, and passes deterministic gates, AI
+review against [REVIEW.md](REVIEW.md) and a code owner's approval. To propose one, describe the
+problem to an agent as shown in [How to Request a Change](intent/README.md#how-to-request-a-change).
+See the [AI-assisted SDLC disclosure](CONTRIBUTING.md#ai-assisted-software-development-life-cycle).
 
 ## Contributing, Security and License
 
