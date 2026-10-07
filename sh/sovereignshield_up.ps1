@@ -123,6 +123,14 @@ try {
             }
         }
 
+        # Offline suite runs before the lock: it exercises scripts that take this same lock.
+        if (-not $SkipTests) {
+            Invoke-SovereignShieldNative -FilePath $python `
+                -Arguments @("-m", "pytest", "-q") | Out-Null
+        }
+
+        # Held before the first subscription change and through every later stage.
+        $script:lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
         Invoke-SovereignShieldNative -FilePath "az" -Arguments @("account", "show", "--output", "none") | Out-Null
         foreach ($provider in @(
             "Microsoft.Databricks", "Microsoft.App", "Microsoft.OperationalInsights",
@@ -133,15 +141,10 @@ try {
         }
 
         Test-SovereignShieldEntraUsers -TenantDomain $TenantDomain
-        if (-not $SkipTests) {
-            Invoke-SovereignShieldNative -FilePath $python `
-                -Arguments @("-m", "pytest", "-q") | Out-Null
-        }
     }
     if ($StopAfterStage -eq 0) { return }
 
-    # Held from Stage 1: the Stage 0 suite exercises scripts that take this same lock.
-    $lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot
+    if (-not $lifecycleLock) { $lifecycleLock = Enter-SovereignShieldLifecycleLock -RepoRoot $repoRoot }
     Install-SovereignShieldAzExtension -Name databricks
 
     Invoke-Stage 1 "Terraform foundation" {

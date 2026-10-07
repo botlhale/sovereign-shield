@@ -48,9 +48,10 @@ knowledge-sharing publication strategy; the technical findings are unchanged.
    Databricks now recommends attribute-based access control, governed tags with `CREATE
    POLICY`, for consistent row filters and masks across tables. Evaluate it before scaling
    beyond the demonstration.
-7. **Medium: the greenfield lifecycle is Windows-bound.** `sovereignshield_up.ps1` resolves
-   `.venv\Scripts\python.exe` and uses `cmd.exe` for the token-store SAS handoff. Linux and
-   macOS operators have the new bash scripts for an existing estate, but no greenfield path.
+7. **Medium, fixed in this revision: the greenfield lifecycle was Windows-bound.**
+   `sovereignshield_up.ps1` now resolves the virtual environment's Python on either platform
+   and hands the token-store SAS to `az` without `cmd.exe`, so the greenfield path runs in
+   PowerShell 7 (`pwsh`) on Linux. The recorded reference runs used Windows; macOS is untested.
 8. **Medium: the bring-your-own-estate scripts are stub-tested.** Nine offline tests prove
    attach-before-create, tagging, sticky provenance, typed confirmation, tag-checked teardown
    and dependency order against stub `az` and `databricks` executables. Run `--dry-run`
@@ -92,7 +93,7 @@ confidential data needs findings 2, 4 and 5 resolved and institutional acceptanc
 | Declarative separation | 8/10 | One writer per object; Terraform grants, bundle policies, verified bindings |
 | Temporal and SDMx integrity | 8/10 | Pinned contract, 21 rules, atomic MERGE, exact decimals, standard feeds published-only |
 | Statistical disclosure | 5/10 | Honest and testable, but margins remain open and counts are visible |
-| Lifecycle engineering | 7/10 | Greenfield proven live; bring-your-own estate stub-tested; greenfield is Windows-bound |
+| Lifecycle engineering | 7/10 | Greenfield proven live; bring-your-own estate stub-tested; greenfield runs on Windows and Linux `pwsh`, macOS untested |
 | Documentation | 8/10 | One README, consolidated runbook, removed duplicates, modern figures; publications still dense |
 | Institutional and IP boundary | 7/10 | Clear notices and a reset history credential; `LICENSE` and `NOTICE` name Botlhale Mosweu as sole copyright holder |
 | Publication readiness | 7/10 | Strong story and evidence; until finding 1 passes live, coordinate masking is described as tested offline |

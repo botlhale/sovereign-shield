@@ -65,6 +65,7 @@ try {
     # A workspace that is already being deleted serves no API; Terraform finishes its removal.
     $workspaceHost = (& az databricks workspace list --resource-group $ResourceGroup `
         --query "[?name=='$WorkspaceName' && provisioningState=='Succeeded'].workspaceUrl | [0]" -o tsv | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Could not discover Databricks workspace $WorkspaceName in $ResourceGroup." }
     if ($workspaceHost) { Set-SovereignShieldWorkspaceAuth -WorkspaceUrl $workspaceHost }
 
     if ($Mode -eq "Pause") {
@@ -158,7 +159,12 @@ try {
             # az stops polling after about 20 minutes; Azure can need longer to remove the environment.
             $deadline = (Get-Date).AddMinutes(45)
             $waiting = $false
-            while ((& az group exists --name $ResourceGroup) -eq "true") {
+            while ($true) {
+                $groupExists = (& az group exists --name $ResourceGroup | Out-String).Trim()
+                if ($LASTEXITCODE -ne 0 -or $groupExists -notin @("true", "false")) {
+                    throw "Could not check whether resource group $ResourceGroup exists.`n$groupExists"
+                }
+                if ($groupExists -eq "false") { break }
                 $environmentId = (& az resource list --resource-group $ResourceGroup --name $ContainerEnvironmentName `
                     --resource-type "Microsoft.App/managedEnvironments" --query "[0].id" -o tsv | Out-String).Trim()
                 if ($LASTEXITCODE -eq 0 -and -not $environmentId) { break }
@@ -198,12 +204,15 @@ try {
     Start-TimedStep "Terraform destroy"
     $workspaceStateQuery = @("databricks", "workspace", "list", "--resource-group", $ResourceGroup,
         "--query", "[?name=='$WorkspaceName'].provisioningState | [0]", "-o", "tsv")
-    if (((& az @workspaceStateQuery) | Out-String).Trim() -eq "Deleting" -and -not $WhatIfPreference) {
+    $workspaceState = ((& az @workspaceStateQuery) | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Could not read the provisioning state of workspace $WorkspaceName." }
+    if ($workspaceState -eq "Deleting" -and -not $WhatIfPreference) {
         # Azure refuses a second delete (ApplianceBeingDeleted) while one is running.
         Write-Host "Waiting up to an hour for the in-progress deletion of $WorkspaceName." -ForegroundColor DarkGray
         & az databricks workspace wait --deleted --resource-group $ResourceGroup --name $WorkspaceName | Out-Null
         # The wait also exits 0 when it times out.
         $stillThere = ((& az @workspaceStateQuery) | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) { throw "Could not confirm that workspace $WorkspaceName was deleted." }
         if ($stillThere) { throw "Workspace $WorkspaceName is still $stillThere after an hour. Rerun down once it is gone." }
     }
     if ($PSCmdlet.ShouldProcess("Terraform-managed SovereignShield workload", "Destroy")) {
