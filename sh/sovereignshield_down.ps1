@@ -155,6 +155,22 @@ try {
                 "containerapp", "env", "delete", "--name", $ContainerEnvironmentName,
                 "--resource-group", $ResourceGroup, "--yes"
             ) -AllowFailure | Out-Null
+            # az stops polling after about 20 minutes; Azure can need longer to remove the environment.
+            $deadline = (Get-Date).AddMinutes(45)
+            $waiting = $false
+            while ((& az group exists --name $ResourceGroup) -eq "true") {
+                $environmentId = (& az resource list --resource-group $ResourceGroup --name $ContainerEnvironmentName `
+                    --resource-type "Microsoft.App/managedEnvironments" --query "[0].id" -o tsv | Out-String).Trim()
+                if ($LASTEXITCODE -eq 0 -and -not $environmentId) { break }
+                if ((Get-Date) -gt $deadline) {
+                    throw "Container Apps environment $ContainerEnvironmentName still exists after 45 minutes. Rerun down once it is gone."
+                }
+                if (-not $waiting) {
+                    Write-Host "Waiting for Azure to finish deleting $ContainerEnvironmentName." -ForegroundColor DarkGray
+                    $waiting = $true
+                }
+                Start-Sleep -Seconds 30
+            }
 
             $registries = @(& az acr list --resource-group $ResourceGroup `
                 --query "[?starts_with(name, 'acrsovereignshield')].name" -o tsv)
