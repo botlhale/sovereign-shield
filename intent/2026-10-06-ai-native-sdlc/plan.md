@@ -82,4 +82,21 @@ scripts, which is append-only and cannot fail a run.
 
 ## Evidence
 
-Recorded when the status becomes verified.
+Verified on 6 October 2026 at commit `7436355`, on Ubuntu Linux with Python 3.14 and
+PowerShell 7.6.
+
+- Full offline suite: 347 passed, 14 skipped. The skips are the opt-in eval,
+  live and stress tests, plus one Spark test that needs Java.
+- `pytest tests/test_agent_evals.py --evals`: 4 passed.
+  `evals/run_evals.py --self-test`: 8 of 8 cases reproduce their incidents.
+- `sh/check_lifecycle_bands.py` reports that both baselines are still being built
+  (0 of 5 earlier complete runs). `sh/sdlc_metrics.py` reports `Intent:` trailer
+  coverage of 10 of 10 non-merge commits since the intent home was created.
+- `sh/verify_docs.py` verified 459 local links and anchors. The three edited
+  PowerShell files parse without errors, and `terraform fmt -check` is clean.
+- The gate has been active in the VS Code session that built this change since
+  `351820c`, and no ungated tool call was blocked.
+
+Not verified here: the review, scan and agent-eval jobs run on GitHub only after the
+API key secret is added, and branch protection is a manual step. Both are listed in
+`docs/AI_SDLC.md` under One-Time Repository Setup.
