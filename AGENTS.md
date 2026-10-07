@@ -87,9 +87,10 @@ Add to this list when the same mistake happens twice.
 - Windows-only paths (`.venv\Scripts\python.exe`, `cmd.exe`) break Linux runs:
   use `Get-SovereignShieldPython` and branch on the platform.
 - On Linux the lifecycle lock is an flock: never hold it while pytest runs.
-- `.gitignore` matches `lib/`, so new files under `sh/lib/` need `git add -f`.
-  Stage by path; a provider lock refreshed by a local `terraform init` is not part
-  of an unrelated change.
+- `.gitignore` matches `lib/`: a plain `git add sh/lib/...` fails the whole command.
+  Stage a tracked file there with `git add -u sh/lib/` and a new one with
+  `git add -f`. Stage by path; a provider lock refreshed by a local
+  `terraform init` is not part of an unrelated change.
 - `sh/verify_docs.py --render-diagrams` re-renders every figure and rewrites the
   manifest. When one figure changes, render only that figure.
 - Legacy history is never migrated or deleted implicitly (`--migrate-legacy`).
