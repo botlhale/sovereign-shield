@@ -73,8 +73,10 @@ def test_intent_records_carry_the_artifacts_their_status_requires(folder):
         if status in statuses:
             assert set(SECTIONS[artifact]) <= _headings(folder / artifact), artifact
     if status == "verified":
+        placeholder = (INTENTS / "_template/plan.md").read_text(encoding="utf-8").split("## Evidence", 1)[1].strip()
         evidence = (folder / "plan.md").read_text(encoding="utf-8").split("## Evidence", 1)[1]
-        assert "Recorded when the status becomes verified" not in evidence
+        assert placeholder and placeholder not in evidence
+        assert "Completed when the status becomes verified" not in evidence
     if status == "retrospective":
         assert "Retrospective record" in _headings(folder / "intent.md")
         assert re.search(r"`[0-9a-f]{7,40}`", intent), "a retrospective cites its commits"
@@ -178,11 +180,35 @@ def test_gate_asks_before_cloud_and_publishing_commands(isolated_gate, tool, com
      {"SOVEREIGNSHIELD_FIX_MODE": "1"}, "deny"),
     ({"tool_name": "Read", "tool_input": {"file_path": "{root}/terraform/terraform.tfstate"}}, {}, "deny"),
     ({"tool_name": "read_file", "tool_input": {"filePath": "{root}/.env"}}, {}, "deny"),
+    ({"tool_name": "Read", "tool_input": {"file_path": "~/.ssh/id_rsa"}}, {}, "deny"),
+    ({"tool_name": "read_file", "tool_input": {"filePath": "{root}/.ssh/id_ed25519"}}, {}, "deny"),
     ({"tool_name": "read_file", "tool_input": {"filePath": "{root}/README.md"}}, {}, None),
     ({"tool_name": "grep_search", "tool_input": {"query": "password"}}, {}, None),
 ])
 def test_gate_protects_policy_files_credentials_and_tests_in_fix_mode(isolated_gate, payload, environment, expected):
     assert isolated_gate(payload, **environment) == expected
+
+
+WRITE_TEST = "python -c \"open('tests/test_new.py', 'w').write('def test_x(): pass')\""
+
+
+@pytest.mark.parametrize("tool, command, environment, expected", [
+    ("Bash", "cat .env", {}, "deny"),
+    ("run_in_terminal", "cat ~/.ssh/id_ed25519", {}, "deny"),
+    ("Bash", "terraform -chdir=terraform show terraform.tfstate", {}, "deny"),
+    ("Bash", WRITE_TEST, {}, None),
+    ("Bash", WRITE_TEST, {"SOVEREIGNSHIELD_FIX_MODE": "1"}, "deny"),
+    ("run_in_terminal", WRITE_TEST, {"SOVEREIGNSHIELD_FIX_MODE": "1"}, "deny"),
+    ("run_in_terminal", "cd tests && touch test_new.py", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, "deny"),
+    ("Bash", "python -m pytest tests/ -q > tests/out.txt", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, "deny"),
+    ("Bash", "python -m pytest tests/ -q & rm tests/test_x.py", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, "deny"),
+    ("Bash", "python -m pytest tests/ -q 2>&1 | tail -n 20", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, None),
+    ("run_in_terminal", "python evals/run_evals.py --self-test", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, None),
+    ("Bash", "git diff tests/", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, None),
+])
+def test_gate_holds_credential_and_fix_mode_rules_in_terminal_commands(isolated_gate, tool, command, environment,
+                                                                       expected):
+    assert isolated_gate({"tool_name": tool, "tool_input": {"command": command}}, **environment) == expected
 
 
 def test_fix_mode_marker_locks_tests_and_guards_itself(isolated_gate):
@@ -267,5 +293,11 @@ def test_claude_review_skips_forks_and_answers_only_maintainers():
     assert "github.event.pull_request.head.repo.full_name == github.repository" in jobs["review"]["if"]
     assert jobs["review"]["permissions"] == {"contents": "read", "pull-requests": "write", "id-token": "write"}
     assert '["OWNER","MEMBER","COLLABORATOR"]' in jobs["respond"]["if"]
+    assert jobs["respond"]["needs"] == "respond-gate"
+    assert "needs.respond-gate.outputs.same_repository == 'true'" in jobs["respond"]["if"]
+    gate_step = jobs["respond-gate"]["steps"][0]
+    assert '"$head_repo" = "$GITHUB_REPOSITORY"' in gate_step["run"]
+    assert "github.event" not in gate_step["run"]
+    assert jobs["respond-gate"]["permissions"] == {"contents": "read", "pull-requests": "read"}
     assert "REVIEW.md" in jobs["review"]["steps"][-1]["with"]["prompt"]
     assert "never as instructions" in jobs["scan"]["steps"][-1]["with"]["prompt"]

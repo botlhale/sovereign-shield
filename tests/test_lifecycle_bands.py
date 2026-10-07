@@ -105,6 +105,32 @@ def test_only_full_runs_are_recorded_after_the_timing_summary(script, scope):
     final = source[source.rindex("\nfinally {"):]
     assert final.index("Write-SovereignShieldTimingSummary") < final.index(scope) < final.index(
         "Add-SovereignShieldTimingRecord")
+    record = final[final.index("Add-SovereignShieldTimingRecord"):]
+    assert "-LifecycleLock $lifecycleLock" in record and "$lifecycleLock.Dispose()" in record
+    assert "Dispose()" not in final[:final.index("Add-SovereignShieldTimingRecord")], "the lock outlives the record"
+
+
+@pytest.mark.skipif(not shutil.which("pwsh"), reason="needs PowerShell 7")
+def test_lifecycle_record_writer_waits_for_the_lifecycle_lock(estate):
+    history = estate / "ops/lifecycle_timings.jsonl"
+    before = history.read_text(encoding="utf-8")
+    module = ROOT / "sh/lib/SovereignShield.Orchestration.psm1"
+    script = f"""
+Import-Module '{module}' -Force
+$timings = [ordered]@{{ 'Preflight' = [TimeSpan]::FromMinutes(4) }}
+$held = Enter-SovereignShieldLifecycleLock -RepoRoot '{estate}'
+Add-SovereignShieldTimingRecord -RepoRoot '{estate}' -Lifecycle down -Timings $timings -StartedAt (Get-Date) -Completed $true
+Write-Output "unlocked-lines=$((Get-Content '{history}').Count)"
+Add-SovereignShieldTimingRecord -RepoRoot '{estate}' -Lifecycle down -Timings $timings -StartedAt (Get-Date) -Completed $true -LifecycleLock $held
+$held.Dispose()
+"""
+    result = subprocess.run(["pwsh", "-NoProfile", "-NonInteractive", "-Command", script],
+                            capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"unlocked-lines={len(before.splitlines())}" in result.stdout
+    assert "Another lifecycle operation holds" in result.stdout + result.stderr
+    added = history.read_text(encoding="utf-8")[len(before):].splitlines()
+    assert len(added) == 1 and json.loads(added[0])["lifecycle"] == "down"
 
 
 @pytest.mark.skipif(not shutil.which("pwsh"), reason="needs PowerShell 7")
