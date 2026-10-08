@@ -82,18 +82,27 @@ scripts, which is append-only and cannot fail a run.
 
 ## Evidence
 
-Verified on 6 October 2026 at commit `7436355`, on Ubuntu Linux with Python 3.14 and
-PowerShell 7.6.
+Re-verified on 8 October 2026 at commit `f4b7381`, which includes the review fixes
+to the gate, workflows, lifecycle lock and regression tests made after the first
+record, on Ubuntu Linux with Python 3.12, PowerShell 7.6 and Java 17.
 
-- Full offline suite: 347 passed, 14 skipped. The skips are the opt-in eval,
-  live and stress tests, plus one Spark test that needs Java.
-- `pytest tests/test_agent_evals.py --evals`: 4 passed.
+- Full offline suite: 377 passed, 13 skipped. The skips are the opt-in eval,
+  live and stress tests.
+- `pytest tests/test_agent_evals.py --evals`: 6 passed.
   `evals/run_evals.py --self-test`: 8 of 8 cases reproduce their incidents.
 - `sh/check_lifecycle_bands.py` reports that both baselines are still being built
   (0 of 5 earlier complete runs). `sh/sdlc_metrics.py` reports `Intent:` trailer
-  coverage of 10 of 10 non-merge commits since the intent home was created.
-- `sh/verify_docs.py` verified 459 local links and anchors. The three edited
-  PowerShell files parse without errors, and `terraform fmt -check` is clean.
+  coverage of 15 of 20 non-merge commits since the intent home was created; the
+  five without a trailer are review-fix and autofix commits on this branch.
+- `sh/verify_docs.py` verified 465 local Markdown links and heading anchors. The
+  three edited PowerShell files parse without errors.
+- Not run at this commit: `terraform fmt -check` (Terraform is not installed in
+  this environment; since the first record only the provider lock file changed,
+  which `fmt` does not check).
+
+First verified on 6 October 2026 at commit `7436355` (Python 3.14): 347 passed,
+14 skipped; 4 eval tests passed; 459 links and anchors; `terraform fmt -check`
+clean.
 - The gate has been active in the VS Code session that built this change since
   `351820c`, and no ungated tool call was blocked.
 
