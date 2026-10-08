@@ -82,23 +82,26 @@ scripts, which is append-only and cannot fail a run.
 
 ## Evidence
 
-Re-verified on 8 October 2026 at commit `f4b7381`, which includes the review fixes
-to the gate, workflows, lifecycle lock and regression tests made after the first
-record, on Ubuntu Linux with Python 3.12, PowerShell 7.6 and Java 17.
+Re-verified on 8 October 2026 at commit `b0c7178`, which adds the second round
+of review fixes: the gate denies Terraform commands that read state, the review
+job takes agent instructions from the base branch while respond skips pull
+requests that change them, and draft intents are keyed by the flagged run. Run on
+Ubuntu Linux with Python 3.12.
 
-- Full offline suite: 377 passed, 13 skipped. The skips are the opt-in eval,
+- Full offline suite: 384 passed, 13 skipped. The skips are the opt-in eval,
   live and stress tests.
 - `pytest tests/test_agent_evals.py --evals`: 6 passed.
   `evals/run_evals.py --self-test`: 8 of 8 cases reproduce their incidents.
 - `sh/check_lifecycle_bands.py` reports that both baselines are still being built
   (0 of 5 earlier complete runs). `sh/sdlc_metrics.py` reports `Intent:` trailer
-  coverage of 15 of 20 non-merge commits since the intent home was created; the
-  five without a trailer are review-fix and autofix commits on this branch.
-- `sh/verify_docs.py` verified 465 local Markdown links and heading anchors. The
-  three edited PowerShell files parse without errors.
+  coverage of 17 of 23 non-merge commits since the intent home was created.
+- `sh/verify_docs.py` verified 465 local Markdown links and heading anchors.
 - Not run at this commit: `terraform fmt -check` (Terraform is not installed in
-  this environment; since the first record only the provider lock file changed,
-  which `fmt` does not check).
+  this environment; no Terraform file changed). No PowerShell file changed.
+
+Previously re-verified at commit `f4b7381`: 377 passed, 13 skipped; 6 eval tests
+passed; 8 of 8 self-test cases; 465 links and anchors; the three edited
+PowerShell files parsed without errors.
 
 First verified on 6 October 2026 at commit `7436355` (Python 3.14): 347 passed,
 14 skipped; 4 eval tests passed; 459 links and anchors; `terraform fmt -check`
