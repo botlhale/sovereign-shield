@@ -13,6 +13,10 @@
 # secret and installs the Claude GitHub App; without the key each job writes a
 # skip notice and succeeds. Fork pull requests never receive secrets and are
 # skipped. Pull request text is data: no step interpolates it into a shell.
+# Claude never runs on a pull request's own agent instructions: review takes
+# AGENTS.md, REVIEW.md and .github/skills from the base branch, and respond
+# skips a pull request that changes them (the action restores .claude/ and
+# CLAUDE.md itself).
 #
 # Actions are pinned to commit SHAs (see ACTION PINNING in promote.yml).
 
@@ -59,6 +63,23 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The action restores .claude/ and CLAUDE.md itself. CLAUDE.md imports
+      # AGENTS.md and the prompt follows REVIEW.md, so those and the skills come
+      # from the base as well; the pull request's versions stay review data in
+      # gh pr diff. This job never commits, so the restored copies go nowhere.
+      - name: Restore instruction files from the base branch
+        if: env.ANTHROPIC_CONFIGURED == 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git fetch --no-tags --no-recurse-submodules --depth=1 origin "refs/heads/$BASE_REF"
+          for path in AGENTS.md REVIEW.md .github/skills; do
+            rm -rf -- "$path"
+            if git cat-file -e "FETCH_HEAD:$path" 2>/dev/null; then
+              git restore --source=FETCH_HEAD --worktree -- "$path"
+            fi
+          done
+
       - name: Review
         if: env.ANTHROPIC_CONFIGURED == 'true'
         uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a # v1.0.244
@@ -93,20 +114,34 @@ jobs:
       pull-requests: read
     outputs:
       same_repository: ${{ steps.head.outputs.same_repository }}
+      instructions_unchanged: ${{ steps.head.outputs.instructions_unchanged }}
     steps:
       # The issue_comment payload has no head repository, so it is resolved here.
-      - name: Skip fork pull requests
+      # The action checks out the pull request's head before Claude starts, so
+      # a pull request that changes agent instructions is answered by hand.
+      - name: Skip fork pull requests and changed instructions
         id: head
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         run: |
-          head_repo="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.repo.full_name // ""')"
+          pull="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          head_repo="$(jq -r '.head.repo.full_name // ""' <<< "$pull")"
           if [ "$head_repo" = "$GITHUB_REPOSITORY" ]; then
             echo "same_repository=true" >> "$GITHUB_OUTPUT"
           else
             echo "same_repository=false" >> "$GITHUB_OUTPUT"
             echo "### @claude skipped - the pull request does not come from this repository" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)')"
+          # The files API lists at most 3000 files; a larger pull request counts as changed.
+          if [ "$(jq -r '.changed_files' <<< "$pull")" -gt 3000 ] ||
+             grep -qE '^(AGENTS\.md|CLAUDE\.md|REVIEW\.md|\.claude/|\.github/skills/)' <<< "$files"; then
+            echo "instructions_unchanged=false" >> "$GITHUB_OUTPUT"
+            echo "### @claude skipped - the pull request changes agent instruction files" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "instructions_unchanged=true" >> "$GITHUB_OUTPUT"
           fi
 
   respond:
@@ -114,7 +149,8 @@ jobs:
     needs: respond-gate
     if: >-
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-      needs.respond-gate.outputs.same_repository == 'true'
+      needs.respond-gate.outputs.same_repository == 'true' &&
+      needs.respond-gate.outputs.instructions_unchanged == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

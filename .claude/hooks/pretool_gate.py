@@ -7,7 +7,7 @@ hookSpecificOutput.permissionDecision on stdout. The gate:
 - asks for a human decision before cloud lifecycle and publishing commands;
 - asks before edits to the Unity Catalog policy files;
 - denies reads, searches and edits of credential files, including terminal
-  commands that name one;
+  commands that name one or read Terraform state (show, output, state pull/show);
 - in fix mode, denies edits to tests/ and evals/, so the only way to green is to
   change the code. A terminal command that names either folder must consist only
   of read-only or test-running segments. Fix mode is on while
@@ -76,6 +76,10 @@ def _cli(program: str, subcommands: str) -> str:
     word = r"(?:-{1,2}[\w-]+(?:=\S+)?|[^\s'\"-][^\s'\"]*)"
     return rf"\b{program}(?:\s+{word})*?\s+(?:{subcommands})\b"
 
+
+# Terraform reads state without naming a .tfstate path; global options only before the subcommand.
+STATE_READ = re.compile(
+    r"\bterraform(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+(?:show|output|state\s+(?:pull|show))\b", re.IGNORECASE)
 
 COMMAND_GATES = (
     ("a cloud lifecycle change", re.compile("|".join((
@@ -156,8 +160,9 @@ def _fix_locked(relative: Optional[str]) -> bool:
 
 def _command_decision(command: str, cwd: Optional[str], environ: Mapping[str, str]) -> Optional[dict]:
     words = [(word, _relative(word, cwd)) for word in _command_words(command)]
-    if any(_credential_path(word, relative) for word, relative in words):
-        return _decision("deny", "Credential files stay out of agent context; ask a human for the value you need.")
+    if any(_credential_path(word, relative) for word, relative in words) or STATE_READ.search(command):
+        return _decision("deny", "Credential files and Terraform state stay out of agent context; "
+                                 "ask a human for the value you need.")
     if _fix_mode(environ) and any(_fix_locked(relative) for _, relative in words) and (
             FIX_MODE_UNSAFE.search(command) or not all(
                 FIX_MODE_SAFE_SEGMENT.fullmatch(segment)

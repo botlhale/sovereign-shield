@@ -108,9 +108,13 @@ def describe(result):
 
 
 def write_intent(root, result, today=None):
-    """Drafts an intent for a propose result. Returns its folder, or None if it already exists."""
+    """Drafts an intent for a propose result, keyed by the flagged run's start date.
+
+    Returns its folder, or None if that run already has one.
+    """
     today = today or date.today().isoformat()
-    folder_name = f"{today}-{result['lifecycle']}-duration-change"
+    run_date = date.fromisoformat(str(result["started_at"])[:10]).isoformat()
+    folder_name = f"{run_date}-{result['lifecycle']}-duration-change"
     folder = root / "intent" / folder_name
     if folder.exists():
         return None
@@ -173,7 +177,11 @@ def main(argv=None, root=ROOT):
     for result in results:
         print(f"Control band {describe(result)}")
         if result["tier"] == "propose" and args.write_intent:
-            folder = write_intent(root, result)
+            try:
+                folder = write_intent(root, result)
+            except ValueError as error:
+                print(f"  Draft intent not written: {error}", file=sys.stderr)
+                continue
             if folder:
                 print(f"  Draft intent written to {folder.relative_to(root).as_posix()}/intent.md for triage.")
     return 1 if args.strict and any(result["tier"] == "propose" for result in results) else 0

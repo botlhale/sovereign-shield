@@ -46,7 +46,9 @@
     `gh workflow run`);
   - asks before edits to the Unity Catalog policy files;
   - in fix mode, denies edits to `tests/` and `evals/`;
-  - denies reads of credential files (`.env*`, Terraform state, private keys).
+  - denies reads of credential files (`.env*`, Terraform state, private keys),
+    including Terraform commands that read state (`show`, `output`,
+    `state pull/show`).
 
 ### Test
 
@@ -70,7 +72,9 @@
 - **R12.** A `claude-review` workflow reviews pull requests against REVIEW.md and
   answers `@claude` requests on pull requests. It is pinned by SHA, uses minimal
   permissions, skips fork pull requests, and writes a skip notice when the API key
-  is absent.
+  is absent. Claude never runs on a pull request's own agent instructions: review
+  takes them from the base branch, and respond skips a pull request that changes
+  them.
 - **R13.** `CODEOWNERS` names the owner of every path, with the policy files and
   agent configuration listed explicitly. The pull request template asks for the
   intent folder and AI disclosure.
