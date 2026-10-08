@@ -89,6 +89,13 @@ def test_propose_drafts_one_triageable_intent_and_indexes_it(estate, capsys):
     assert (estate / "intent/README.md").read_text(encoding="utf-8") == index, "a rerun does not draft twice"
 
 
+def test_draft_intent_is_keyed_by_the_flagged_run_not_the_check_date(estate):
+    [result] = bands.check(estate, "up")
+    first = bands.write_intent(estate, result, today="2026-10-20")
+    assert first is not None and first.name == "2026-10-08-up-duration-change"
+    assert bands.write_intent(estate, result, today="2026-10-21") is None, "a later check does not draft again"
+
+
 def test_malformed_bands_report_instead_of_raising(estate, capsys):
     (estate / "ops/bands.yaml").write_text(yaml.safe_dump({**CONFIG, "rules": [{"id": "gut-feel", "tier": "log"}]}),
                                            encoding="utf-8")

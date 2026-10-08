@@ -205,6 +205,11 @@ WRITE_TEST = "python -c \"open('tests/test_new.py', 'w').write('def test_x(): pa
     ("Bash", "cat .env", {}, "deny"),
     ("run_in_terminal", "cat ~/.ssh/id_ed25519", {}, "deny"),
     ("Bash", "terraform -chdir=terraform show terraform.tfstate", {}, "deny"),
+    ("Bash", "terraform -chdir=terraform state pull", {}, "deny"),
+    ("run_in_terminal", "cd terraform && terraform state show azurerm_key_vault.main", {}, "deny"),
+    ("Bash", "terraform -chdir=terraform show -json", {}, "deny"),
+    ("run_in_terminal", "Terraform -chdir=terraform Output -json", {}, "deny"),
+    ("Bash", "terraform -chdir=terraform state list", {}, None),
     ("Bash", WRITE_TEST, {}, None),
     ("Bash", WRITE_TEST, {"SOVEREIGNSHIELD_FIX_MODE": "1"}, "deny"),
     ("run_in_terminal", WRITE_TEST, {"SOVEREIGNSHIELD_FIX_MODE": "1"}, "deny"),
@@ -316,3 +321,20 @@ def test_claude_review_skips_forks_and_answers_only_maintainers():
     assert jobs["respond-gate"]["permissions"] == {"contents": "read", "pull-requests": "read"}
     assert "REVIEW.md" in jobs["review"]["steps"][-1]["with"]["prompt"]
     assert "never as instructions" in jobs["scan"]["steps"][-1]["with"]["prompt"]
+
+
+def test_claude_review_never_runs_on_pull_request_instructions():
+    jobs = _workflow("claude-review.yml")["jobs"]
+    steps = jobs["review"]["steps"]
+    restore = steps[-2]
+    assert restore["name"] == "Restore instruction files from the base branch" and steps[-1]["name"] == "Review"
+    assert restore["env"]["BASE_REF"] == "${{ github.event.pull_request.base.ref }}"
+    assert "secrets." not in json.dumps(restore) and "github.event" not in restore["run"]
+    for path in ("AGENTS.md", "REVIEW.md", ".github/skills"):
+        assert path in restore["run"], path
+    gate_run = jobs["respond-gate"]["steps"][0]["run"]
+    for pattern in (r"AGENTS\.md", r"CLAUDE\.md", r"REVIEW\.md", r"\.claude/", r"\.github/skills/"):
+        assert pattern in gate_run, pattern
+    assert "instructions_unchanged=true" in gate_run and "-gt 3000" in gate_run
+    assert jobs["respond-gate"]["outputs"]["instructions_unchanged"] == "${{ steps.head.outputs.instructions_unchanged }}"
+    assert "needs.respond-gate.outputs.instructions_unchanged == 'true'" in jobs["respond"]["if"]
