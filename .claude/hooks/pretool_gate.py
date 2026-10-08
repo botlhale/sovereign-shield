@@ -48,7 +48,8 @@ POLICY_FILES = {
 FIX_LOCKED = ("tests/", "evals/")
 CREDENTIAL_PATH = re.compile(
     r"(?:^|/)(?:\.env(?:\.[^/]*)?|[^/]*\.tfstate(?:\.[^/]*)?|[^/]*\.(?:pem|pfx|p12|key)|\.databrickscfg)$"
-    r"|(?:^|/)\.(?:azure|ssh)(?:/|$)"
+    r"|(?:^|/)\.(?:azure|ssh)(?:/|$)",
+    re.IGNORECASE,
 )
 # Terminal commands are split into words at whitespace, quotes and shell punctuation.
 COMMAND_WORD_SEPARATORS = re.compile(r"[\s'\"`;|&<>()=,]+")
