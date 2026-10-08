@@ -157,6 +157,8 @@ def isolated_gate(tmp_path):
     ("Bash", "python scripts/apply_policies.py --target dev", "ask"),
     ("run_in_terminal", "git -c user.name=a push origin main", "ask"),
     ("Bash", "gh pr merge 7 --squash", "ask"),
+    ("run_in_terminal", "pwsh .\\sh\\SovereignShield_Up.ps1 -AccountId x", "ask"),
+    ("run_in_terminal", "Terraform -chdir=terraform Destroy", "ask"),
     ("Bash", "python -m pytest tests/ -q", None),
     ("run_in_terminal", "git commit -m 'push the docs and terraform notes'", None),
     ("Bash", "az monitor activity-log list --query \"[?contains(operationName.value,'delete')]\"", None),
@@ -184,6 +186,13 @@ def test_gate_asks_before_cloud_and_publishing_commands(isolated_gate, tool, com
     ({"tool_name": "read_file", "tool_input": {"filePath": "{root}/.ssh/id_ed25519"}}, {}, "deny"),
     ({"tool_name": "read_file", "tool_input": {"filePath": "{root}/README.md"}}, {}, None),
     ({"tool_name": "grep_search", "tool_input": {"query": "password"}}, {}, None),
+    ({"tool_name": "grep_search", "tool_input": {"query": "password", "includePattern": "**/.env"}}, {}, "deny"),
+    ({"tool_name": "grep_search", "tool_input": {"query": "key", "includePattern": "{README.md,.ssh/*}"}}, {}, "deny"),
+    ({"tool_name": "Grep", "tool_input": {"pattern": "secret", "path": "{root}/terraform/terraform.tfstate"}}, {},
+     "deny"),
+    ({"tool_name": "Grep", "tool_input": {"pattern": "token", "glob": "*.tfstate"}}, {}, "deny"),
+    ({"tool_name": "Grep", "tool_input": {"pattern": "token", "path": "~/.SSH"}}, {}, "deny"),
+    ({"tool_name": "Grep", "tool_input": {"pattern": "def ", "path": "{root}/src", "glob": "*.py"}}, {}, None),
 ])
 def test_gate_protects_policy_files_credentials_and_tests_in_fix_mode(isolated_gate, payload, environment, expected):
     assert isolated_gate(payload, **environment) == expected
@@ -227,7 +236,7 @@ def test_gate_warns_instead_of_blocking_on_malformed_input():
 def test_both_agent_harnesses_run_the_same_gate():
     claude = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
     assert any(
-        "pretool_gate.py" in hook["command"] and {"Bash", "Edit", "Write", "Read"} <= set(entry["matcher"].split("|"))
+        "pretool_gate.py" in hook["command"] and {"Bash", "Edit", "Write", "Read", "Grep"} <= set(entry["matcher"].split("|"))
         for entry in claude["hooks"]["PreToolUse"] for hook in entry["hooks"]
     )
     assert {"Read(./.env)", "Read(./**/*.tfstate)"} <= set(claude["permissions"]["deny"])
@@ -286,6 +295,12 @@ def test_ai_workflows_are_least_privilege_and_inert_without_the_key(name):
         assert all(step.get("if") == "env.ANTHROPIC_CONFIGURED == 'true'" for step in keyed), job_name
         assert any(step.get("if") == "env.ANTHROPIC_CONFIGURED != 'true'" and "GITHUB_STEP_SUMMARY" in step["run"]
                    for step in job["steps"]), job_name
+
+
+def test_agent_evals_keep_the_secret_off_pull_request_runs():
+    jobs = _workflow("agent-evals.yml")["jobs"]
+    assert "ANTHROPIC_API_KEY" not in json.dumps(jobs["harness"])
+    assert jobs["agent"]["if"] == "github.event_name != 'pull_request'"
 
 
 def test_claude_review_skips_forks_and_answers_only_maintainers():

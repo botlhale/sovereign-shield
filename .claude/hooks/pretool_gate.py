@@ -6,8 +6,8 @@ hookSpecificOutput.permissionDecision on stdout. The gate:
 
 - asks for a human decision before cloud lifecycle and publishing commands;
 - asks before edits to the Unity Catalog policy files;
-- denies reads and edits of credential files, including terminal commands that
-  name one;
+- denies reads, searches and edits of credential files, including terminal
+  commands that name one;
 - in fix mode, denies edits to tests/ and evals/, so the only way to green is to
   change the code. A terminal command that names either folder must consist only
   of read-only or test-running segments. Fix mode is on while
@@ -38,6 +38,7 @@ EDIT_TOOLS = {
     "edit_notebook_file", "apply_patch",
 }
 READ_TOOLS = {"Read", "read_file"}
+SEARCH_TOOLS = {"Grep", "grep_search"}
 
 POLICY_FILES = {
     "src/unity_catalog_triple_lock.sql",
@@ -51,6 +52,8 @@ CREDENTIAL_PATH = re.compile(
     r"|(?:^|/)\.(?:azure|ssh)(?:/|$)",
     re.IGNORECASE,
 )
+# Search scopes and include globs are split into patterns at commas, braces and whitespace.
+SEARCH_PATTERN_SEPARATORS = re.compile(r"[\s,{}]+")
 # Terminal commands are split into words at whitespace, quotes and shell punctuation.
 COMMAND_WORD_SEPARATORS = re.compile(r"[\s'\"`;|&<>()=,]+")
 # In fix mode, a command naming tests/ or evals/ may only chain these segments.
@@ -82,11 +85,11 @@ COMMAND_GATES = (
         _cli("terraform", r"apply|destroy|import|state\s+(?:rm|mv|push)"),
         _cli("az", r"delete|purge"),
         _cli("databricks", r"bundle\s+(?:deploy|destroy|run)|delete"),
-    )))),
+    )), re.IGNORECASE)),
     ("a publishing step outside this checkout", re.compile("|".join((
         _cli("git", "push"),
         _cli("gh", r"pr\s+merge|release\s+create|workflow\s+run"),
-    )))),
+    )), re.IGNORECASE)),
 )
 
 _DECISION_RANK = {"ask": 1, "deny": 2}
@@ -116,6 +119,13 @@ def _paths(tool_input: Mapping) -> Iterator[str]:
     if isinstance(patch, str):
         yield from (match.strip() for match in re.findall(
             r"^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$", patch, re.MULTILINE))
+
+
+def _search_scopes(tool_input: Mapping) -> Iterator[str]:
+    for key in ("path", "glob", "includePattern"):
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            yield from (pattern for pattern in SEARCH_PATTERN_SEPARATORS.split(value) if pattern)
 
 
 def _relative(path: str, cwd: Optional[str]) -> Optional[str]:
@@ -194,6 +204,11 @@ def decide(payload: Mapping, environ: Mapping[str, str] = os.environ) -> Optiona
     if tool in TERMINAL_TOOLS:
         command = tool_input.get("command")
         return _command_decision(command, cwd, environ) if isinstance(command, str) else None
+
+    if tool in SEARCH_TOOLS:
+        if any(_credential_path(raw, _relative(raw, cwd)) for raw in _search_scopes(tool_input)):
+            return _decision("deny", "Credential files stay out of agent context; ask a human for the value you need.")
+        return None
 
     if tool not in EDIT_TOOLS and tool not in READ_TOOLS:
         return None

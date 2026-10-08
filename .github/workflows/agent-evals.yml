@@ -6,10 +6,12 @@
 # agent   - Runs Claude Code against every case in throwaway worktrees and fails
 #           below an 80% pass rate. Inert until a maintainer adds the
 #           ANTHROPIC_API_KEY repository secret; without it the job writes a skip
-#           notice and succeeds. Fork pull requests never receive the secret.
+#           notice and succeeds. Runs only on the weekly schedule and on demand,
+#           never on pull_request, so code a pull request changes never runs
+#           with the secret.
 #
-# Runs when agent instructions, skills, hooks, review criteria or cases change,
-# weekly, and on demand. Actions are pinned to commit SHAs (see promote.yml).
+# The harness runs when agent instructions, skills, hooks, review criteria or
+# cases change, weekly, and on demand. Actions are pinned to commit SHAs (see promote.yml).
 
 name: agent-evals
 
@@ -54,6 +56,7 @@ jobs:
   agent:
     name: Agent pass rate
     needs: harness
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:

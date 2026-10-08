@@ -32,9 +32,11 @@ also stops edits to `tests/` and `evals/`.
 
 [agent-evals.yml](../.github/workflows/agent-evals.yml) runs the self-test on
 every pull request that changes agent configuration (`AGENTS.md`, `CLAUDE.md`,
-`REVIEW.md`, `.claude/`, `evals/`), weekly, and on demand. When the
-`ANTHROPIC_API_KEY` secret exists, it also runs Claude Code against every case and
-fails below an 80% pass rate. Without the key, that job writes a skip notice.
+`REVIEW.md`, `.claude/`, `evals/`), weekly, and on demand. On the weekly and
+on-demand runs only, when the `ANTHROPIC_API_KEY` secret exists, it also runs
+Claude Code against every case and fails below an 80% pass rate. Pull request runs
+never receive the secret, so code a pull request changes never runs with it.
+Without the key, that job writes a skip notice.
 
 ## Cases
 
