@@ -218,7 +218,9 @@ def _token_audience(token: str) -> str:
         audience = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))).get("aud")
     except Exception:  # noqa: BLE001 - a diagnostic must never raise
         return "unknown"
-    return audience if isinstance(audience, str) else "unknown"
+    if not isinstance(audience, str):
+        return "unknown"
+    return ascii(audience)[1:-1][:256]
 
 
 def _resolve_identity(token: str) -> Principal:
