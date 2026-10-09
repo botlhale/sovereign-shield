@@ -17,7 +17,7 @@ FIGURES = [
     "../figures/executive_architecture.png",
     "../figures/engagement_boundary.png",
     "../figures/dual_consumption.png",
-    "../figures/triple_lock.png",
+    "../figures/ai/triple_lock_illustration.jpg",
     "../../demo/public_view.png",
     "../../demo/researcher_discovery_view.png",
     "../../demo/submitter_ca_all_submissions.png",
@@ -164,6 +164,23 @@ def test_publication_diagrams_match_their_source_manifest():
         assert root.attrib["width"] == "1600" and root.attrib["height"] == "900"
         assert root.find("{http://www.w3.org/2000/svg}title") is not None
         assert root.find("{http://www.w3.org/2000/svg}desc") is not None
+
+
+def test_ai_generated_figures_carry_provenance_and_captions():
+    """A generated image may illustrate a publication, never pass as a hand-authored schematic."""
+    readme = (ROOT / "docs/figures/README.md").read_text(encoding="utf-8")
+    images = sorted((ROOT / "docs/figures/ai").iterdir())
+    assert images
+    for image in images:
+        assert f"](ai/{image.name})" in readme, f"{image.name} has no provenance row"
+    embeds = 0
+    for path in [ROOT / "README.md", *(ROOT / "docs").rglob("*.md")]:
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"!\[([^\]]*)\]\(([^)]*figures/ai/[^)]+)\)", text):
+            embeds += 1
+            caption = match.group(1) + text[match.end():match.end() + 600]
+            assert "AI-generated illustration" in caption, (path.relative_to(ROOT), match.group(2))
+    assert embeds
 
 
 def test_review_diagrams_are_4k_and_match_their_separate_manifest():
