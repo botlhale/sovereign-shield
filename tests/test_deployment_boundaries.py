@@ -153,6 +153,36 @@ def test_orchestration_module_exports_every_function_the_scripts_call():
     assert called and called <= exported, sorted(called - exported)
 
 
+def test_easy_auth_requests_the_databricks_scope_from_any_shell():
+    """JSON quotes reached az under Linux pwsh, so Entra issued Graph tokens and every persona got 401 (2026-10-08)."""
+    deploy = (ROOT / "sh/container_apps_deploy.ps1").read_text(encoding="utf-8")
+    login = _section(deploy, "$expectedLoginParameter =", "--token-store true")
+    assert login.startswith(
+        '$expectedLoginParameter = "scope=openid profile offline_access $AzureDatabricksResourceId/user_impersonation"')
+    assert 'loginParameters=[$expectedLoginParameter]"' in login
+    readback = login[login.index("az containerapp auth show"):]
+    assert "$storedLoginParameters[0] -ne $expectedLoginParameter" in readback and "throw" in readback
+
+
+def test_easy_auth_scopes_are_declared_once_and_admin_consented():
+    """Each run appended the same permission again, and offline_access had no admin consent (2026-10-08)."""
+    deploy = (ROOT / "sh/container_apps_deploy.ps1").read_text(encoding="utf-8")
+    entra = _section(deploy, "if ($EnableEntraSignIn) {", "$expectedLoginParameter =")
+    assert entra.index("-notcontains $UserImpersonationScopeId") < entra.index("az ad app permission add")
+    graph = entra.index("--api $MicrosoftGraphResourceId")
+    command = entra[entra.rindex("az ad app permission grant", 0, graph):entra.index("$LASTEXITCODE", graph)]
+    assert '--scope "openid profile email offline_access"' in command
+
+
+def test_readiness_checks_the_scope_the_live_sign_in_requests():
+    """A stored parameter can look right while Entra receives another scope (2026-10-08)."""
+    up = (ROOT / "sh/sovereignshield_up.ps1").read_text(encoding="utf-8")
+    readiness = _section(up, 'Invoke-Stage 8 "', "if ($ConfigureGitHub)")
+    check = readiness[readiness.index("AllowAutoRedirect = $false"):]
+    assert "/.auth/login/aad" in check
+    assert "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/user_impersonation" in check and "throw" in check
+
+
 def test_empty_native_terraform_output_fails_closed(monkeypatch):
     from types import SimpleNamespace
 
