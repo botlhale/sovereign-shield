@@ -5,7 +5,8 @@
 #            merging still needs a code owner's approval under branch protection.
 # respond  - "@claude <instruction>" on a same-repository pull request asks Claude
 #            to fix a finding on that pull request's branch. It never pushes to
-#            main. respond-gate resolves the head repository first.
+#            main. respond-gate resolves the head repository first and requires
+#            the commenter to hold write, maintain or admin permission.
 # scan     - Monthly, Claude applies REVIEW.md's security pass to the whole
 #            repository and files at most one issue, an intent candidate.
 #
@@ -115,6 +116,7 @@ jobs:
     outputs:
       same_repository: ${{ steps.head.outputs.same_repository }}
       instructions_unchanged: ${{ steps.head.outputs.instructions_unchanged }}
+      can_write: ${{ steps.permission.outputs.can_write }}
     steps:
       # The issue_comment payload has no head repository, so it is resolved here.
       # The action checks out the pull request's head before Claude starts, so
@@ -144,13 +146,31 @@ jobs:
             echo "instructions_unchanged=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # author_association is a relationship, not a permission: a MEMBER or
+      # COLLABORATOR can hold read or triage access only.
+      - name: Require write access
+        id: permission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          permission="$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$COMMENT_AUTHOR/permission" --jq '.permission')"
+          case "$permission" in
+            admin|maintain|write)
+              echo "can_write=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "can_write=false" >> "$GITHUB_OUTPUT"
+              echo "### @claude skipped - the commenter does not have write access" >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
+
   respond:
     name: Respond to @claude
     needs: respond-gate
     if: >-
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
       needs.respond-gate.outputs.same_repository == 'true' &&
-      needs.respond-gate.outputs.instructions_unchanged == 'true'
+      needs.respond-gate.outputs.instructions_unchanged == 'true' &&
+      needs.respond-gate.outputs.can_write == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

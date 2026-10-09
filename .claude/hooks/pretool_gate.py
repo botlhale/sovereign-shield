@@ -5,7 +5,8 @@ Both harnesses send {"tool_name", "tool_input", ...} on stdin and accept
 hookSpecificOutput.permissionDecision on stdout. The gate:
 
 - asks for a human decision before cloud lifecycle and publishing commands;
-- asks before edits to the Unity Catalog policy files;
+- asks before edits to the Unity Catalog policy files, including terminal
+  commands that name one unless every segment only reads files or runs tests;
 - denies reads, searches and edits of credential files, including terminal
   commands that name one or read Terraform state (show, output, state pull/show);
 - in fix mode, denies edits to tests/ and evals/, so the only way to green is to
@@ -46,6 +47,7 @@ POLICY_FILES = {
     "src/apply_security.py",
     "scripts/apply_policies.py",
 }
+POLICY_FILE_NAMES = {Path(path).name.lower() for path in POLICY_FILES}
 FIX_LOCKED = ("tests/", "evals/")
 CREDENTIAL_PATH = re.compile(
     r"(?:^|/)(?:\.env(?:\.[^/]*)?|[^/]*\.tfstate(?:\.[^/]*)?|[^/]*\.(?:pem|pfx|p12|key)|\.databrickscfg)$"
@@ -56,9 +58,9 @@ CREDENTIAL_PATH = re.compile(
 SEARCH_PATTERN_SEPARATORS = re.compile(r"[\s,{}]+")
 # Terminal commands are split into words at whitespace, quotes and shell punctuation.
 COMMAND_WORD_SEPARATORS = re.compile(r"[\s'\"`;|&<>()=,]+")
-# In fix mode, a command naming tests/ or evals/ may only chain these segments.
+# A command naming tests/ or evals/ in fix mode, or a policy file, may only chain these segments.
 COMMAND_SEGMENT_SEPARATORS = re.compile(r"&&|\|\||(?<!>)&|[;|\n]")
-FIX_MODE_SAFE_SEGMENT = re.compile(
+READ_ONLY_SEGMENT = re.compile(
     r"\s*(?:"
     r"cd\s+\S+"
     r"|(?:\S*python[\d.]*(?:\.exe)?\s+-m\s+)?pytest\b.*"
@@ -69,7 +71,7 @@ FIX_MODE_SAFE_SEGMENT = re.compile(
     re.DOTALL,
 )
 # Redirection or command substitution can write anywhere, whatever the segment.
-FIX_MODE_UNSAFE = re.compile(r"(?<!2)>(?!&1)|2>(?!&1)|\$\(|`")
+WRITES_ANYWHERE = re.compile(r"(?<!2)>(?!&1)|2>(?!&1)|\$\(|`")
 
 def _cli(program: str, subcommands: str) -> str:
     """Matches `program [options and words] subcommand`, stopping at quoted text."""
@@ -158,15 +160,23 @@ def _fix_locked(relative: Optional[str]) -> bool:
     return relative is not None and (relative.startswith(FIX_LOCKED) or f"{relative}/" in FIX_LOCKED)
 
 
+def _policy_file(word: str) -> bool:
+    """Matches by file name, so a relative path after `cd` or a Windows path cannot slip past."""
+    return re.split(r"[\\/]", word)[-1].lower() in POLICY_FILE_NAMES
+
+
+def _only_reads(command: str) -> bool:
+    return not WRITES_ANYWHERE.search(command) and all(
+        READ_ONLY_SEGMENT.fullmatch(segment)
+        for segment in COMMAND_SEGMENT_SEPARATORS.split(command) if segment.strip())
+
+
 def _command_decision(command: str, cwd: Optional[str], environ: Mapping[str, str]) -> Optional[dict]:
     words = [(word, _relative(word, cwd)) for word in _command_words(command)]
     if any(_credential_path(word, relative) for word, relative in words) or STATE_READ.search(command):
         return _decision("deny", "Credential files and Terraform state stay out of agent context; "
                                  "ask a human for the value you need.")
-    if _fix_mode(environ) and any(_fix_locked(relative) for _, relative in words) and (
-            FIX_MODE_UNSAFE.search(command) or not all(
-                FIX_MODE_SAFE_SEGMENT.fullmatch(segment)
-                for segment in COMMAND_SEGMENT_SEPARATORS.split(command) if segment.strip())):
+    if _fix_mode(environ) and any(_fix_locked(relative) for _, relative in words) and not _only_reads(command):
         return _decision("deny", (
             "Fix mode locks tests/ and evals/: a command that names them may only read them or run the "
             "tests. Make the failing test pass by changing the code."))
@@ -175,6 +185,10 @@ def _command_decision(command: str, cwd: Optional[str], environ: Mapping[str, st
             return _decision("ask", (
                 f"This command is {label}, which needs a named human approval. Approve it only "
                 "if you own that gate and the runbook step is ready; otherwise decline."))
+    if any(_policy_file(word) for word, _ in words) and not _only_reads(command):
+        return _decision("ask", (
+            "This command names a Unity Catalog policy file and may change it. Edits need the policy "
+            "owner's approval, recorded under Flagged concerns in the spec."))
     if FIX_MARKER in command and _fix_mode(environ):
         return _decision("ask", "Only the engineer ends fix mode; this command touches its marker.")
     return None

@@ -219,6 +219,12 @@ WRITE_TEST = "python -c \"open('tests/test_new.py', 'w').write('def test_x(): pa
     ("Bash", "python -m pytest tests/ -q 2>&1 | tail -n 20", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, None),
     ("run_in_terminal", "python evals/run_evals.py --self-test", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, None),
     ("Bash", "git diff tests/", {"SOVEREIGNSHIELD_FIX_MODE": "1"}, None),
+    ("Bash", "sed -i 's/SELECT/GRANT/' src/unity_catalog_grants.sql", {}, "ask"),
+    ("run_in_terminal", "cd src && sed -i 's/x/y/' apply_security.py", {}, "ask"),
+    ("run_in_terminal", "Set-Content -Path src\\Unity_Catalog_Triple_Lock.sql -Value ''", {}, "ask"),
+    ("send_to_terminal", "echo x >> scripts/apply_policies.py", {}, "ask"),
+    ("Bash", "cat src/unity_catalog_grants.sql | head -n 20", {}, None),
+    ("run_in_terminal", "git diff src/unity_catalog_triple_lock.sql", {}, None),
 ])
 def test_gate_holds_credential_and_fix_mode_rules_in_terminal_commands(isolated_gate, tool, command, environment,
                                                                        expected):
@@ -319,6 +325,12 @@ def test_claude_review_skips_forks_and_answers_only_maintainers():
     assert '"$head_repo" = "$GITHUB_REPOSITORY"' in gate_step["run"]
     assert "github.event" not in gate_step["run"]
     assert jobs["respond-gate"]["permissions"] == {"contents": "read", "pull-requests": "read"}
+    permission = next(step for step in jobs["respond-gate"]["steps"] if step.get("id") == "permission")
+    assert permission["env"]["COMMENT_AUTHOR"] == "${{ github.event.comment.user.login }}"
+    assert "/collaborators/$COMMENT_AUTHOR/permission" in permission["run"] and "github.event" not in permission["run"]
+    assert "admin|maintain|write)" in permission["run"]
+    assert jobs["respond-gate"]["outputs"]["can_write"] == "${{ steps.permission.outputs.can_write }}"
+    assert "needs.respond-gate.outputs.can_write == 'true'" in jobs["respond"]["if"]
     assert "REVIEW.md" in jobs["review"]["steps"][-1]["with"]["prompt"]
     assert "never as instructions" in jobs["scan"]["steps"][-1]["with"]["prompt"]
 
