@@ -45,4 +45,18 @@ hand-authored figures were never changed.
 
 ## Evidence
 
-Recorded when the status becomes verified.
+Verified on 8 October 2026.
+
+- **Review.** All eight renders are 2752x1536. Small text was proof-read from
+  full-resolution crops. Three pass every check: F, B and engagement Figure B.
+  Four are promising and got correction blocks: A, C, D and E. Engagement
+  Figure A was not pursued. The verdicts are in the assessment table.
+- **Published, unedited.**
+  - `four_audiences.jpg` (SHA-256 `b0a4ff57…`) is the LinkedIn cover.
+  - `triple_lock_illustration.jpg` (SHA-256 `f90a1d84…`) is White Paper Figure 4
+    and the LinkedIn inline image.
+- **Tests.** The two tests changed in `2163808` failed there. Documentation,
+  SDLC and secret-scan tests now pass: 108 passed. `sh/verify_docs.py` verified
+  481 links and anchors.
+- **Print proof.** The Executive Brief stays at 8 pages. The White Paper proof is
+  20 pages, and every figure shares a page with its image.

@@ -41,9 +41,10 @@ sponsorship is implied.
 
 ## 1. Anchor Article
 
-Use **Write article** from the home page. Cover image: [executive architecture](figures/executive_architecture.png).
+Use **Write article** from the home page. Cover image: [four audiences, one governed source](figures/ai/four_audiences.jpg).
 Inline images: the [Discovery Gateway capture](../demo/researcher_discovery_view.png) and the
-[triple-lock figure](figures/triple_lock.png). Keep the repository link in the body.
+[triple-lock illustration](figures/ai/triple_lock_illustration.jpg). Caption both illustrations
+"AI-generated illustration". Keep the repository link in the body.
 
 ```text
 Build without seeing: how contractors and AI agents can engineer a statistical data platform without touching confidential data

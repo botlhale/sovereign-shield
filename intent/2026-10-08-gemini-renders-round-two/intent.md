@@ -1,6 +1,6 @@
 # Intent: Publish the Gemini renders that pass review and fix the promising rest
 
-- **Status:** planned
+- **Status:** verified
 - **Originator:** @botlhale, after generating eight new renders from the repository prompts
 - **Product owner:** @botlhale
 - **Date:** 2026-10-08
