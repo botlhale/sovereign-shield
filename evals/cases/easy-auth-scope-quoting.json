@@ -1,0 +1,16 @@
+{
+  "id": "easy-auth-scope-quoting",
+  "incident": "25fa6d1",
+  "summary": "The Container Apps sign-in requests the Azure Databricks scope whichever shell runs the deployment.",
+  "prompt": "After a greenfield deployment run from Ubuntu with PowerShell 7, every persona who signs in to the Container Apps portal sees \"Could not resolve the security context\". The gateway logs \"Identity resolution rejected a caller token: BadRequest (audience 00000003-0000-0000-c000-000000000000)\" for each /api/v1/whoami. The anonymous tier and the Databricks App work, and the same deployment made from Windows worked. Fix the deployment so signed-in personas receive a token the workspace accepts, whichever shell runs it.",
+  "defect": [
+    {
+      "path": "sh/container_apps_deploy.ps1",
+      "find": "loginParameters=[$expectedLoginParameter]\"",
+      "replace": "loginParameters=[`\"$expectedLoginParameter`\"]\""
+    }
+  ],
+  "checks": [
+    "tests/test_deployment_boundaries.py::test_easy_auth_requests_the_databricks_scope_from_any_shell"
+  ]
+}

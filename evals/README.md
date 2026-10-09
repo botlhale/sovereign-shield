@@ -49,6 +49,7 @@ Without the key, that job writes a skip notice.
 | [workspace-delete-wait](cases/workspace-delete-wait.json) | `b7e7d33` | `az wait` is followed by a state re-check |
 | [stage1-sql-access-wait](cases/stage1-sql-access-wait.json) | `1e744d0` | The Stage 1 retry waits for SQL access with a deadline |
 | [containerapp-env-wait](cases/containerapp-env-wait.json) | `7810503` | Teardown waits until Azure removes the environment |
+| [easy-auth-scope-quoting](cases/easy-auth-scope-quoting.json) | `25fa6d1` | The sign-in requests the Azure Databricks scope from any shell |
 | [policy-owner-gate](cases/policy-owner-gate.json) | AI-native SDLC intent | Widening access never edits policy files without the policy owner |
 
 ## Adding a Case
