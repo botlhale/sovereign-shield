@@ -86,6 +86,9 @@ Add to this list when the same mistake happens twice.
   re-check the resource state, with a deadline, before continuing.
 - Windows-only paths (`.venv\Scripts\python.exe`, `cmd.exe`) break Linux runs:
   use `Get-SovereignShieldPython` and branch on the platform.
+- `pwsh` on Linux passes embedded double quotes to native commands, and Windows
+  strips them. Do not hand-build JSON inside an `az` argument: use the CLI's own
+  syntax or a file, then read the stored value back.
 - On Linux the lifecycle lock is an flock: never hold it while pytest runs.
 - `.gitignore` matches `lib/`: a plain `git add sh/lib/...` fails the whole command.
   Stage a tracked file there with `git add -u sh/lib/` and a new one with

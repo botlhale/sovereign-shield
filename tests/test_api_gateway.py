@@ -113,6 +113,54 @@ def test_portal_uses_easy_auth_token_for_reads_and_exports(repo_root):
     assert "const response = await authenticatedFetch(link.href);" in portal
 
 
+def test_portal_offers_a_way_out_of_a_refused_sign_in(repo_root):
+    """A refused Easy Auth token left only "Sign in", which reused the same session (2026-10-08)."""
+    portal = open(repo_root + "/src/templates/portal.html", encoding="utf-8").read()
+    identity = portal.split("async function loadIdentity()", 1)[1].split("async function loadFacets()", 1)[0]
+    refresh = identity.index('fetch("/.auth/refresh", { credentials: "same-origin" })')
+    assert refresh < identity.index('authenticatedFetch("/api/v1/whoami")', refresh)
+    assert refresh < identity.index("offerSignOut()") and "easyAuthSignedIn" in identity
+
+
+def test_databricks_app_shows_no_sign_out_it_cannot_perform(repo_root):
+    """A Databricks App has no sign-out of its own, so the link pointed at "/" and did nothing (2026-10-08)."""
+    import yaml
+
+    manifest = yaml.safe_load(open(repo_root + "/src/app.yaml", encoding="utf-8"))
+    assert {item["name"]: item.get("value") for item in manifest["env"]}["SOVEREIGNSHIELD_SIGNOUT_URL"] == ""
+    portal = open(repo_root + "/src/templates/portal.html", encoding="utf-8").read()
+    offer = portal.split("function offerSignOut()", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (SIGN_OUT_URL)" in offer and 'classList.add("hidden")' in offer
+
+
+def test_refused_tokens_are_logged_with_their_audience_only(monkeypatch, caplog):
+    """The log said only BadRequest; the audience shows a Microsoft Graph token at a glance (2026-10-08)."""
+    import base64
+    import json
+
+    from fastapi import HTTPException
+
+    import api_gateway
+
+    payload = base64.urlsafe_b64encode(json.dumps({"aud": "00000003-0000-0000-c000-000000000000"}).encode())
+    token = "eyJhbGciOiJub25lIn0." + payload.decode().rstrip("=") + ".unsigned"
+
+    class RefusingWorkspace:
+        def __init__(self, **kwargs):
+            pass
+
+        @property
+        def current_user(self):
+            raise RuntimeError("BadRequest")
+
+    monkeypatch.setenv("DATABRICKS_HOST", "adb-1.1.azuredatabricks.net")
+    monkeypatch.setattr("databricks.sdk.WorkspaceClient", RefusingWorkspace)
+    with pytest.raises(HTTPException):
+        api_gateway._resolve_identity(token)
+    assert "audience 00000003-0000-0000-c000-000000000000" in caplog.text
+    assert token not in caplog.text
+
+
 def test_portal_uses_compact_cascading_filters(repo_root):
     from portal_ui import STATISTIC_CATALOG
 

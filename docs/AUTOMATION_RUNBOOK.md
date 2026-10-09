@@ -192,6 +192,28 @@ Run preflight only:
 
 Use `-SkipTests` only when the same commit has already passed the offline suite.
 
+### Redeploy the portals after a code change
+
+Ship portal or gateway code without ingesting new synthetic filings:
+
+```powershell
+./sh/sovereignshield_up.ps1 -AccountId "<databricks-account-guid>" -TenantDomain "<tenant-domain>" `
+  -StartAtStage 3 -StopAfterStage 3
+./sh/sovereignshield_up.ps1 -AccountId "<databricks-account-guid>" -TenantDomain "<tenant-domain>" `
+  -StartAtStage 5 -StopAfterStage 8
+```
+
+The first run uploads the bundle source. Starting the second at Stage 5 makes
+Stage 6 submit a new App snapshot; a run that starts at Stage 6 only reconciles
+the previous deployment. Stage 7 rebuilds the Container Apps image.
+
+### Sign-in and persona switching
+
+The Container Apps portal signs visitors in through Easy Auth. Its **Sign out**
+ends that session, so one browser window can switch personas. The Databricks App
+uses workspace single sign-on and has no sign-out of its own, so it shows none;
+open a separate private window for each persona there.
+
 ### Optional GitHub configuration
 
 ```powershell
@@ -288,6 +310,8 @@ Resource ownership and retention boundaries are detailed in the
 | ACR build or push failed | Reuse the registry with a verified tag: `container_apps_deploy.ps1 -RegistryName <registry> -ImageTag <tag> -SkipImageBuild` |
 | Workspace delete timed out or stays `Deleting` | `down` waits up to an hour for an in-progress delete, since Azure refuses a second one (`ApplianceBeingDeleted`). A workspace deleted without force can loop while Databricks recreates an Event Grid topic on its retained storage; deleting the leftover `databricks-rg-rg-sovereignshield` group stops that |
 | Legacy DOUBLE history or another bundle path | Follow the [migration gate](RELEASE_EVIDENCE.md#mandatory-migration-gate); never force a routine apply |
+| Signed-in personas get 401 on the Container Apps portal, and the gateway logs `BadRequest (audience 00000003-…)` | Easy Auth issued Microsoft Graph tokens because its stored login parameter does not request Azure Databricks. Rerun Stages 7-8: Stage 7 writes the parameter in the CLI list syntax and reads it back, and Stage 8 checks the live sign-in redirect. Then sign out at `/.auth/logout` and sign in again |
+| A `databricks bundle` command fails with `request timed out after 1m30s of inactivity` | The workspace API stalled one request; rerun the stage. If the next deploy reports a held lock, confirm no deploy is running, then delete `/Workspace/SovereignShield/<target>/state/deploy.lock` |
 
 Use current Terraform outputs, not identifiers copied from dated deployment records.
 
