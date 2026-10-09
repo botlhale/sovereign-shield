@@ -42,9 +42,10 @@ env:
     value: "20000"
 
   # A Databricks App is always reached through workspace SSO, so there is no
-  # separate sign-in route to send a visitor to. These are overridden when the
-  # same image runs behind Azure Container Apps, which owns /.auth/*.
+  # separate sign-in route to send a visitor to, and no sign-out of its own: an
+  # empty sign-out URL hides the link. These are overridden when the same image
+  # runs behind Azure Container Apps, which owns /.auth/*.
   - name: "SOVEREIGNSHIELD_SIGNIN_URL"
     value: "/"
   - name: "SOVEREIGNSHIELD_SIGNOUT_URL"
-    value: "/"
+    value: ""

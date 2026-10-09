@@ -41,6 +41,7 @@ Container Apps - see ``terraform/modules/dissemination_gateway`` or
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import logging
@@ -210,6 +211,16 @@ def _easy_auth_access_token(request: Request) -> Optional[str]:
     return None
 
 
+def _token_audience(token: str) -> str:
+    """The unverified ``aud`` claim, for diagnostics only."""
+    try:
+        payload = token.split(".")[1]
+        audience = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))).get("aud")
+    except Exception:  # noqa: BLE001 - a diagnostic must never raise
+        return "unknown"
+    return audience if isinstance(audience, str) else "unknown"
+
+
 def _resolve_identity(token: str) -> Principal:
     """Validates a token by resolving the identity it represents.
 
@@ -243,7 +254,8 @@ def _resolve_identity(token: str) -> Principal:
         # indistinguishable 401 on every call, for every caller, always.
         me = WorkspaceClient(host=host, token=token, auth_type="pat").current_user.me()
     except Exception as exc:  # noqa: BLE001 - any failure is an auth failure
-        LOGGER.warning("Identity resolution rejected a caller token: %s", type(exc).__name__)
+        LOGGER.warning("Identity resolution rejected a caller token: %s (audience %s)",
+                       type(exc).__name__, _token_audience(token))
         raise HTTPException(status_code=401, detail="Invalid or expired access token.") from exc
 
     groups = frozenset(

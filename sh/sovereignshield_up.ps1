@@ -321,6 +321,23 @@ try {
             if ($auth.login.tokenStore.azureBlobStorage.sasUrlSettingName -ne "easy-auth-token-sas") {
                 throw "Container Apps Easy Auth Blob token store is not configured."
             }
+
+            # A stored parameter can look right while Entra receives another scope, so read the live redirect.
+            $handler = [System.Net.Http.HttpClientHandler]::new()
+            $handler.AllowAutoRedirect = $false
+            $client = [System.Net.Http.HttpClient]::new($handler)
+            try {
+                $authorize = $client.GetAsync("https://$containerFqdn/.auth/login/aad").GetAwaiter().GetResult().Headers.Location
+            }
+            finally {
+                $client.Dispose()
+            }
+            $authorizeQuery = if ($authorize -and $authorize.IsAbsoluteUri) {
+                [Uri]::UnescapeDataString($authorize.Query.Replace("+", " "))
+            } else { "" }
+            if ($authorizeQuery -notmatch "(^\?|&)scope=[^&]*2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/user_impersonation") {
+                throw "Container Apps sign-in does not request the Azure Databricks scope; signed-in personas would be rejected."
+            }
         }
 
         if ($ConfigureGitHub) {

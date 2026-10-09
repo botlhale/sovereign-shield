@@ -52,6 +52,8 @@ Set-StrictMode -Version Latest
 # Resource id of the first-party AzureDatabricks application. An Entra token is
 # only accepted by the workspace if it was issued for this audience.
 $AzureDatabricksResourceId = "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d"
+$UserImpersonationScopeId = "739272be-e143-11e8-9f32-f2801f1b9fd1"
+$MicrosoftGraphResourceId = "00000003-0000-0000-c000-000000000000"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not $ImageTag) { $ImageTag = "sovereignshield-portal:$(Get-Date -Format yyyyMMddHHmmss)" }
@@ -301,13 +303,21 @@ if ($EnableEntraSignIn) {
         # stderr after a successful permission add, so keep this small block
         # non-terminating and rely on LASTEXITCODE for the real result.
         $ErrorActionPreference = "Continue"
-        $permissionAddOutput = az ad app permission add `
-            --id $authAppId `
-            --api $AzureDatabricksResourceId `
-            --api-permissions "739272be-e143-11e8-9f32-f2801f1b9fd1=Scope" `
-            --output none 2>&1
+        # Adding unconditionally appended another copy of the permission on every run.
+        $declaredScopes = @(az ad app show --id $authAppId `
+            --query "requiredResourceAccess[?resourceAppId=='$AzureDatabricksResourceId'].resourceAccess[].id" -o tsv)
         if ($LASTEXITCODE -ne 0) {
-            throw "Could not add the AzureDatabricks delegated permission: $permissionAddOutput"
+            throw "Could not read the delegated permissions of app $authAppId."
+        }
+        if ($declaredScopes -notcontains $UserImpersonationScopeId) {
+            $permissionAddOutput = az ad app permission add `
+                --id $authAppId `
+                --api $AzureDatabricksResourceId `
+                --api-permissions "$UserImpersonationScopeId=Scope" `
+                --output none 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not add the AzureDatabricks delegated permission: $permissionAddOutput"
+            }
         }
 
         $permissionGrantOutput = az ad app permission grant `
@@ -317,6 +327,16 @@ if ($EnableEntraSignIn) {
             --output none 2>&1
         if ($LASTEXITCODE -ne 0) {
             throw "Could not grant admin consent for AzureDatabricks user_impersonation: $permissionGrantOutput"
+        }
+
+        # The sign-in also requests offline_access; without consent each persona meets a prompt.
+        $graphGrantOutput = az ad app permission grant `
+            --id $authAppId `
+            --api $MicrosoftGraphResourceId `
+            --scope "openid profile email offline_access" `
+            --output none 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not grant admin consent for the sign-in scopes: $graphGrantOutput"
         }
     }
     finally {
@@ -350,12 +370,21 @@ if ($EnableEntraSignIn) {
     # Easy Auth does not expose this OAuth request parameter on the provider's
     # Basics screen. Store it under the provider login configuration so the
     # forwarded token is issued for AzureDatabricks as well as OpenID Connect.
-    $loginParameters = '["scope=openid profile offline_access ' + $AzureDatabricksResourceId + '/user_impersonation"]'
+    # Use the CLI's [a,b] list syntax, not JSON: pwsh on Linux passes JSON quotes
+    # through to az, which stores them, and Entra then ignores the scope.
+    $expectedLoginParameter = "scope=openid profile offline_access $AzureDatabricksResourceId/user_impersonation"
     az containerapp auth update `
         --name $AppName `
         --resource-group $ResourceGroup `
-        --set "identityProviders.azureActiveDirectory.login.loginParameters=$loginParameters" `
+        --set "identityProviders.azureActiveDirectory.login.loginParameters=[$expectedLoginParameter]" `
         --output none
+    $storedLoginParameters = @(az containerapp auth show --name $AppName --resource-group $ResourceGroup `
+        --query "identityProviders.azureActiveDirectory.login.loginParameters" -o json | Out-String | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0 -or $storedLoginParameters.Count -ne 1 -or
+        $storedLoginParameters[0] -ne $expectedLoginParameter) {
+        throw "Easy Auth stored the login parameters as $($storedLoginParameters | ConvertTo-Json -Compress); " +
+            "signed-in personas would receive tokens the workspace rejects."
+    }
 
     # Easy Auth only injects provider access-token headers when its token store
     # is enabled. Keep that store separate from Unity Catalog storage: it holds

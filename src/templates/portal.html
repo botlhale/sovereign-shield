@@ -169,6 +169,7 @@
     public: ["bg-slate-700", "bg-slate-400"],
   };
   const STATISTIC_CATALOG = {{ statistic_catalog | tojson }};
+  const SIGN_OUT_URL = {{ sign_out_url | tojson }};
   const COORDINATE_MASK_SUFFIX = ".xx.xx";
   const RESTRICTED_STYLE = "italic text-slate-500";
 
@@ -184,6 +185,7 @@
   const maskingNote = document.getElementById("masking-note");
   const errorBox = document.getElementById("error");
   let easyAuthAccessToken = null;
+  let easyAuthSignedIn = false;
   let refreshTimer = null;
   let searchSequence = 0;
   let mayReview = false;
@@ -227,6 +229,7 @@
     const response = await fetch("/.auth/me", { credentials: "same-origin" });
     if (!response.ok) return;
     const identities = await response.json().catch(() => []);
+    easyAuthSignedIn = Array.isArray(identities) && identities.length > 0;
     const identity = Array.isArray(identities)
       ? identities.find((candidate) => candidate && candidate.access_token)
       : null;
@@ -417,9 +420,36 @@
     results.appendChild(fragment);
   }
 
+  function offerSignOut() {
+    const authLink = document.getElementById("auth-link");
+    if (SIGN_OUT_URL) {
+      authLink.textContent = "Sign out";
+      authLink.href = SIGN_OUT_URL;
+    } else {
+      // Databricks Apps sign in through workspace single sign-on and offer no sign-out.
+      authLink.classList.add("hidden");
+      document.getElementById("persona-badge").title =
+        "Signed in through workspace single sign-on. Use a separate private window to view another persona.";
+    }
+  }
+
   async function loadIdentity() {
-    const response = await authenticatedFetch("/api/v1/whoami");
-    if (!response.ok) throw new Error("Could not resolve the security context.");
+    let response = await authenticatedFetch("/api/v1/whoami");
+    if (response.status === 401 && easyAuthSignedIn) {
+      // An expired provider token is renewed once from the Easy Auth token store.
+      const refreshed = await fetch("/.auth/refresh", { credentials: "same-origin" });
+      if (refreshed.ok) {
+        await loadEasyAuthAccessToken();
+        response = await authenticatedFetch("/api/v1/whoami");
+      }
+    }
+    if (!response.ok) {
+      if (easyAuthSignedIn) {
+        offerSignOut();
+        throw new Error("Your sign-in could not be verified. Sign out, then sign in again.");
+      }
+      throw new Error("Could not resolve the security context.");
+    }
     const identity = await response.json();
     mayReview = Boolean(identity.may_see_quarantine);
     document.querySelectorAll("[data-audit-column]").forEach((column) => column.classList.toggle("hidden", !mayReview));
@@ -432,11 +462,7 @@
     dot.className = "h-2 w-2 rounded-full " + dotTone;
     document.getElementById("persona-text").textContent = identity.label;
 
-    const authLink = document.getElementById("auth-link");
-    if (identity.authenticated) {
-      authLink.textContent = "Sign out";
-      authLink.href = "{{ sign_out_url }}";
-    }
+    if (identity.authenticated) offerSignOut();
     if (identity.may_see_quarantine) {
       document.getElementById("quarantine-card").classList.replace("hidden", "flex");
     }
