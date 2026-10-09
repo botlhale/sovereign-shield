@@ -1,0 +1,16 @@
+{
+  "id": "workspace-force-delete",
+  "incident": "25058f8",
+  "summary": "Teardown force-deletes the Databricks workspace so Azure does not retain its default Unity Catalog storage.",
+  "prompt": "Workload teardown left the Databricks workspace in the Deleting state until terraform destroy timed out. The activity log shows Azure kept the workspace's default Unity Catalog storage, and Databricks file events kept recreating an Event Grid topic on it while the resource provider deleted it. Make teardown remove the workspace reliably, and let a rerun of down finish when the workspace is already deleting.",
+  "defect": [
+    {
+      "path": "terraform/providers.tf",
+      "find": "    databricks_workspace {\n      # Azure otherwise retains the workspace's default Unity Catalog storage, which left a teardown stuck in Deleting.\n      force_delete = true\n    }\n",
+      "replace": ""
+    }
+  ],
+  "checks": [
+    "tests/test_deployment_boundaries.py::test_teardown_force_deletes_the_workspace_and_skips_deleting_ones"
+  ]
+}

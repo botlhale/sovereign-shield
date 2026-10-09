@@ -1,6 +1,7 @@
 from pathlib import Path
 import importlib.util
 import json
+import re
 
 import pytest
 
@@ -69,6 +70,87 @@ def test_az_databricks_extension_is_installed_before_first_use():
         source = path.read_text(encoding="utf-8")
         install = source.find("Install-SovereignShieldAzExtension -Name databricks")
         assert 0 <= install < source.index("az databricks "), path.name
+
+
+def _section(source, start, end):
+    """The text from start up to end; each marker must occur exactly once."""
+    assert source.count(start) == 1 and source.count(end) == 1, (start, end)
+    assert source.index(start) < source.index(end)
+    return source[source.index(start):source.index(end)]
+
+
+def test_teardown_force_deletes_the_workspace_and_skips_deleting_ones():
+    """Without force_delete Azure keeps the default UC storage and the workspace stays Deleting (25058f8)."""
+    providers = (ROOT / "terraform/providers.tf").read_text(encoding="utf-8")
+    assert re.search(r"databricks_workspace\s*\{[^}]*\bforce_delete\s*=\s*true", providers)
+    module = (ROOT / "terraform/modules/databricks_workspace/main.tf").read_text(encoding="utf-8")
+    timeout = re.search(r"timeouts\s*\{[^}]*\bdelete\s*=\s*\"(\d+)m\"", module)
+    assert timeout and int(timeout.group(1)) >= 60
+    down = (ROOT / "sh/sovereignshield_down.ps1").read_text(encoding="utf-8")
+    discovery = down[:down.index("Set-SovereignShieldWorkspaceAuth")]
+    assert "provisioningState=='Succeeded'" in discovery
+
+
+def test_down_waits_out_an_in_progress_workspace_delete_before_terraform_destroy():
+    """A second delete fails with ApplianceBeingDeleted, and az wait exits 0 on timeout (b7e7d33)."""
+    down = (ROOT / "sh/sovereignshield_down.ps1").read_text(encoding="utf-8")
+    destroy = _section(down, 'Start-TimedStep "Terraform destroy"', '"destroy", "-input=false"')
+    wait = destroy.find("workspace wait --deleted")
+    assert wait >= 0
+    after_wait = destroy[wait:]
+    assert "@workspaceStateQuery" in after_wait and "throw" in after_wait
+
+
+def test_stage1_retry_waits_for_sql_access_with_a_deadline():
+    """A new workspace grants its admins databricks-sql-access minutes after creation (1e744d0)."""
+    up = (ROOT / "sh/sovereignshield_up.ps1").read_text(encoding="utf-8")
+    retry = _section(up, "Foundation apply stopped after workspace creation", 'Invoke-Stage 2 "')
+    poll = retry.find("databricks warehouses list")
+    reapply = retry.rfind("Invoke-SovereignShieldTerraformApply")
+    assert 0 <= poll < reapply
+    assert "$deadline" in retry[:poll] and "throw" in retry[poll:reapply]
+
+
+def test_down_waits_until_azure_removes_the_container_apps_environment():
+    """az containerapp env delete stops polling after about 20 minutes; Azure took 27 (7810503)."""
+    down = (ROOT / "sh/sovereignshield_down.ps1").read_text(encoding="utf-8")
+    gateway = _section(down, '"containerapp", "env", "delete"', "az acr list")
+    for evidence in ("Microsoft.App/managedEnvironments", "az group exists", "$deadline", "throw"):
+        assert evidence in gateway, evidence
+
+
+def test_up_preflight_runs_on_linux_and_tests_before_taking_the_lock():
+    """No Windows-only Python path (0e5b228); the suite runs before the flock, held before Azure changes (c38f3a7)."""
+    up = (ROOT / "sh/sovereignshield_up.ps1").read_text(encoding="utf-8")
+    assert r"Scripts\python.exe" not in up
+    stage0 = _section(up, 'Invoke-Stage 0 "Preflight and offline verification"', "if ($StopAfterStage -eq 0) { return }")
+    assert "Get-SovereignShieldPython" in stage0
+    suite, lock = stage0.index('"-m", "pytest"'), stage0.index("Enter-SovereignShieldLifecycleLock")
+    assert suite < lock < stage0.index('"provider", "register"')
+    resumed = _section(up, "if ($StopAfterStage -eq 0) { return }", 'Invoke-Stage 1 "')
+    assert "Enter-SovereignShieldLifecycleLock" in resumed, "a run that starts after Stage 0 still takes the lock"
+
+
+def test_down_stops_when_an_azure_cli_query_fails():
+    """A failed az query returned nothing, which read as "already gone" and let teardown skip ahead (c38f3a7)."""
+    down = (ROOT / "sh/sovereignshield_down.ps1").read_text(encoding="utf-8")
+    discovery = down[:down.index("Set-SovereignShieldWorkspaceAuth")]
+    assert "if ($LASTEXITCODE -ne 0) { throw" in discovery[discovery.index("provisioningState=='Succeeded'"):]
+    gateway = _section(down, '"containerapp", "env", "delete"', "az acr list")
+    assert '$LASTEXITCODE -ne 0 -or $groupExists -notin @("true", "false")' in gateway
+    destroy = _section(down, 'Start-TimedStep "Terraform destroy"', '"destroy", "-input=false"')
+    assert destroy.count("& az @workspaceStateQuery") == destroy.count("if ($LASTEXITCODE -ne 0) { throw") == 2
+
+
+def test_orchestration_module_exports_every_function_the_scripts_call():
+    """An unexported function fails only when a lifecycle run reaches the call, often in finally."""
+    module = (ROOT / "sh/lib/SovereignShield.Orchestration.psm1").read_text(encoding="utf-8")
+    defined = set(re.findall(r"^function ([\w-]+)", module, re.MULTILINE))
+    exported = set(re.findall(r'"([\w-]+)"', module.split("Export-ModuleMember", 1)[1]))
+    called = set()
+    for path in (ROOT / "sh").glob("*.ps1"):
+        called |= defined & set(re.findall(r"[\w]+-SovereignShield\w*", path.read_text(encoding="utf-8")))
+    assert called and called <= exported, sorted(called - exported)
 
 
 def test_empty_native_terraform_output_fails_closed(monkeypatch):

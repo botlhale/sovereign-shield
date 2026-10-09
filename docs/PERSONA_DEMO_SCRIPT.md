@@ -146,10 +146,11 @@ do not relabel the 22-row screenshot as that view.
 
 **Narration:**
 
-> Live provisioning and teardown completed successfully. The synthetic reference
-> cycle measured about seventy-five minutes up including prerequisites, thirty
-> minutes down and ten US dollars or less in Azure charges for deployment, testing
-> and teardown. Those are observed evaluation results, not production guarantees.
+> Live provisioning and teardown completed successfully. The most recent synthetic
+> reference cycle measured about forty-two minutes up with prerequisites already in
+> place, thirty-five minutes down and ten US dollars or less in Azure charges for
+> deployment, testing and teardown. Those are observed evaluation results, not
+> production guarantees.
 
 > Technical feedback is invited on analyst reconciliation, institutional handover
 > and reconstruction from public values or researcher-visible rows. The repository

@@ -1,0 +1,16 @@
+{
+  "id": "stage1-sql-access-wait",
+  "incident": "1e744d0",
+  "summary": "The Stage 1 retry waits, with a deadline, until a new workspace grants the deployer SQL access.",
+  "prompt": "On a greenfield run, Stage 1 creates the Databricks workspace and then the foundation apply fails creating the SQL warehouse because the deployer lacks databricks-sql-access. The automatic retry fails the same way seconds later. In a new workspace the admins group receives SQL access a few minutes after creation. Make the Stage 1 retry succeed without operator intervention, with a bounded wait.",
+  "defect": [
+    {
+      "path": "sh/sovereignshield_up.ps1",
+      "find": "            # New workspaces give admins databricks-sql-access minutes after creation; the warehouse needs it.\n            Write-Host \"Waiting until the new workspace accepts SQL warehouse calls from the deployer.\" -ForegroundColor DarkGray\n            $deadline = (Get-Date).AddMinutes(15)\n            $previousPreference = $ErrorActionPreference\n            $ErrorActionPreference = \"Continue\"\n            try {\n                do {\n                    & databricks warehouses list --output json 2>$null | Out-Null\n                    $sqlReady = $LASTEXITCODE -eq 0\n                    if (-not $sqlReady) { Start-Sleep -Seconds 15 }\n                } until ($sqlReady -or (Get-Date) -gt $deadline)\n            }\n            finally {\n                $ErrorActionPreference = $previousPreference\n            }\n            if (-not $sqlReady) {\n                throw \"The deployer still lacks databricks-sql-access in https://$workspaceHost after 15 minutes.\"\n            }\n",
+      "replace": ""
+    }
+  ],
+  "checks": [
+    "tests/test_deployment_boundaries.py::test_stage1_retry_waits_for_sql_access_with_a_deadline"
+  ]
+}

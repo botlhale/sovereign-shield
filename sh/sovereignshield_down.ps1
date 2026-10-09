@@ -275,7 +275,16 @@ catch {
 }
 finally {
     Pop-Location
-    $lifecycleLock.Dispose()
-    $stepTimings["$step$(if ($stepFailed) { ' (incomplete)' })"] = $stepTimer.Elapsed
-    Write-SovereignShieldTimingSummary -Timings $stepTimings -StartedAt $startedAt
+    try {
+        $stepTimings["$step$(if ($stepFailed) { ' (incomplete)' })"] = $stepTimer.Elapsed
+        Write-SovereignShieldTimingSummary -Timings $stepTimings -StartedAt $startedAt
+        if ($Mode -eq "Workload" -and $ConfirmWorkloadDestruction -and -not $WhatIfPreference) {
+            Add-SovereignShieldTimingRecord -RepoRoot $repoRoot -Lifecycle down -Timings $stepTimings `
+                -StartedAt $startedAt -Completed (-not $stepFailed) -LifecycleLock $lifecycleLock
+        }
+    }
+    finally {
+        # Released only after the timing record and control bands have been written.
+        $lifecycleLock.Dispose()
+    }
 }

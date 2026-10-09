@@ -1,0 +1,16 @@
+{
+  "id": "containerapp-env-wait",
+  "incident": "7810503",
+  "summary": "Down polls ARM until Azure has removed the Container Apps environment, because az stops polling early.",
+  "prompt": "Workload teardown failed its final verification because the Container Apps environment cae-sovereignshield still existed. The activity log shows `az containerapp env delete` returned after about 20 minutes, while Azure finished deleting the environment 7 minutes later. Make down wait, with a deadline, until Azure has actually removed the environment before it continues.",
+  "defect": [
+    {
+      "path": "sh/sovereignshield_down.ps1",
+      "find": "            # az stops polling after about 20 minutes; Azure can need longer to remove the environment.\n            $deadline = (Get-Date).AddMinutes(45)\n            $waiting = $false\n            while ($true) {\n                $groupExists = (& az group exists --name $ResourceGroup | Out-String).Trim()\n                if ($LASTEXITCODE -ne 0 -or $groupExists -notin @(\"true\", \"false\")) {\n                    throw \"Could not check whether resource group $ResourceGroup exists.`n$groupExists\"\n                }\n                if ($groupExists -eq \"false\") { break }\n                $environmentId = (& az resource list --resource-group $ResourceGroup --name $ContainerEnvironmentName `\n                    --resource-type \"Microsoft.App/managedEnvironments\" --query \"[0].id\" -o tsv | Out-String).Trim()\n                if ($LASTEXITCODE -eq 0 -and -not $environmentId) { break }\n                if ((Get-Date) -gt $deadline) {\n                    throw \"Container Apps environment $ContainerEnvironmentName still exists after 45 minutes. Rerun down once it is gone.\"\n                }\n                if (-not $waiting) {\n                    Write-Host \"Waiting for Azure to finish deleting $ContainerEnvironmentName.\" -ForegroundColor DarkGray\n                    $waiting = $true\n                }\n                Start-Sleep -Seconds 30\n            }\n\n",
+      "replace": "\n"
+    }
+  ],
+  "checks": [
+    "tests/test_deployment_boundaries.py::test_down_waits_until_azure_removes_the_container_apps_environment"
+  ]
+}

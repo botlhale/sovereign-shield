@@ -85,13 +85,23 @@ The default run executes:
 | 7 | Build and deploy Container Apps with anonymous and Entra access |
 | 8 | Check App status, persona SQL entitlements, 13-row public fixture and Easy Auth; optionally configure GitHub |
 
-The successful reference evaluation measured approximately **75 minutes to bring
-up the entire project, including prerequisite setup**, and **30 minutes for
-teardown**. Deployment, testing and teardown incurred **US$10 or less in Azure
+The most recent successful reference cycle (6 October 2026, Ubuntu Linux with
+PowerShell 7) measured approximately **42 minutes to bring up the entire project,
+with prerequisite setup already in place**, and **35 minutes for teardown**.
+Deployment, testing and teardown incurred **US$10 or less in Azure
 charges**. These are observed synthetic-workload results, not stage SLAs or a
 guaranteed cost ceiling. Regional capacity, RBAC propagation, runtime, storage,
 warehouse activity and retained resources affect each run. See
 [measurement provenance and limits](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
+
+Both scripts print per-step timings when they finish, even after a failure. A full
+bring-up (stages 0 to 8 with the offline suite) and a confirmed workload teardown
+also append one record to [`ops/lifecycle_timings.jsonl`](../ops/lifecycle_timings.jsonl)
+and check it against the [control bands](../ops/bands.yaml). A run outside its band
+is logged, flagged for diagnosis, or drafts an intent under `intent/` for triage.
+Commit the new record, and any draft intent, as the run's evidence. Recording
+problems only produce a warning; they never fail the lifecycle.
+
 The repository `.dockerignore` restricts the ACR upload to the portal runtime
 files; local environments, Terraform providers, data, documentation and demo
 media are never sent as image-build context.

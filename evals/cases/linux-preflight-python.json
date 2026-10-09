@@ -1,0 +1,16 @@
+{
+  "id": "linux-preflight-python",
+  "incident": "0e5b228",
+  "summary": "Stage 0 resolves the Python interpreter portably so the orchestrator runs under PowerShell 7 on Linux.",
+  "prompt": "Running `pwsh ./sh/sovereignshield_up.ps1 -AccountId <id> -TenantDomain <domain> -StopAfterStage 0` on Ubuntu fails in Stage 0 with \"Required command '.\\.venv\\Scripts\\python.exe' was not found on PATH\", although .venv exists and the offline tests pass when run directly. Make Stage 0 work on both Linux and Windows.",
+  "defect": [
+    {
+      "path": "sh/sovereignshield_up.ps1",
+      "find": "        if (-not $SkipTests) { $python = Get-SovereignShieldPython -RepoRoot $repoRoot }\n",
+      "replace": "        if (-not $SkipTests) { $python = \".\\.venv\\Scripts\\python.exe\"; Assert-SovereignShieldCommand $python }\n"
+    }
+  ],
+  "checks": [
+    "tests/test_deployment_boundaries.py::test_up_preflight_runs_on_linux_and_tests_before_taking_the_lock"
+  ]
+}

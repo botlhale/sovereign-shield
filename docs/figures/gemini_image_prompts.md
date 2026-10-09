@@ -220,6 +220,20 @@ Diamond: client approval · Lane: accountable owner".
 FOOTER: "Independent reference architecture; no institutional or vendor endorsement."
 ```
 
+The 6 October 2026 render failed the checks below. Append this block to the prompt; it
+restates the routes above and adds no label or arrow.
+
+```text
+CORRECTIONS: Keep the box "Client-controlled staging and production", and every node in
+it including "Operate and reconcile", entirely inside lane C; no part of it may cross into
+lane B. "Approved" from "Production and disclosure approval" points to "Client production
+deployment", never to "Synthetic staging acceptance". No arrow joins "Synthetic staging
+acceptance" to "Client production deployment". "Acceptance evidence" is a solid arrow. Draw
+the dashed "Rework findings" arrow from "Production and disclosure approval" back to
+"Synthetic staging acceptance". Draw each arrow once. Lane C reads exactly "Client platform
+and operations". The legend has exactly the four entries given, each once.
+```
+
 ### Figure B: Submission and Analyst Reconciliation
 
 ```text
@@ -234,7 +248,8 @@ S8 "Sender's expected filing evidence". Right enclosure "Client-controlled servi
 containing S2 "Approved SDMx file intake", S3 "Protected archive and validation",
 S4 "Governed submission history", S5 "Current accepted publication",
 S6 "Restricted submission / quarantine audit" and S7 "Analyst reconciliation / Expected
-filing versus receiver state". Place S5 and S6 side by side.
+filing versus receiver state". Place S5 and S6 side by side. IDs are instructions, never
+print them.
 
 Arrows only: S1→S2 "SDMx files only" (it must start at S1, not S8); S2→S3;
 S3→S4 "Validated outcome and submission identity"; S4→S5 "Current accepted selection";
@@ -247,6 +262,15 @@ Annotation below S4: "Rejected arrivals do not replace current accepted data."
 A small amber-tinted note with no arrows: "Disclosure review: public totals and row
 presence can reveal masked values." Render the note text only; never print the word "amber".
 FOOTER: "Processing timestamps are not attested transport receipts."
+```
+
+Both 6 October 2026 renders failed the checks below. Append this block to the prompt.
+
+```text
+CORRECTIONS: Print no node IDs, numbered badges or step numbers. Print the title and
+subtitle text only, without "Title:" or "Subtitle:" prefixes. Place "Rejected arrivals do
+not replace current accepted data." directly below "Governed submission history", between
+its two outgoing arrows, never beside "Approved SDMx file intake".
 ```
 
 ## Review Before Publication
@@ -265,8 +289,9 @@ For persistent text or topology errors, redraw in an editable SVG instead.
 
 ## Assessment of Existing Renders
 
-Six Gemini renders were reviewed on 1 October 2026 from a local, uncommitted working folder.
-None is committed or used in a publication; regenerate with the prompts above.
+Six Gemini renders were reviewed on 1 October 2026 and three more on 6 October 2026, all from
+a local, uncommitted working folder. None is committed or used in a publication; regenerate
+with the prompts above, including their correction blocks.
 
 | Render | Strength | Blocking issue |
 | --- | --- | --- |
@@ -276,3 +301,6 @@ None is committed or used in a publication; regenerate with the prompts above.
 | First engagement flow | Restrained palette | Confidential data and intake drawn in the provider lane; a staging-to-production bypass |
 | Engagement Figure A | Correct columns, gates and legend | "Operate and reconcile" placed in the provider lane; the production boundary crosses it |
 | Analyst reconciliation Figure B | Faithful products and annotations | "SDMx files only" starts at the sender evidence box; the instruction word "Amber" is printed |
+| Engagement Figure A, 6 October 2026 | Crisp text; correct title, columns, lanes and gates | Not close: the staging-and-production box and "Operate and reconcile" still extend into the provider lane; production approval points to staging, not production, and staging feeds production directly; "Acceptance evidence" is dashed; the staging rework arrow is missing. Also a duplicate "Approved scope" arrow, the lane label "Client Client platform and operations" and a repeated legend entry |
+| Analyst reconciliation Figure B, first 6 October 2026 render | Correct arrows, enclosures and annotations | Instruction text printed: "Title:" and "Subtitle:" prefixes and the S1-S8 node IDs |
+| Analyst reconciliation Figure B, refined 6 October 2026 render | The most appealing render so far: clean title, correct arrows and ownership, readable labels | Two edits from publishable: remove the S1-S8 badges, and move "Rejected arrivals do not replace current accepted data." from under the intake box to below "Governed submission history" |

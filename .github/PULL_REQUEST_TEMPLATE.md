@@ -1,3 +1,11 @@
+## Intent
+
+<!-- Every change has an intent folder (see intent/README.md). Link it here. -->
+
+- Intent folder:
+- Status after this change (implemented or verified):
+- Requirements not met, or work beyond the spec:
+
 ## Summary
 
 <!-- What problem does this change solve? -->
@@ -25,6 +33,8 @@
 ## Checklist
 
 - [ ] The change is focused and contains no unrelated formatting or generated files.
+- [ ] `intent.md`, `spec.md` and `plan.md` match the change, and `plan.md` records the evidence.
+- [ ] Commits end with an `Intent:` trailer, plus `Assisted-by:` when an agent contributed.
 - [ ] Tests cover the behavior or the pull request explains why no test applies.
 - [ ] Offline tests pass.
 - [ ] Terraform changes pass `terraform fmt -recursive -check` and `terraform validate`.

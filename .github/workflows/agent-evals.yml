@@ -1,0 +1,103 @@
+# Continuous agent evals (Test stage, docs/AI_SDLC.md).
+#
+# harness - Proves every case in evals/cases still reproduces its incident:
+#           checks pass at this commit and fail once the defect is put back.
+#           Needs no agent and no secret.
+# agent   - Runs Claude Code against every case in throwaway worktrees and fails
+#           below an 80% pass rate. Inert until a maintainer adds the
+#           ANTHROPIC_API_KEY repository secret; without it the job writes a skip
+#           notice and succeeds. Runs only on the weekly schedule and on demand,
+#           never on pull_request, so code a pull request changes never runs
+#           with the secret.
+#
+# The harness runs when agent instructions, skills, hooks, review criteria or
+# cases change, weekly, and on demand. Actions are pinned to commit SHAs (see promote.yml).
+
+name: agent-evals
+
+on:
+  pull_request:
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - REVIEW.md
+      - ".claude/**"
+      - "evals/**"
+      - ".github/workflows/agent-evals.yml"
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: Eval cases reproduce their incidents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Self-test every case
+        run: python evals/run_evals.py --self-test
+
+  agent:
+    name: Agent pass rate
+    needs: harness
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      ANTHROPIC_CONFIGURED: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Skip notice
+        if: env.ANTHROPIC_CONFIGURED != 'true'
+        run: echo "### Agent evals skipped - add the ANTHROPIC_API_KEY repository secret to enable them" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.ANTHROPIC_CONFIGURED == 'true'
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: env.ANTHROPIC_CONFIGURED == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: env.ANTHROPIC_CONFIGURED == 'true'
+        with:
+          node-version: "22"
+
+      - name: Install
+        if: env.ANTHROPIC_CONFIGURED == 'true'
+        run: |
+          pip install -r requirements.txt
+          npm install --global @anthropic-ai/claude-code@2.1.292
+
+      - name: Run the agent against every case
+        if: env.ANTHROPIC_CONFIGURED == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: >-
+          python evals/run_evals.py
+          --agent "claude -p --permission-mode acceptEdits --max-turns 40"
+          --threshold 0.8 --output evals-results.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && env.ANTHROPIC_CONFIGURED == 'true'
+        with:
+          name: agent-eval-results
+          path: evals-results.json
+          if-no-files-found: ignore

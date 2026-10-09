@@ -1,0 +1,2 @@
+{"lifecycle": "down", "started_at": "2026-10-06", "total_minutes": 35, "outcome": "complete", "source": "operator-reported", "os": "Ubuntu Linux", "powershell": "7.6"}
+{"lifecycle": "up", "started_at": "2026-10-06", "total_minutes": 42, "outcome": "complete", "source": "operator-reported", "os": "Ubuntu Linux", "powershell": "7.6"}

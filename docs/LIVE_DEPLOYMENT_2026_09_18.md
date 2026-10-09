@@ -70,10 +70,12 @@ was needed for this recovery.
   not claimed as tested here.
 
 No teardown or push was part of the recovery task itself. Subsequent successful
-script-driven provisioning and teardown were confirmed in the reference evaluation:
-approximately 75 minutes up including prerequisites, 30 minutes down, and US$10 or
-less in Azure charges for deploy/test/teardown. See [measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics);
-those values are not the 10.8-minute partial recovery above or a production guarantee.
+script-driven provisioning and teardown were confirmed in the reference evaluation
+of 18 September 2026: approximately 75 minutes up including prerequisites, 30 minutes
+down, and US$10 or less in Azure charges for deploy/test/teardown. See
+[measurement scope](RELEASE_EVIDENCE.md#reference-evaluation-metrics) for that and
+later cycles; those values are not the 10.8-minute partial recovery above or a
+production guarantee.
 
 SDMx files are the modeled international input. Synthetic bank micro-transactions
 remain educational calculation artifacts, not a system deliverable. The Analyst

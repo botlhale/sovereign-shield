@@ -56,22 +56,32 @@ def pytest_addoption(parser):
         default=False,
         help="Run the high-volume scale benchmarks. Minutes, not seconds.",
     )
+    parser.addoption(
+        "--evals",
+        action="store_true",
+        default=False,
+        help="Re-run every agent eval case against HEAD in throwaway worktrees.",
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "live: requires a reachable Databricks workspace")
     config.addinivalue_line("markers", "stress: high-volume benchmark, opt in with --stress")
+    config.addinivalue_line("markers", "evals: agent eval self-test, opt in with --evals")
 
 
 def pytest_collection_modifyitems(config, items):
     skip_live = pytest.mark.skip(reason="needs --live and a reachable workspace")
     skip_stress = pytest.mark.skip(reason="needs --stress; the benchmark takes minutes")
+    skip_evals = pytest.mark.skip(reason="needs --evals; each case runs in a fresh worktree")
 
     for item in items:
         if "live" in item.keywords and not config.getoption("--live"):
             item.add_marker(skip_live)
         if "stress" in item.keywords and not config.getoption("--stress"):
             item.add_marker(skip_stress)
+        if "evals" in item.keywords and not config.getoption("--evals"):
+            item.add_marker(skip_evals)
 
 
 @pytest.fixture(scope="session")

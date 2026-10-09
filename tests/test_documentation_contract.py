@@ -125,7 +125,7 @@ def test_primary_publications_preserve_enterprise_scope(relative_path):
     assert all(platform in prose for platform in ("AWS", "GCP", "Microsoft Fabric", "open-source"))
     assert "reconstruct" in prose.lower()
     assert re.search(r"restrict|remov", prose, re.IGNORECASE)
-    assert all(measure in prose for measure in ("75 minutes", "30 minutes", "US$10"))
+    assert all(measure in prose for measure in ("42 minutes", "35 minutes", "US$10"))
     assert "prerequisite" in prose
 
 

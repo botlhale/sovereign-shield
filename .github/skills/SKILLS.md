@@ -64,9 +64,10 @@ Databricks are the demonstrated implementation. Terraform provider/module
 boundaries support AWS, GCP, Microsoft Fabric and open-source adaptations.
 Identity, storage, policy, history and hosting adapters require equivalent tests.
 
-The successful synthetic reference cycle measured approximately **75 minutes up
-including prerequisites**, **30 minutes down**, and **US$10 or less in Azure charges
-for deploy/test/teardown**. Use [the measurement scope](../../docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics),
+The most recent successful synthetic reference cycle (6 October 2026) measured
+approximately **42 minutes up with prerequisites already in place**, **35 minutes
+down**, and **US$10 or less in Azure charges for deploy/test/teardown**. Use
+[the measurement scope](../../docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics),
 not these values as production cost or duration guarantees.
 
 The [engagement playbook](../../docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) is authoritative

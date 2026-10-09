@@ -159,9 +159,10 @@ submitted filing can be rejected while an earlier accepted version stays publish
 | Empty subscription (PowerShell on Windows, or `pwsh` on Linux) | `sh/sovereignshield_up.ps1` / `sh/sovereignshield_down.ps1` | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) |
 | Existing Azure and Databricks estate (bash) | `scripts/sovereign_up_custom.sh` / `scripts/sovereign_down_custom.sh` | [Bring your own estate](docs/AUTOMATION_RUNBOOK.md#bring-your-own-azure-estate) |
 
-The greenfield reference cycle took about **75 minutes** to bring up, including prerequisite
-setup, **30 minutes** to tear down and **US$10** or less in Azure charges. These are observed
-synthetic results, not an SLA or price ceiling ([measurement scope](docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics)).
+The most recent greenfield reference cycle (6 October 2026) took about **42 minutes** to
+bring up, with prerequisites already in place, **35 minutes** to tear down and **US$10** or
+less in Azure charges. These are observed synthetic results, not an SLA or price ceiling
+([measurement scope](docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics)).
 The custom scripts attach to existing resources, create only the missing delta, tag what
 they create and record it in `.sovereign_provisioned_manifest.json`, so teardown removes
 nothing it did not create.
@@ -196,6 +197,7 @@ nothing it did not create.
 | Learn the delivery and handover model | [Engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md) · [Provider workflow](.github/skills/contractor_least_privilege_workflow.md) |
 | Present or share the material | [Persona demo script](docs/PERSONA_DEMO_SCRIPT.md) · [Publication plan](docs/LINKEDIN_POST.md) · [Release guide](docs/PUBLICATION_AND_RELEASE.md) · [Image prompts](docs/figures/gemini_image_prompts.md) |
 | Verify measured results | [Release evidence](docs/RELEASE_EVIDENCE.md) |
+| Change the project with AI agents | [AI-native SDLC](docs/AI_SDLC.md) · [Request a change](intent/README.md#how-to-request-a-change) · [Review criteria](REVIEW.md) · [Agent evals](evals/README.md) |
 
 ## Background
 
@@ -229,7 +231,11 @@ for other collaboration enquiries.
 
 Generative AI accelerated scaffolding, SDMx structure mapping, fixture generation and
 documentation. Architecture, mathematical disclosure rules and security controls were designed,
-validated and audited by senior engineering. See the [AI-assisted SDLC disclosure](CONTRIBUTING.md#ai-assisted-software-development-life-cycle).
+validated and audited by senior engineering. Changes follow an [AI-native SDLC](docs/AI_SDLC.md):
+each starts as a committed intent, gains a spec and a plan, and passes deterministic gates, AI
+review against [REVIEW.md](REVIEW.md) and a code owner's approval. To propose one, describe the
+problem to an agent as shown in [How to Request a Change](intent/README.md#how-to-request-a-change).
+See the [AI-assisted SDLC disclosure](CONTRIBUTING.md#ai-assisted-software-development-life-cycle).
 
 ## Contributing, Security and License
 

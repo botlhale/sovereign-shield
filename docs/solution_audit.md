@@ -50,8 +50,9 @@ knowledge-sharing publication strategy; the technical findings are unchanged.
    beyond the demonstration.
 7. **Medium, fixed in this revision: the greenfield lifecycle was Windows-bound.**
    `sovereignshield_up.ps1` now resolves the virtual environment's Python on either platform
-   and hands the token-store SAS to `az` without `cmd.exe`, so the greenfield path runs in
-   PowerShell 7 (`pwsh`) on Linux. The recorded reference runs used Windows; macOS is untested.
+   and, outside Windows, hands the token-store SAS to `az` without `cmd.exe`, so the greenfield
+   path runs in PowerShell 7 (`pwsh`) on Linux. The 18 September reference run used Windows and
+   the 6 October run used Ubuntu Linux; macOS is untested.
 8. **Medium: the bring-your-own-estate scripts are stub-tested.** Nine offline tests prove
    attach-before-create, tagging, sticky provenance, typed confirmation, tag-checked teardown
    and dependency order against stub `az` and `databricks` executables. Run `--dry-run`
