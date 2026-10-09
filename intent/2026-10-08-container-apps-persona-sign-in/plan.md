@@ -55,4 +55,33 @@ and redeploy Stages 3 and 5 to 8. The live parameter can be reset with the same
 
 ## Evidence
 
-Recorded when the status becomes verified.
+Recorded on 8 October 2026. Status `implemented`: the owner's persona sign-in is
+the last acceptance check.
+
+- **Root cause.** The live sign-in redirect asked for `scope=openid profile email`
+  and carried a separate `"scope=…` parameter. The workspace's SCIM `Me` endpoint
+  answered HTTP 400 to a Microsoft Graph token and 200 to an Azure Databricks token
+  for the same operator.
+- **Tests.** The six tests from `064127d` failed there and pass at `25fa6d1`. Full
+  offline suite: 396 passed, 14 skipped. The eval self-test reproduces 9 of 9
+  incidents, including `easy-auth-scope-quoting`.
+- **Live configuration.**
+  - The login parameter now reads back as `scope=openid profile offline_access
+    2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/user_impersonation`.
+  - The live redirect requests that scope and nothing else.
+  - The Microsoft Graph grant is `openid profile email offline_access` for all
+    principals.
+  - The app registration declares the Azure Databricks permission once instead of
+    17 times.
+- **Redeployment.**
+  - Stage 3 succeeded on the fourth run. Three runs failed on workspace API
+    requests that stalled for 90 seconds, and the first left a deploy lock, which
+    was removed.
+  - Stages 5 to 8 completed in 7 minutes 27 seconds:
+    - Databricks App deployment `01f1c37f79fa12c889b2c9b821b56e00` succeeded;
+    - Container App revision `ca-sovereignshield-portal--0000004` runs image
+      `20261008211943`;
+    - Stage 8 passed, including the new redirect check, with 13 public rows.
+  - The live portal serves the fixed page, and anonymous `whoami` returns 200.
+- **Outstanding.** The owner signs out at `/.auth/logout`, signs in as each persona
+  on the Container Apps portal, and confirms that the entitled data appears.

@@ -1,6 +1,6 @@
 # Intent: Restore persona sign-in on the Container Apps portal
 
-- **Status:** planned
+- **Status:** implemented
 - **Originator:** @botlhale, after signing in as personas on the 8 October deployment
 - **Product owner:** @botlhale
 - **Date:** 2026-10-08
