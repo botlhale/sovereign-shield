@@ -428,8 +428,9 @@
     } else {
       // Databricks Apps sign in through workspace single sign-on and offer no sign-out.
       authLink.classList.add("hidden");
+      document.getElementById("persona-text").textContent += " · workspace SSO";
       document.getElementById("persona-badge").title =
-        "Signed in through workspace single sign-on. Use a separate private window to view another persona.";
+        "Use a separate private window to view another persona.";
     }
   }
 
