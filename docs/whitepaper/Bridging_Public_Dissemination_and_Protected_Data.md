@@ -85,9 +85,9 @@ At the core of the data plane sits the **Triple-Lock Governance Architecture**, 
 
 <div style="page-break-inside: avoid;">
 
-![Triple-Lock Policy Enforcement Point](../figures/triple_lock.png)
+![Triple-Lock Security on Unity Catalog, an AI-generated illustration](../figures/ai/triple_lock_illustration.jpg)
 
-*Figure 4 — Triple-Lock Policy Enforcement Point: jurisdictional row filtering; value, coordinate and lineage masking; and publication-state controls.*
+*Figure 4 — Triple-Lock Policy Enforcement Point: jurisdictional row filtering; value, coordinate and lineage masking; and publication-state controls. AI-generated illustration; the [hand-authored control contract](../figures/triple_lock.png) is the reference.*
 
 </div>
 

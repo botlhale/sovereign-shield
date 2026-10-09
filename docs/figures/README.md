@@ -20,6 +20,20 @@ The [review gallery](review/README.md) holds two 3840x2160 engagement figures th
 yet in the publications. [Image-generation prompts](gemini_image_prompts.md) cover optional
 AI-generated artwork; generated labels are never the architectural authority.
 
+## AI-Generated Illustrations
+
+Two Gemini renders passed every [publication check](gemini_image_prompts.md#review-before-publication)
+and are used where they read better than a schematic. The hand-authored figures above remain
+the reference, and every embed is captioned "AI-generated illustration".
+
+| Illustration | Prompt | Generated | Reviewed | Used in |
+| --- | --- | --- | --- | --- |
+| [Four audiences, one governed source](ai/four_audiences.jpg) | [F](gemini_image_prompts.md#f-executive-architecture) | 8 October 2026 by @botlhale with Gemini, 2752x1536 | 8 October 2026 by GitHub Copilot (Claude Opus 5.5), full-resolution proof-read | LinkedIn article cover |
+| [Triple-lock security on Unity Catalog](ai/triple_lock_illustration.jpg) | [B](gemini_image_prompts.md#b-triple-lock-security) | 8 October 2026 by @botlhale with Gemini, 2752x1536 | 8 October 2026 by GitHub Copilot (Claude Opus 5.5), checked against the [triple-lock contract](../../.github/skills/triple_lock_security.md) | White Paper Figure 4; LinkedIn inline image |
+
+The files are the unedited renders. Replace one only with a render that passes the same
+checks, and update its row.
+
 ## Render and Verify
 
 PNGs are rendered at 1600x900 with headless Chrome or Chromium (set `CHROME_BIN` if it is not

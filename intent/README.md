@@ -133,3 +133,4 @@ gate approvals that did not happen at the time.
 | [2026-10-06-gemini-figure-review](2026-10-06-gemini-figure-review/intent.md) | verified | Decide whether the new Gemini engagement figures can be published |
 | [2026-10-06-linux-provider-checksums](2026-10-06-linux-provider-checksums/intent.md) | verified | Lock the Terraform providers for Linux as well as Windows |
 | [2026-10-08-container-apps-persona-sign-in](2026-10-08-container-apps-persona-sign-in/intent.md) | implemented | Restore persona sign-in on the Container Apps portal |
+| [2026-10-08-gemini-renders-round-two](2026-10-08-gemini-renders-round-two/intent.md) | verified | Publish the Gemini renders that pass review and fix the promising rest |

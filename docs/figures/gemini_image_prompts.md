@@ -70,6 +70,14 @@ marker on the boundary beside the cylinder with the label "Data never crosses".
 FOOTER: "Production-isolated delivery. The client owns identities, data and release."
 ```
 
+The 8 October 2026 render failed the checks below. Append this block to the prompt.
+
+```text
+CORRECTIONS: The thick arrow "Reviewed code, tests, evidence" ends at "Independent review".
+Draw no line between "Code, policies and credential-free tests" and "Production SDMx intake";
+the "no entry" marker stands on the boundary on its own.
+```
+
 ### B. Triple-Lock Security
 
 Pro. Storage isolation is the foundation; the three locks are the repository's controls.
@@ -114,6 +122,13 @@ IDs, times, values, verdict".
 FOOTER: "Replay of the same message adds nothing. A new identical filing is kept."
 ```
 
+The 8 October 2026 render failed the check below. Append this block to the prompt.
+
+```text
+CORRECTIONS: The bar "Filing B accepted: key A only" runs to the right edge of the chart and
+ends in an open arrow, not a closing cap. "VALID_TO = NULL" stays beside its end.
+```
+
 ### D. Three Consumption Planes
 
 Flash draft, Pro final. The enclave is a concept: draw it dashed.
@@ -131,6 +146,13 @@ BOTTOM RIGHT, slate panel "Audit oversight": "Administrator lifecycle audit",
 "Submitter Analyst View".
 Solid arrows from the hub to each solid panel; no arrow from the hub to the enclave.
 FOOTER: "The enclave is a policy concept, not deployed infrastructure."
+```
+
+The 8 October 2026 render failed the check below. Append this block to the prompt.
+
+```text
+CORRECTIONS: Positions are layout instructions: never print "LEFT", "TOP RIGHT" or
+"BOTTOM RIGHT". The three solid arrows from the hub carry no labels.
 ```
 
 ### E. Complete Technical Architecture
@@ -153,6 +175,15 @@ Under the planes, a thin slate band "Terraform · Asset Bundles · Key Vault · 
 Arrows: plane 1 → 2 "governed table"; plane 2 → 3 "resolved per caller";
 plane 3 → 4 "entitled rows".
 FOOTER: "Synthetic data. Independent reference architecture."
+```
+
+The 8 October 2026 render failed the checks below. Append this block to the prompt. The
+amber note keeps the limitation that the hand-authored figure carries.
+
+```text
+CORRECTIONS: No product logos: draw a plain gear icon beside the tooling band. Use a plain
+slate background with no network lines. AMBER NOTE, bottom right, small: "Entitlement is not
+disclosure control."
 ```
 
 ### F. Executive Architecture
@@ -289,8 +320,10 @@ For persistent text or topology errors, redraw in an editable SVG instead.
 
 ## Assessment of Existing Renders
 
-Six Gemini renders were reviewed on 1 October 2026 and three more on 6 October 2026, all from
-a local, uncommitted working folder. None is committed or used in a publication; regenerate
+Six Gemini renders were reviewed on 1 October 2026, three on 6 October 2026 and eight on
+8 October 2026, from a local, uncommitted working folder. Two of the 8 October renders
+passed every check and are published from `ai/`, listed under
+[AI-generated illustrations](README.md#ai-generated-illustrations). Regenerate the others
 with the prompts above, including their correction blocks.
 
 | Render | Strength | Blocking issue |
@@ -304,3 +337,11 @@ with the prompts above, including their correction blocks.
 | Engagement Figure A, 6 October 2026 | Crisp text; correct title, columns, lanes and gates | Not close: the staging-and-production box and "Operate and reconcile" still extend into the provider lane; production approval points to staging, not production, and staging feeds production directly; "Acceptance evidence" is dashed; the staging rework arrow is missing. Also a duplicate "Approved scope" arrow, the lane label "Client Client platform and operations" and a repeated legend entry |
 | Analyst reconciliation Figure B, first 6 October 2026 render | Correct arrows, enclosures and annotations | Instruction text printed: "Title:" and "Subtitle:" prefixes and the S1-S8 node IDs |
 | Analyst reconciliation Figure B, refined 6 October 2026 render | The most appealing render so far: clean title, correct arrows and ownership, readable labels | Two edits from publishable: remove the S1-S8 badges, and move "Rejected arrivals do not replace current accepted data." from under the intake box to below "Governed submission history" |
+| A. The Contractor Dilemma, 8 October 2026 | Every label verbatim; clear boundary and "no entry" marker | Promising. "Reviewed code, tests, evidence" ends at staging, so independent review looks skipped. An unlabelled line joins "Code, policies and credential-free tests" to "Production SDMx intake" |
+| B. Triple-Lock Security, 8 October 2026 | Every label verbatim, including the masked key; the four layers match the triple-lock contract | Passes; the soft glow is accepted. Published as White Paper Figure 4 and the LinkedIn inline image |
+| C. Submission History on Two Timelines, 8 October 2026 | Both timelines, the rejected filing and the late older filing are right | Promising. Filing B's open interval ends in a closing cap. The added t1-t4 and T1-T4 labels are accurate |
+| D. Three Consumption Planes, 8 October 2026 | Hub, panels and dashed enclave concept are right | Promising. The position words "LEFT", "TOP-RIGHT" and "BOTTOM-RIGHT" are printed on the arrows |
+| E. Complete Technical Architecture, 8 October 2026 | Every label verbatim; strong four-plane layout | Promising. A Terraform logo sits beside the tooling band, the background has network lines, and the limitation note of the hand-authored figure is absent |
+| F. Executive Architecture, 8 October 2026 | Every label verbatim; clean executive story | Passes. Published as the LinkedIn article cover |
+| Engagement Figure A, 8 October 2026 | The box, lane label and legend are now right | Not pursued. An unapproved line runs from "Scope and SDMx contract" to the repository. Release approval is routed to staging. "Acceptance evidence" is dashed, and the staging rework arrow is missing. Five nodes sit one column early. The verified SVG stays |
+| Analyst reconciliation Figure B, 8 October 2026 | Correct arrows, no IDs, clean title | Passes, but not used: no publication shows Figure B, and the verified draft also encodes accepted versus restricted products by colour |

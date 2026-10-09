@@ -83,5 +83,14 @@ the last acceptance check.
       `20261008211943`;
     - Stage 8 passed, including the new redirect check, with 13 public rows.
   - The live portal serves the fixed page, and anonymous `whoami` returns 200.
+- **Review follow-ups.** Two Copilot Autofix suggestions, accepted on GitHub, were
+  merged in `45528ac`:
+  - `0119667` escapes and truncates the logged audience, so a crafted token cannot
+    forge log lines;
+  - `ec9e5e1` labels the Databricks App badge "workspace SSO".
+
+  On the merged branch the offline suite passed 398 tests with 14 skipped, and the
+  eval self-test reproduced 9 of 9 incidents. They reach the live portals at the
+  next redeployment.
 - **Outstanding.** The owner signs out at `/.auth/logout`, signs in as each persona
   on the Container Apps portal, and confirms that the entitled data appears.
