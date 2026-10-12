@@ -12,9 +12,13 @@ those evaluations, not the current availability of a continuously operated servi
 | Measure | Observed Reference Result | Boundary |
 | --- | --- | --- |
 | Full project bring-up using `sh/sovereignshield_up.ps1` | Approximately 42 minutes for all eight stages, including the offline test suite, with prerequisites already in place (6 October 2026). Earlier: approximately 75 minutes including prerequisite setup (18 September 2026) | Synthetic evaluation, not a production provisioning SLA |
-| Workload teardown using `sh/sovereignshield_down.ps1` | Approximately 35 minutes (6 October 2026). Earlier: approximately 30 minutes (18 September 2026) | Separate from bring-up; retained backend/identity artifacts follow the runbook |
+| Workload teardown using `sh/sovereignshield_down.ps1` | Approximately 32 minutes (latest run, operator-reported 12 October 2026). Earlier: approximately 35 minutes (6 October 2026) and 30 minutes (18 September 2026) | Separate from bring-up; retained backend/identity artifacts follow the runbook |
 | Azure charges for deployment, testing and teardown | US$10 or less in each cycle | Measured reference cycle, not a price guarantee or recurring production estimate |
 | Lifecycle completion | Both scripts completed without errors in both cycles | Institutional production acceptance remains a separate gate |
+
+**Latest teardown:** the operator reported on 12 October 2026 that the most recent
+workload teardown took approximately 32 minutes. Its run log and cost were not supplied;
+the bring-up and cost figures below remain those of the 6 October cycle.
 
 **Measurement provenance:** the current reference cycle was run by the project
 operator on 6 October 2026 from Ubuntu Linux with PowerShell 7.6. The state

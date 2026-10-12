@@ -45,18 +45,19 @@ Use **Write article** from the home page. Cover image: [four audiences, one gove
 Inline images: the [Discovery Gateway capture](../demo/researcher_discovery_view.png) and the
 [triple-lock illustration](figures/ai/triple_lock_illustration.jpg). Caption both illustrations
 "AI-generated illustration". Keep the repository link in the body. A copy-ready version of
-this article and its feed share text is in [LinkedIn first post](LINKEDIN_FIRST_POST.md).
+this article, its share text and a step-by-step posting guide with image previews is in
+[LinkedIn first post](LINKEDIN_FIRST_POST.md).
 
 ```text
 Build without seeing: how contractors and AI agents can engineer a statistical data platform without touching confidential data
 
-My work has long sat where data governance meets international statistics: group-based row-level security for regulatory returns on a commercial cloud platform, and a banking statistics pipeline modernized to produce SDMX 3.0. Through extensive experience working with data and many discussions with data experts, three topics have piqued my interest most.
+My work has long sat where data governance meets international statistics: group-based row-level security for regulatory returns on a commercial cloud platform, and a banking statistics pipeline modernized to produce SDMX 3.0. Through extensive experience working with data, and many discussions with data experts, three topics have piqued my interest the most.
 
 Executives want masking they can trust: not "the developer promises not to look", but controls no developer can talk their way around.
 Data holders want to work with researchers without handing over the data.
 Reporting analysts who file several submissions want a simple answer: which copy does the international organization actually hold?
 
-International organizations often build their SDMX stacks on open source, while many central banks run on a commercial cloud. I wanted to see what the same guarantees look like on Azure Databricks, so I built Sovereign Shield, an independent reference architecture on synthetic data only, and published the code, evidence and limits so others can study, reuse and challenge it.
+The reporting institution may be a central bank or a national statistical office. In the sample used here, the BIS Locational Banking Statistics, it is a central bank. International organizations often build their SDMX stacks on open source, while many central banks and national statistical offices run on a commercial cloud. I wanted to see what the same controls look like on Azure Databricks, so I built Sovereign Shield, an independent reference architecture on synthetic data only, and published the code, evidence and limits so others can study, reuse and challenge it.
 
 The contractor dilemma
 Statutory confidentiality says contributors' data is used for statistics and released only when no one can be identified. Yet the engineering that enforces it (Unity Catalog policies, Delta Lake history, SDMX serialization, Terraform) is increasingly delivered by integrators, contractors and AI coding agents. Giving builders production access in order to build the controls that protect production is a contradiction.
@@ -70,20 +71,20 @@ The pattern: build without seeing
 Four personas read one governed store: the public sees free values; submitting analysts see their own filings in every state, so they can reconcile what they sent with what the receiver holds; administrators see the full audit trail; and researchers get something new.
 
 The idea I most want feedback on: a Discovery Gateway
-A researcher should be able to discover that confidential data exists, so they can approach the submitting central bank, without learning the value or even exactly what it describes. For restricted cells the platform withholds the value and masks the counterparty: Q.S.C.A.USD.D.5J.A.US.A.5J becomes Q.S.C.A.USD.D.5J.A.US.xx.xx. Masked rows never appear in a download, so a researcher's export is identical to the public one.
+A researcher should be able to discover that confidential data exists, so they can approach the submitting central bank or national statistical office, without learning the value or even exactly what it describes. For restricted cells the platform withholds the value and masks the counterparty: Q.S.C.A.USD.D.5J.A.US.A.5J becomes Q.S.C.A.USD.D.5J.A.US.xx.xx. Masked rows never appear in a download, so a researcher's export is identical to the public one.
 
 Two lessons surprised me.
 Masking a value is not enough if you leave its fingerprints. A row hash built from the full key can be brute-forced back to hidden coordinates in a few thousand guesses, and a payload hash confirms a guessed value. Both are now masked by the same rule.
 Masks must resolve before filters, or a researcher can filter by counterparty and watch which restricted row appears. Unity Catalog applies masks first, and the tests hold the local mirror to the same rule.
 
 What it does not solve
-Access control is not disclosure control. In the synthetic data, a published total of 1,000 minus public components of 400 and 500 still reveals a restricted cell of 100, masked coordinates or not. That needs complementary suppression decided by the data authority. Researchers who genuinely need restricted cells belong in a secure enclave: approved projects, no raw export, reviewed outputs. That part is a concept, not code.
+Access control is not disclosure control. In the synthetic data, a published total of 1,000 minus public components of 400 and 500 still reveals a restricted cell of 100, masked coordinates or not. That example has a single restricted cell. When several cells in the same table are masked, as is typical for most statistics, working back to any one value becomes much harder, though not necessarily impossible. What is needed beyond the implemented controls, such as complementary suppression decided by the data authority, is therefore a case-by-case decision based on an understanding of the statistic the architecture is applied to. Researchers who genuinely need restricted cells belong in a secure enclave: approved projects, no raw export, reviewed outputs. That part is a concept, not code.
 
 Beyond statistics
 The same question now faces AI assistants grounded in enterprise knowledge: retrieval should return only the evidence the person asking is entitled to see. Binding that rule to the data, letting signed-in channels query with the caller's own identity and giving anonymous traffic a least-privileged public identity, never one shared privileged account, keeps the decision in one governed place. Sovereign Shield does not include an assistant, but its gateway faces the same identity question.
 
 Evidence
-With prerequisites already in place, a complete Azure deployment came up in about 42 minutes and tore down in about 35, for US$10 or less in Azure charges. Those are synthetic evaluation numbers, not production estimates. The code, white paper and an open reconstruction challenge are here: https://github.com/botlhale/sovereign-shield
+With prerequisites already in place, a complete Azure deployment came up in about 42 minutes, and the latest teardown took about 32, for US$10 or less in Azure charges per cycle. Those are synthetic evaluation numbers, not production estimates. The code, white paper and an open reconstruction challenge are here: https://github.com/botlhale/sovereign-shield
 
 Independent, educational work on synthetic data and public standards, written in a personal capacity. It is not the work of the Bank of Canada or any other institution, and the views are my own.
 
@@ -100,7 +101,7 @@ document**, titled "Sovereign Shield: Executive Brief".
 ```text
 Can an external team build the controls for confidential statistics without ever seeing the data?
 
-The eight-page Executive Brief behind last week's article summarizes the pattern for architecture boards: four personas over one governed store, how an analyst reconciles the latest filing with the accepted publication, and what still needs a disclosure decision. It closes with the questions worth asking before any pilot.
+The eight-page Executive Brief behind this week's article summarizes the pattern for architecture boards: four personas over one governed store, how an analyst reconciles the latest filing with the accepted publication, and what still needs a disclosure decision. It closes with the questions worth asking before any pilot.
 
 Article, white paper and code: https://github.com/botlhale/sovereign-shield
 Independent, educational work on synthetic data; views are my own and no institutional or vendor endorsement is implied.
