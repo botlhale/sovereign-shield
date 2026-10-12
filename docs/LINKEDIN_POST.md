@@ -44,7 +44,8 @@ sponsorship is implied.
 Use **Write article** from the home page. Cover image: [four audiences, one governed source](figures/ai/four_audiences.jpg).
 Inline images: the [Discovery Gateway capture](../demo/researcher_discovery_view.png) and the
 [triple-lock illustration](figures/ai/triple_lock_illustration.jpg). Caption both illustrations
-"AI-generated illustration". Keep the repository link in the body.
+"AI-generated illustration". Keep the repository link in the body. A copy-ready version of
+this article and its feed share text is in [LinkedIn first post](LINKEDIN_FIRST_POST.md).
 
 ```text
 Build without seeing: how contractors and AI agents can engineer a statistical data platform without touching confidential data
