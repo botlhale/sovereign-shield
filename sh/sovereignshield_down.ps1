@@ -17,6 +17,10 @@
     ./sh/sovereignshield_down.ps1 -Mode Workload -ConfirmWorkloadDestruction
 
 .EXAMPLE
+    # From a Linux shell; the single quotes stop bash expanding $false.
+    pwsh ./sh/sovereignshield_down.ps1 -Mode Workload -ConfirmWorkloadDestruction '-Confirm:$false'
+
+.EXAMPLE
     ./sh/sovereignshield_down.ps1 -Mode Workload -WhatIf
 #>
 
