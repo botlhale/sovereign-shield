@@ -54,6 +54,10 @@ acceptance. No unimplemented platform port is represented as tested.
 
 ## Reproducible Methods
 
+**Recorded local result, 12 October 2026:** Python 3.12.3 on Linux, pysdmx 1.18.0,
+pandas 3.0.6: **399 passed, 13 skipped** in the default suite. The skips are the opt-in
+live persona tests (2), stress and benchmark tests (10) and the agent eval runner (1).
+
 **Recorded local result, 1 October 2026:** Python 3.14.4 on Linux, pysdmx 1.18.0:
 **245 passed, 12 skipped** in the default suite; the skips are the opt-in live and
 stress tests. New tests cover coordinate and lineage masking, filter probes, facets,

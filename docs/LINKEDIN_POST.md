@@ -50,7 +50,7 @@ this article and its feed share text is in [LinkedIn first post](LINKEDIN_FIRST_
 ```text
 Build without seeing: how contractors and AI agents can engineer a statistical data platform without touching confidential data
 
-My work has long sat where data governance meets international statistics: group-based row-level security for regulatory returns on a commercial cloud platform, and a banking statistics pipeline modernized to produce SDMX 3.0. At SDMX community events, three conversations kept coming back.
+My work has long sat where data governance meets international statistics: group-based row-level security for regulatory returns on a commercial cloud platform, and a banking statistics pipeline modernized to produce SDMX 3.0. Through extensive experience working with data and many discussions with data experts, three topics have piqued my interest most.
 
 Executives want masking they can trust: not "the developer promises not to look", but controls no developer can talk their way around.
 Data holders want to work with researchers without handing over the data.
@@ -64,7 +64,7 @@ Statutory confidentiality says contributors' data is used for statistics and rel
 The pattern: build without seeing
 1. Contract, not data. The data owner approves metadata only: the BIS LBS 1.0 structure, codelists, 21 validation rules and a persona matrix. Builders generate synthetic SDMX filings that exercise every branch.
 2. Policies travel with the table. Unity Catalog row filters and column masks decide per caller, per row and per cell. The same SQL runs in staging and production.
-3. Prove it offline. More than 240 credential-free tests fail if a control is removed.
+3. Prove it offline. 399 credential-free tests run without cloud access, and they fail if a control is removed.
 4. Hand over and revoke. The institution imports a reviewed release, owns every identity and offboards the builders.
 
 Four personas read one governed store: the public sees free values; submitting analysts see their own filings in every state, so they can reconcile what they sent with what the receiver holds; administrators see the full audit trail; and researchers get something new.

@@ -194,6 +194,12 @@ reconstruction. Delete it only as an explicit final decommissioning decision.
   -Mode Workload -ConfirmWorkloadDestruction
 ```
 
+On Linux, run the teardown from the shell:
+
+```bash
+pwsh ./sh/sovereignshield_down.ps1 -Mode Workload -ConfirmWorkloadDestruction '-Confirm:$false'
+```
+
 The script discovers live tables and functions before deleting schemas, destroys
 bundle resources, handles script-managed or Terraform-managed Container Apps,
 runs Terraform destroy, removes an orphaned Databricks diagnostic workspace if

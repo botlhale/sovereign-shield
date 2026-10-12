@@ -23,7 +23,8 @@ and the [triple-lock illustration](figures/ai/triple_lock_illustration.jpg). Cap
 generated images "AI-generated illustration".
 
 **Figures quoted.** Bring-up and teardown times, Azure charges and the offline test count
-come from the [evidence register](RELEASE_EVIDENCE.md). Recheck them against the frozen
+come from the [evidence register](RELEASE_EVIDENCE.md); the 399 tests are the offline
+suite recorded on 12 October 2026. Recheck them against the frozen
 commit before posting.
 
 ---
@@ -40,8 +41,9 @@ Build without seeing: how contractors and AI agents can engineer a statistical d
 
 My work has long sat where data governance meets international statistics: group-based
 row-level security for regulatory returns on a commercial cloud platform, and a banking
-statistics pipeline modernized to produce SDMX 3.0. At SDMX community events, three
-conversations kept coming back.
+statistics pipeline modernized to produce SDMX 3.0. Through extensive experience working
+with data and many discussions with data experts, three topics have piqued my interest
+most.
 
 - **Executives** want masking they can trust: not "the developer promises not to look", but
   controls no developer can talk their way around.
@@ -70,7 +72,8 @@ to build the controls that protect production is a contradiction.
    synthetic SDMX filings that exercise every branch.
 2. **Policies travel with the table.** Unity Catalog row filters and column masks decide
    per caller, per row and per cell. The same SQL runs in staging and production.
-3. **Prove it offline.** More than 240 credential-free tests fail if a control is removed.
+3. **Prove it offline.** 399 credential-free tests run without cloud access, and they fail
+   if a control is removed.
 4. **Hand over and revoke.** The institution imports a reviewed release, owns every
    identity and offboards the builders.
 
@@ -153,7 +156,7 @@ I tested that question on Azure Databricks with Sovereign Shield, an independent
 The pattern in four steps:
 1. Contract, not data: builders get the SDMX structure, codelists, validation rules and a persona matrix, never the filings.
 2. Policies travel with the table: Unity Catalog row filters and column masks decide per caller, per row and per cell.
-3. Prove it offline: more than 240 credential-free tests fail if a control is removed.
+3. Prove it offline: 399 credential-free tests run without cloud access, and they fail if a control is removed.
 4. Hand over and revoke: the institution owns every identity and offboards the builders.
 
 The part I most want challenged is a Discovery Gateway: researchers can learn that a confidential cell exists without learning its value or exactly what it describes.

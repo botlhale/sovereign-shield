@@ -258,6 +258,17 @@ Execute it:
   -ConfirmWorkloadDestruction
 ```
 
+On Linux, run it from the shell (bash or similar):
+
+```bash
+pwsh ./sh/sovereignshield_down.ps1 -Mode Workload -ConfirmWorkloadDestruction '-Confirm:$false'
+```
+
+The script declares a high confirmation impact, so PowerShell would otherwise stop at
+a confirmation prompt for each destructive step. `-ConfirmWorkloadDestruction`
+authorizes the teardown and `-Confirm:$false` suppresses those prompts. The single
+quotes stop bash from expanding `$false`.
+
 The script performs these operations in order:
 
 1. Capture workspace authentication before Key Vault or workspace deletion.
