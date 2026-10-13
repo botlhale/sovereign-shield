@@ -84,7 +84,9 @@ and their keys end in `.xx.xx`.
 
 > Coordinate masking is not disclosure control. Published margins in this fixture
 > still give one hidden cell as 1000 minus 400 minus 500. Access to restricted cells
-> belongs in an approved secure enclave, and margins need complementary suppression.
+> belongs in an approved secure enclave. With several masked cells, as is typical,
+> reconstruction is much harder, so further controls such as complementary suppression
+> are decided case by case for each statistic.
 
 **Evidence boundary:** show synthetic reconstruction examples only. No live attack
 or third-party probing is part of this demonstration.

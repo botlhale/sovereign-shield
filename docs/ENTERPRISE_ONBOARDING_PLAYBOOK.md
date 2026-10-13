@@ -91,7 +91,9 @@ The Researcher persona is a Discovery Gateway and remains conditional on disclos
 approval: restricted rows show existence without value or counterparty, yet published
 totals, row presence and revision differences can still reconstruct restricted values.
 Apply the [reconstruction challenge and release criteria](../SECURITY.md#statistical-reconstruction-challenge);
-restrict or remove the role if observation existence makes inference trivial.
+restrict or remove the role if observation existence makes inference trivial. Several
+masked cells in a table, as is typical, make reconstruction much harder but not impossible;
+decide further controls case by case for each statistic.
 
 ### Repository Options
 

@@ -87,9 +87,9 @@ The default run executes:
 
 The most recent successful reference cycle (6 October 2026, Ubuntu Linux with
 PowerShell 7) measured approximately **42 minutes to bring up the entire project,
-with prerequisite setup already in place**, and **35 minutes for teardown**.
-Deployment, testing and teardown incurred **US$10 or less in Azure
-charges**. These are observed synthetic-workload results, not stage SLAs or a
+with prerequisite setup already in place**, and deployment, testing and teardown
+incurred **US$10 or less in Azure charges**. The latest teardown (12 October 2026)
+took approximately **32 minutes**. These are observed synthetic-workload results, not stage SLAs or a
 guaranteed cost ceiling. Regional capacity, RBAC propagation, runtime, storage,
 warehouse activity and retained resources affect each run. See
 [measurement provenance and limits](RELEASE_EVIDENCE.md#reference-evaluation-metrics).
