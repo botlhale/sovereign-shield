@@ -2,8 +2,8 @@
   {
     "source": "docs/figures/compute_strategy.svg",
     "image": "docs/figures/compute_strategy.png",
-    "source_sha256": "39f9662b5ff05c92a469c9c3b64902579517364cfa3575c9b26b140f6c9cf595",
-    "image_sha256": "255976e10544cd99e2572fefe412af8d51185f42f582fea1e44d2d7f6fe49c97"
+    "source_sha256": "bcda99ea018a5706a5d5b830a833a99b92bf90db703e77c2a3758a2c9f608da1",
+    "image_sha256": "879f958f6ed6b928579374282636516ee3940492011d980b6a2a530ec4b4cbb5"
   },
   {
     "source": "docs/figures/dual_consumption.svg",

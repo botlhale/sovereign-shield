@@ -108,9 +108,15 @@ def render_proofs():
     img{display:block;max-width:100%;max-height:195mm;object-fit:contain;} table{border-collapse:collapse;width:100%;font-size:9pt;break-inside:avoid;}
     td,th{padding:6px;border:1px solid #ccd3d6;text-align:left;vertical-align:top;} pre{font-size:8pt;white-space:pre-wrap;overflow-wrap:anywhere;padding:10px;background:#f4f6f7;}
     a{color:#00685d;}blockquote{border-left:3px solid #168271;padding-left:10px;}p,li{orphans:3;widows:3;}"""
+    # The brief keeps one section per designed page, so larger type fills each page. The white
+    # paper flows continuously: shorter images let two portal captures share a page.
+    layout = {
+        "EXECUTIVE_BRIEF.md": "body{font-size:12pt;line-height:1.5;}table{font-size:11pt;}",
+        "Bridging_Public_Dissemination_and_Protected_Data.md": "@page{margin:14mm 16mm;}img{max-height:110mm;margin:0 auto;}",
+    }
     sources = [ROOT / "docs/EXECUTIVE_BRIEF.md", ROOT / "docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md"]
     for source in sources:
-        markup = '<!doctype html><html><head><meta charset="utf-8"><base href="' + source.parent.as_uri() + '/"><style>' + style + '</style></head><body>' + MARKDOWN.render(source.read_text(encoding="utf-8")) + '</body></html>'
+        markup = '<!doctype html><html><head><meta charset="utf-8"><base href="' + source.parent.as_uri() + '/"><style>' + style + layout[source.name] + '</style></head><body>' + MARKDOWN.render(source.read_text(encoding="utf-8")) + '</body></html>'
         page = output / (source.stem + ".html")
         page.write_text(markup, encoding="utf-8")
         pdf = page.with_suffix(".pdf")

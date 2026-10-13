@@ -5,3 +5,6 @@ docs/figures/*.png -text
 docs/figures/review/*.svg text eol=lf
 docs/figures/review/manifest.json text eol=lf
 docs/figures/review/*.png -text
+*.pdf binary
+*.png binary
+*.jpg binary

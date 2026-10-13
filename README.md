@@ -23,7 +23,7 @@ can study, reproduce and challenge the pattern; it is not a product or a service
 
 ## The Problem: the Contractor Dilemma
 
-Central banks and statistical agencies hold data under statutory confidentiality: reports
+Central banks and national statistical offices hold data under statutory confidentiality: reports
 from individual institutions may be used for statistical purposes and released only when
 no contributor can be identified. The engineering that enforces those obligations, from
 Unity Catalog policy design and Delta Lake history engines to SDMx serialization and
@@ -50,7 +50,7 @@ necessary, but the people building the controls can still end up looking at the 
    builders. See the [engagement playbook](docs/ENTERPRISE_ONBOARDING_PLAYBOOK.md).
 
 The researcher persona is a **Sovereign Discovery Gateway**: researchers learn that a restricted
-series exists, so they can approach the submitting central bank, but they receive neither the
+series exists, so they can approach the submitting central bank or national statistical office, but they receive neither the
 value nor the exact coordinates (`Q.S.C.A.USD.D.5J.A.US.xx.xx`). Access to restricted cells is
 reserved for a conceptual [Secure Data Enclave](docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md#the-secure-data-enclave-conceptual-future-state).
 
@@ -159,9 +159,9 @@ submitted filing can be rejected while an earlier accepted version stays publish
 | Empty subscription (PowerShell on Windows, or `pwsh` on Linux) | `sh/sovereignshield_up.ps1` / `sh/sovereignshield_down.ps1` | [Operations runbook](docs/AUTOMATION_RUNBOOK.md) |
 | Existing Azure and Databricks estate (bash) | `scripts/sovereign_up_custom.sh` / `scripts/sovereign_down_custom.sh` | [Bring your own estate](docs/AUTOMATION_RUNBOOK.md#bring-your-own-azure-estate) |
 
-The most recent greenfield reference cycle (6 October 2026) took about **42 minutes** to
-bring up, with prerequisites already in place, **35 minutes** to tear down and **US$10** or
-less in Azure charges. These are observed synthetic results, not an SLA or price ceiling
+The 6 October 2026 greenfield reference cycle took about **42 minutes** to bring up, with
+prerequisites already in place, and **US$10** or less in Azure charges; the latest teardown
+(12 October 2026) took about **32 minutes**. These are observed synthetic results, not an SLA or price ceiling
 ([measurement scope](docs/RELEASE_EVIDENCE.md#reference-evaluation-metrics)).
 The custom scripts attach to existing resources, create only the missing delta, tag what
 they create and record it in `.sovereign_provisioned_manifest.json`, so teardown removes
@@ -172,8 +172,11 @@ nothing it did not create.
 - **Entitlement is not disclosure control.** Published margins can reconstruct a withheld cell:
   the fixture contains `1000 - 400 - 500 = 100`. Coordinate masking hides the counterparty
   and closes filter-probe and hash side channels; it does not stop margin differencing across
-  visible dimensions. Complementary suppression remains a release decision. Restrict or remove
-  the Researcher role where row presence makes inference trivial
+  visible dimensions. That fixture has a single restricted cell; when several cells in a table
+  are masked, as is typical for most statistics, working back to any one value is much
+  harder, though not necessarily impossible. What is needed beyond the implemented controls,
+  such as complementary suppression, is decided case by case from an understanding of the
+  statistic. Restrict or remove the Researcher role where row presence makes inference trivial
   ([challenge](SECURITY.md#statistical-reconstruction-challenge)).
 - **Scope.** The modeled international exchange accepts SDMx files only. Synthetic bank
   micro-transactions are educational fixtures showing how observations and confidentiality
