@@ -1,6 +1,6 @@
 # Intent: Link the publication PDFs to repository Markdown on GitHub
 
-- **Status:** planned
+- **Status:** verified
 - **Originator:** @botlhale
 - **Product owner:** @botlhale
 - **Date:** 2026-10-13

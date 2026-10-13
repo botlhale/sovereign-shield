@@ -39,4 +39,15 @@ Revert the commits with `Intent: 2026-10-13-publication-pdf-repository-links`.
 
 ## Evidence
 
-Completed when the status becomes verified: commands run, results and commits.
+Verified on 13 October 2026.
+
+- **Before.** The committed PDFs held 33 link annotations; 20 pointed to
+  `file:///home/runner/...` paths.
+- **Tests.** The new test failed in `c502793` (`publication_html` missing) and now
+  passes: `tests/test_documentation_contract.py` 19 passed.
+- **Print proof.** `sh/verify_docs.py --print-proof` verified 498 links and
+  anchors. The Executive Brief stays at 8 pages and the white paper at 18, and
+  every figure shares a page with its image.
+- **PDFs.** The re-rendered PDFs hold the same 33 link annotations, none of them
+  `file://`; repository links open `https://github.com/botlhale/sovereign-shield/blob/main/...`
+  (`tree/main/demo/sdmx` for the folder), with heading anchors kept.
