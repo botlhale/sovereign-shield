@@ -9,12 +9,13 @@ import shutil
 import struct
 import subprocess
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 from xml.etree import ElementTree
 
 from markdown_it import MarkdownIt
 
 ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_URL = "https://github.com/botlhale/sovereign-shield"
 MARKDOWN = MarkdownIt("commonmark", {"html": True}).enable("table")
 CHROME_CANDIDATES = (
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -99,6 +100,26 @@ def render_diagrams(directory=ROOT / "docs/figures"):
     (directory / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
+def repository_link(source, target):
+    """Point a relative link at the repository on GitHub, so it still opens from a printed PDF."""
+    parts = urlsplit(target)
+    if parts.scheme or target.startswith("//") or not parts.path:
+        return target
+    destination = (source.parent / unquote(parts.path)).resolve()
+    kind = "tree" if destination.is_dir() else "blob"
+    link = f"{REPOSITORY_URL}/{kind}/main/{quote(destination.relative_to(ROOT).as_posix())}"
+    return link + (f"#{parts.fragment}" if parts.fragment else "")
+
+
+def publication_html(source, style=""):
+    tokens = MARKDOWN.parse(source.read_text(encoding="utf-8"))
+    for token in children(tokens):
+        if token.type == "link_open" and token.attrGet("href"):
+            token.attrSet("href", repository_link(source, token.attrGet("href")))
+    body = MARKDOWN.renderer.render(tokens, MARKDOWN.options, {})
+    return '<!doctype html><html><head><meta charset="utf-8"><base href="' + source.parent.as_uri() + '/"><style>' + style + '</style></head><body>' + body + '</body></html>'
+
+
 def render_proofs():
     chrome = chrome_executable()
     output = ROOT / ".pytest_cache" / "publication-proof"
@@ -116,7 +137,7 @@ def render_proofs():
     }
     sources = [ROOT / "docs/EXECUTIVE_BRIEF.md", ROOT / "docs/whitepaper/Bridging_Public_Dissemination_and_Protected_Data.md"]
     for source in sources:
-        markup = '<!doctype html><html><head><meta charset="utf-8"><base href="' + source.parent.as_uri() + '/"><style>' + style + layout[source.name] + '</style></head><body>' + MARKDOWN.render(source.read_text(encoding="utf-8")) + '</body></html>'
+        markup = publication_html(source, style + layout[source.name])
         page = output / (source.stem + ".html")
         page.write_text(markup, encoding="utf-8")
         pdf = page.with_suffix(".pdf")
