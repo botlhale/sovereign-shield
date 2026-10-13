@@ -61,7 +61,9 @@ the fixture still yields $1000-400-500=100$, and restricted-row counts per prefi
 are visible. Invite community tests under the
 [statistical reconstruction challenge](../../SECURITY.md#statistical-reconstruction-challenge);
 restrict or remove the role, or apply complementary suppression, where inference
-is trivial.
+is trivial. The fixture has a single restricted cell; with several masked cells in a
+table, as is typical, reconstruction is much harder but not necessarily impossible,
+so further controls are decided case by case for each statistic.
 
 ## Educational Ledger
 
