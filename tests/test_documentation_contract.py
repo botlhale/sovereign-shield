@@ -247,3 +247,27 @@ def test_reconciliation_review_diagram_keeps_analyst_as_consumer():
         ("S1", "S2"), ("S2", "S3"), ("S3", "S4"), ("S4", "S5"), ("S4", "S6"),
         ("S5", "S7"), ("S6", "S7"), ("S8", "S7"),
     }
+
+@pytest.mark.parametrize("source", ["docs/EXECUTIVE_BRIEF.md", WHITEPAPER.relative_to(ROOT).as_posix()])
+def test_publication_proofs_link_repository_files_on_github(source):
+    pytest.importorskip("markdown_it")
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("verify_docs", ROOT / "sh/verify_docs.py")
+    verify_docs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(verify_docs)
+    markup = verify_docs.publication_html(ROOT / source)
+    body = markup.split("<body>", 1)[1]
+    links = re.findall(r'<a href="([^"]+)"', body)
+    images = re.findall(r'<img src="([^"]+)"', body)
+
+    assert links and images
+    repository = "https://github.com/botlhale/sovereign-shield/"
+    assert any(link.startswith(repository + "blob/main/") and ".md" in link for link in links)
+    for link in links:
+        assert link.startswith(("https://", "http://", "mailto:", "#")), link
+        if link.startswith((repository + "blob/main/", repository + "tree/main/")):
+            path = link.split("/main/", 1)[1].split("#", 1)[0]
+            assert (ROOT / path).is_file() if "/blob/" in link else (ROOT / path).is_dir(), link
+    for image in images:
+        assert "://" not in image and (ROOT / source).parent.joinpath(image).resolve().is_file(), image
